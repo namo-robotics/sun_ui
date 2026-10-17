@@ -7,13 +7,16 @@ A file for guiding coding agents.
 - Never use git commands except readonly ones like `git status` and `git diff`.
 - Run all commands from the workspace root. Create any temp files in `${workspaceRoot}/tmp`.
 - `sun fmt` for formatting sun source files
+- Format only first-party paths: `sun fmt src/ui.sun src/drawing.sun src/plot src/adapters tools examples tests`. Do not recursively format `src/`, which includes the independently maintained sun_gobject checkout.
 - Core build and tests: `./build.sh`. Optional GTK build and acceptance tests: `./build.sh --gtk` with `SUN_GOBJECT_BUILD` pointing to a compatible dependency build.
 - Core build: `sun tools/build.sun -- build`.
 - Tests: `sun tools/build.sun -- test`; selected tests: `sun test tests/main.sun --test-filter <name>`.
 - Keep Sun source in `src/`, platform adapters in `src/adapters/`, tests in `tests/`, and generated artifacts in `build/`.
 - The core must not depend on GTK or sun_gobject. Keep application state explicitly owned and platform handles out of component code.
+- sun_gobject is a vcs2l-managed checkout at `src/sun_gobject/`, ignored by this repository. Development and CI both use `deps.repos`, which tracks `main`. Read its own AGENTS.md before making dependency changes. Its default build path is `src/sun_gobject/build`.
 - Keep sun_plot in `src/plot/`, with tests in `tests/plot/` and examples in `examples/plot/`. Build it as `sun_plot.moon` against sun_ui's public APIs; sun_ui must not depend on sun_plot.
-- `./build.sh` also builds and tests sun_plot and generates its SVG example. `./build.sh --plot-gtk` additionally builds and tests the native plot viewer without requiring sun_gobject.
+- `./build.sh` also builds and tests sun_plot and generates its SVG example. `./build.sh --plot-gtk` additionally builds and tests the native plot viewer against sun_gobject's checked GTK bindings.
+- Keep GTK declarations, native ownership, callbacks, and thread checks in the sun_gobject checkout's sun_gtk bindings. UI adapters should use safe APIs and own application behavior, not native handles.
 
 ## Sun Language Conventions
 

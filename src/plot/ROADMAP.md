@@ -2,14 +2,11 @@
 
 ## UI integration and layout
 
-- Move the GTK drawing and librsvg ownership wrappers into sun_gtk, then consume
-  those checked APIs from the sun_ui adapter.
 - Support drawing surfaces alongside controls in sun_ui's reconciled views.
 - Measure fonts when laying out labels, ticks, and legends; handle long labels
   and dense ticks without overlap.
 - Recompute layout for available space when desired, alongside fixed-size figure
   scaling for publication previews.
-- Add render-error reporting and enforce native thread affinity in the bindings.
 
 ## Scientific plotting
 

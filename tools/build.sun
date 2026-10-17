@@ -29,7 +29,7 @@ module build_tasks {
     command.add_arg("--lib-path");
     command.add_arg("build");
     if (gtk) {
-      var dependency = setting("SUN_GOBJECT_BUILD", "../sun_gobject/build");
+      var dependency = setting("SUN_GOBJECT_BUILD", "src/sun_gobject/build");
       command.add_arg("--lib-path");
       command.add_arg(dependency);
       var native = String("-L");
@@ -49,6 +49,7 @@ module build_tasks {
       for (var flag: ref String in flags) {
         command.add_arg(flag);
       }
+      command.add_arg("-l:librsvg-2.so.2");
       // External native archives are outside the compiler's source cache.
       command.add_arg("--force-rebuild");
     }
@@ -99,15 +100,10 @@ module build_tasks {
     return SystemResult.Ok;
   }
 
-  /** Builds the vector viewer independently of the sun_gobject button adapter. */
+  /** Builds the vector viewer against the checked GTK drawing bindings. */
   public function plot_gtk() SystemResult<void> {
-    try compile("src/adapters/gtk/drawing.sun", "build/sun_ui_gtk_drawing.moon", true, false);
-    var command = try compiler(false);
-    command.add_arg("-lgtk-4");
-    command.add_arg("-lgobject-2.0");
-    command.add_arg("-lglib-2.0");
-    command.add_arg("-lgio-2.0");
-    command.add_arg("-l:librsvg-2.so.2");
+    try compile("src/adapters/gtk/drawing.sun", "build/sun_ui_gtk_drawing.moon", true, true);
+    var command = try compiler(true);
     command.add_arg("-c");
     command.add_arg("-o");
     command.add_arg("build/plot-viewer");

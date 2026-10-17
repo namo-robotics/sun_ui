@@ -15,12 +15,7 @@ jobs:
         run: >-
           docker run --rm --user "$(id -u):$(id -g)"
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
-          bash -c './build.sh && sun fmt --check src tools examples tests'
-      - name: Test native plot drawing without sun_gobject
-        run: >-
-          docker run --rm --user "$(id -u):$(id -g)"
-          -v "$PWD:/workspaces/sun_ui" sun-ui-dev
-          bash -c 'sun tools/build.sun -- plot-gtk && sun tools/build.sun -- test-plot-gtk'
+          bash -c './build.sh && sun fmt --check src/ui.sun src/drawing.sun src/plot src/adapters tools examples tests'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -33,19 +28,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: namo-robotics/sun_gobject
-          ref: 8a6529dd7dc314da82ce935a66bd6359275bb2dc
-          path: tmp/sun_gobject
       - name: Build development image
         run: docker build -t sun-ui-dev .
       - name: Build dependency and run native acceptance tests
         run: >-
           docker run --rm --user "$(id -u):$(id -g)"
-          -e SUN_GOBJECT_BUILD=tmp/sun_gobject/build
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
-          bash -c '(cd tmp/sun_gobject && ./build.sh) && ./build.sh --gtk'
+          bash -c 'vcs import --input deps.repos . && bash src/sun_gobject/build.sh && ./build.sh --gtk'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

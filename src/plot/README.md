@@ -12,6 +12,8 @@ From the repository root:
 ```sh
 ./build.sh
 ./build/plot-export                 # writes build/scientific-plot.svg
+vcs import --skip-existing --input deps.repos .
+bash src/sun_gobject/build.sh
 ./build.sh --plot-gtk               # builds and tests the GTK vector viewer
 ./build/plot-viewer
 ```
@@ -21,8 +23,9 @@ native Save dialog. Export saves the current figure at its original logical
 dimensions, with vector paths and selectable text. The toolbar reports success
 or failure; canceling the dialog leaves the figure unchanged.
 
-The default build and plotting tests need only Sun. On Debian/Ubuntu, the viewer
-also needs `libgtk-4-dev`, `librsvg2-2`, and a font such as `fonts-dejavu-core`.
+The default build and plotting tests need only Sun. The viewer uses the checked
+GTK bindings in sun_gobject, built with the same Sun compiler. On Debian/Ubuntu,
+it also needs `libgtk-4-dev`, `librsvg2-2`, and a font such as `fonts-dejavu-core`.
 Its acceptance test uses Xvfb, xauth, and dbus-run-session. The development image
 includes these dependencies. This initial native build targets Linux.
 
@@ -53,7 +56,8 @@ figure.x_limits = Option.Some(plot.Limits(0.0, 10.0));
 figure.y_limits = Option.Some(plot.Limits(-2.0, 8.0));
 ```
 
-For a window, also import `sun_ui_gtk_drawing.moon` and link its native dependencies
+For a window, also import `sun_ui_gtk_drawing.moon`, `sun_gobject.moon`, and
+`sun_gtk.moon`, and link their native dependencies
 as shown in [the build tool](../../tools/build.sun):
 
 ```sun
@@ -113,10 +117,12 @@ GTK uses librsvg to render vectors at the current allocation while preserving
 aspect ratio. Resize scales the figure; it does not recompute axes layout.
 
 The standalone drawing window is separate from sun_ui's button reconciliation
-API. Its small GTK/librsvg FFI boundary currently lives in
-`src/adapters/gtk/drawing.sun`; it does not require sun_gobject. Moving those native
-wrappers into sun_gtk and composing drawings with other UI controls are follow-up
-work, tracked in [the roadmap](ROADMAP.md).
+API. `src/adapters/gtk/drawing.sun` composes safe `gtk.Label`, `gtk.DrawingArea`,
+`gtk.SaveDialog`, and existing widget wrappers. Native declarations, references,
+callbacks, and thread checks live in sun_gobject's `sun_gtk` package; SVG ownership
+lives in its `svg` module. The adapter owns toolbar layout, export messages,
+filesystem writes, and polling policy. Composing drawings with reconciled controls
+remains on [the roadmap](ROADMAP.md).
 
 ## Numerical and layout limits
 

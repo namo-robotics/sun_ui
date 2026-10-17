@@ -1,295 +1,139 @@
 using std;
-/** Displays sun_ui vector drawings using GTK and librsvg, with native ownership confined here. */
+/** Composes checked GTK widgets into a vector viewer with application-owned export policy. */
 public module ui_gtk_drawing {
-  /** Creates a toolbar or vertical drawing layout. */
-  extern "C" function gtk_box_new(orientation: i32, spacing: i32) raw_ptr<u8>;
-
-  /** Transfers a child into its layout container. */
-  extern "C" function gtk_box_append(box: raw_ptr<u8>, child: raw_ptr<u8>) void;
-
-  /** Lets the drawing consume remaining vertical space. */
-  extern "C" function gtk_widget_set_vexpand(widget: raw_ptr<u8>, expand: i32) void;
-
-  /** Creates the export action. */
-  extern "C" function gtk_button_new_with_label(label: raw_ptr<u8>) raw_ptr<u8>;
-
-  /** Creates an export status label. */
-  extern "C" function gtk_label_new(text: raw_ptr<u8>) raw_ptr<u8>;
-
-  /** Copies a status message into the toolbar. */
-  extern "C" function gtk_label_set_text(label: raw_ptr<u8>, text: raw_ptr<u8>) void;
-
-  /** Connects the export click without borrowing Sun state. */
-  extern "C" function connect_click(object: raw_ptr<u8>, signal: raw_ptr<u8>, callback: function (raw_ptr<u8>, raw_ptr<u8>) void, data: raw_ptr<u8>, destroy: raw_ptr<u8>, flags: i32) u64 as "g_signal_connect_data";
-
-  /** Connects chooser responses for as long as the parent window remains alive. */
-  extern "C" function connect_response(object: raw_ptr<u8>, signal: raw_ptr<u8>, callback: function (raw_ptr<u8>, i32, raw_ptr<u8>) void, owner: raw_ptr<u8>, flags: i32) u64 as "g_signal_connect_object";
-
-  /** Creates a native save chooser parented to the drawing window. */
-  extern "C" function gtk_file_chooser_native_new(title: raw_ptr<u8>, parent: raw_ptr<u8>, action: i32, accept: raw_ptr<u8>, cancel: raw_ptr<u8>) raw_ptr<u8>;
-
-  /** Suggests a vector-image filename. */
-  extern "C" function gtk_file_chooser_set_current_name(chooser: raw_ptr<u8>, name: raw_ptr<u8>) void;
-
-  /** Retrieves an owned file reference after acceptance. */
-  extern "C" function gtk_file_chooser_get_file(chooser: raw_ptr<u8>) raw_ptr<u8>;
-
-  /** Returns an allocated local path, or null for a non-local destination. */
-  extern "C" function g_file_get_path(file: raw_ptr<u8>) raw_ptr<u8>;
-
-  /** Releases an allocated native path. */
-  extern "C" function g_free(memory: raw_ptr<u8>) void;
-
-  /** Displays the native save dialog. */
-  extern "C" function gtk_native_dialog_show(dialog: raw_ptr<u8>) void;
-
-  /** Closes the dialog and releases its platform resources. */
-  extern "C" function gtk_native_dialog_destroy(dialog: raw_ptr<u8>) void;
-
-  /** Queues an export request for the next application polling boundary. */
-  function export_clicked(button: raw_ptr<u8>, data: raw_ptr<u8>) void {
-    unsafe { g_object_set_data(data, "sun-ui-export-request", data); };
-  }
-
-  /** Records acceptance or cancellation for processing outside the native callback. */
-  function export_response(dialog: raw_ptr<u8>, response: i32, data: raw_ptr<u8>) void {
-    unsafe {
-      g_object_set_data(dialog, "sun-ui-export-done", dialog);
-      if (response == -3) {
-        g_object_set_data(dialog, "sun-ui-export-accepted", dialog);
-      }
-    };
-  }
-  /** Mirrors librsvg's viewport rectangle passed by reference across the C boundary. */
-  class Rectangle {
-    public var x: f64 = 0.0;
-    public var y: f64 = 0.0;
-    public var width: f64;
-    public var height: f64;
-    /** Creates a viewport matching the current drawing-area allocation. */
-    init(width: f64, height: f64) {
-      this.width = width;
-      this.height = height;
-    }
-  }
-  /** Initializes GTK when a display is available. */
-  extern "C" function gtk_init_check() i32;
-
-  /** Allocates a top-level GTK window. */
-  extern "C" function gtk_window_new() raw_ptr<u8>;
-
-  /** Assigns the window title by copying its bytes. */
-  extern "C" function gtk_window_set_title(window: raw_ptr<u8>, title: raw_ptr<u8>) void;
-
-  /** Sets the initial window allocation. */
-  extern "C" function gtk_window_set_default_size(window: raw_ptr<u8>, width: i32, height: i32) void;
-
-  /** Installs a drawing area as the window child. */
-  extern "C" function gtk_window_set_child(window: raw_ptr<u8>, child: raw_ptr<u8>) void;
-
-  /** Shows the window. */
-  extern "C" function gtk_window_present(window: raw_ptr<u8>) void;
-
-  /** Destroys the window and detaches its child. */
-  extern "C" function gtk_window_destroy(window: raw_ptr<u8>) void;
-
-  /** Reports whether the window remains visible. */
-  extern "C" function gtk_widget_get_visible(widget: raw_ptr<u8>) i32;
-
-  /** Allocates a Cairo-backed drawing surface. */
-  extern "C" function gtk_drawing_area_new() raw_ptr<u8>;
-
-  /** Installs a scalar-only C callback and transfers its parsed SVG reference to GTK. */
-  extern "C" function gtk_drawing_area_set_draw_func(area: raw_ptr<u8>, draw: function (raw_ptr<u8>, raw_ptr<u8>, i32, i32, raw_ptr<u8>) void, data: raw_ptr<u8>, destroy: function (raw_ptr<u8>) void) void;
-
-  /** Requests a fresh frame after updating the drawing. */
-  extern "C" function gtk_widget_queue_draw(widget: raw_ptr<u8>) void;
-
-  /** Acquires an owned reference, sinking floating widget references. */
-  extern "C" function g_object_ref_sink(object: raw_ptr<u8>) raw_ptr<u8>;
-
-  /** Releases an owned native reference. */
-  extern "C" function g_object_unref(object: raw_ptr<u8>) void;
-
-  /** Stores a non-owning completion marker on the parsed document. */
-  extern "C" function g_object_set_data(object: raw_ptr<u8>, key: raw_ptr<u8>, value: raw_ptr<u8>) void;
-
-  /** Reads the callback's successful-render marker. */
-  extern "C" function g_object_get_data(object: raw_ptr<u8>, key: raw_ptr<u8>) raw_ptr<u8>;
-
-  /** Processes one native event-loop turn. */
-  extern "C" function g_main_context_iteration(context: raw_ptr<u8>, block: i32) i32;
-
-  /** Parses SVG bytes into an independently owned render document. */
-  extern "C" function rsvg_handle_new_from_data(data: raw_ptr<u8>, length: u64, error: raw_ptr<u8>) raw_ptr<u8>;
-
-  /** Draws vector geometry and measured native text into the current Cairo context. */
-  extern "C" function rsvg_handle_render_document(handle: raw_ptr<u8>, cairo: raw_ptr<u8>, viewport: ref Rectangle, error: raw_ptr<u8>) i32;
-
-  /** Releases the parsed document when GTK replaces or destroys its drawing callback. */
-  function release(data: raw_ptr<u8>) void {
-    unsafe { g_object_unref(data); };
-  }
-
-  /** Renders the retained vector document at the current size without borrowing Sun state. */
-  function paint(area: raw_ptr<u8>, cairo: raw_ptr<u8>, width: i32, height: i32, data: raw_ptr<u8>) void {
-    var viewport = Rectangle(_convert<f64>(width), _convert<f64>(height));
-    unsafe {
-      if (rsvg_handle_render_document(data, cairo, viewport, null) != 0) {
-        g_object_set_data(data, "sun-ui-rendered", data);
-      }
-    };
-  }
-
-  /** Owns a resizable drawing window; create, update, poll, and destroy on the GTK thread. */
+  /** Owns a plot window, toolbar, and document content without retaining platform handles. */
   public class Window {
-    var window: raw_ptr<u8> = null;
-    var area: raw_ptr<u8> = null;
-    var document: raw_ptr<u8> = null;
-    var status: raw_ptr<u8> = null;
-    var chooser: raw_ptr<u8> = null;
+    var app: gtk.Application;
+    var window: gtk.Window;
+    var layout: gtk.Box;
+    var toolbar: gtk.Box;
+    var export_button: gtk.Button;
+    var status: gtk.Label;
+    var area: gtk.DrawingArea;
+    var chooser: gtk.SaveDialog;
     var svg: String = String("");
-    /** Creates a window and transfers an independently parsed drawing to its surface. */
+    /** Creates checked widgets and installs the initial figure; GTK owns native lifetimes. */
     init(title: ref String, drawing: const ref ui_drawing.Drawing) SystemResult<void> {
       try validate(drawing);
-      if (unsafe { gtk_init_check(); } == 0) {
-        return SystemResult.Error(Error(1, "GTK could not open a display"));
-      }
-      unsafe {
-        this.window = gtk_window_new();
-        g_object_ref_sink(this.window);
-        this.area = gtk_drawing_area_new();
-        g_object_ref_sink(this.area);
-        gtk_window_set_title(this.window, title.c_str());
-        gtk_window_set_default_size(this.window, _convert<i32>(drawing.width), _convert<i32>(drawing.height));
-        var layout = gtk_box_new(1, 8);
-        var toolbar = gtk_box_new(0, 12);
-        var export_button = gtk_button_new_with_label("Export SVG…");
-        this.status = gtk_label_new("");
-        gtk_box_append(toolbar, export_button);
-        gtk_box_append(toolbar, this.status);
-        gtk_box_append(layout, toolbar);
-        gtk_box_append(layout, this.area);
-        gtk_widget_set_vexpand(this.area, 1);
-        gtk_window_set_child(this.window, layout);
-        connect_click(export_button, "clicked", export_clicked, this.window, null, 0);
-      };
+      var id = String("org.sunlang.PlotViewer");
+      this.app = try gtk.Application(id);
+      this.window = gtk.Window(this.app);
+      this.layout = try gtk.Box(gtk.Orientation.Vertical, 8);
+      this.toolbar = try gtk.Box(gtk.Orientation.Horizontal, 12);
+      var label = String("Export SVG…");
+      this.export_button = try gtk.Button(label);
+      var empty = String("");
+      this.status = try gtk.Label(empty);
+      this.area = try gtk.DrawingArea();
+      this.chooser = gtk.SaveDialog();
+      try this.toolbar.append(this.export_button);
+      try this.toolbar.append(this.status);
+      try this.layout.append(this.toolbar);
+      try this.layout.append(this.area);
+      this.area.set_vexpand(true);
+      try this.window.set_box(this.layout);
+      try this.window.set_title(title);
+      try this.window.set_default_size(_convert<i32>(drawing.width), _convert<i32>(drawing.height));
       try this.update(drawing);
-      unsafe { gtk_window_present(this.window); };
+      try this.window.present();
     }
 
-    /** Replaces the parsed document; parse failure preserves the previous drawing. */
+    /** Parses a replacement before changing the surface or exported content. */
     public method update(drawing: const ref ui_drawing.Drawing) SystemResult<void> {
-      try validate(drawing);
-      var svg = drawing.svg();
-      var handle = unsafe { rsvg_handle_new_from_data(svg.bytes(), _convert<u64>(svg.length()), null); };
-      if (handle == null) {
-        return SystemResult.Error(Error(1, "Could not parse the vector drawing"));
+      if (this.running() == false) {
+        return SystemResult.Error(Error(1, "Plot window is closed"));
       }
-      unsafe {
-        gtk_drawing_area_set_draw_func(this.area, paint, handle, release);
-        this.document = handle;
-        gtk_widget_queue_draw(this.area);
-      };
-      this.svg = svg;
+      try validate(drawing);
+      var content = drawing.svg();
+      var document = try svg.Document(content);
+      this.area.set_document(document);
+      this.svg = content;
       return SystemResult.Ok;
     }
 
-    /** Saves the current figure as SVG and reports success or failure in the toolbar. */
+    /** Saves the current figure and reports the outcome through a checked toolbar label. */
     public method export_svg(path: ref String) SystemResult<void> {
+      if (this.running() == false) {
+        return SystemResult.Error(Error(1, "Plot window is closed"));
+      }
       match std.io.write_string(path, this.svg) {
         SystemResult.Ok => {
           var message = `Saved: ${path}`;
-          unsafe { gtk_label_set_text(this.status, message.c_str()); };
+          ignore_error(this.status.set_text(message));
           return SystemResult.Ok;
         },
         SystemResult.Error(error) => {
-          unsafe { gtk_label_set_text(this.status, "Export failed. Check the destination and try again."); };
+          var message = String("Export failed. Check the destination and try again.");
+          ignore_error(this.status.set_text(message));
           return SystemResult.Error(error);
         }
       };
     }
 
-    /** Opens or completes an export dialog without capturing references in native callbacks. */
+    /** Opens one chooser and consumes its result at the application dispatch boundary. */
     method process_export() void {
-      unsafe {
-        if (g_object_get_data(this.window, "sun-ui-export-request") != null) {
-          g_object_set_data(this.window, "sun-ui-export-request", null);
-          if (this.chooser == null) {
-            this.chooser = gtk_file_chooser_native_new("Export plot as SVG", this.window, 1, "Export", "Cancel");
-            gtk_file_chooser_set_current_name(this.chooser, "scientific-plot.svg");
-            connect_response(this.chooser, "response", export_response, this.window, 0);
-            gtk_native_dialog_show(this.chooser);
-          }
-        }
-        if (this.chooser != null and g_object_get_data(this.chooser, "sun-ui-export-done") != null) {
-          if (g_object_get_data(this.chooser, "sun-ui-export-accepted") != null) {
-            var file = gtk_file_chooser_get_file(this.chooser);
-            var native_path: raw_ptr<u8> = null;
-            if (file != null) {
-              native_path = g_file_get_path(file);
-            }
-            if (native_path != null) {
-              var a = make_heap_allocator();
-              var path = from_c_str(a, native_path);
-              g_free(native_path);
+      if (this.export_button.take_click() and this.chooser.is_open() == false) {
+        var title = String("Export plot as SVG");
+        var filename = String("scientific-plot.svg");
+        ignore_error(this.chooser.show(this.window, title, filename));
+      }
+      match this.chooser.take_path() {
+        SystemResult.Ok(result) => {
+          match result {
+            Option.Some(path) => {
               ignore_error(this.export_svg(path));
-            } else {
-              gtk_label_set_text(this.status, "Export requires a local file destination.");
-            }
-            if (file != null) {
-              g_object_unref(file);
-            }
-          }
-          gtk_native_dialog_destroy(this.chooser);
-          g_object_unref(this.chooser);
-          this.chooser = null;
+            },
+            Option.None => {}
+          };
+        },
+        SystemResult.Error(_) => {
+          var message = String("Export requires a local file destination.");
+          ignore_error(this.status.set_text(message));
         }
       };
     }
 
-    /** Reports whether GTK has successfully painted the current document. */
+    /** Reports successful native rendering of the current figure. */
     public const method rendered() bool {
-      return unsafe { g_object_get_data(this.document, "sun-ui-rendered"); } != null;
+      return this.area.rendered();
     }
 
-    /** Processes one GTK turn without owning application state or update policy. */
+    /** Pumps the native context, then applies export and render-error presentation policy. */
     public method poll(block: bool) void {
-      unsafe { g_main_context_iteration(null, block ? 1 : 0); };
+      if (this.running() == false) {
+        this.chooser.cancel();
+        return;
+      }
+      this.app.iterate(block);
       if (this.running()) {
         this.process_export();
+        if (this.area.render_failed()) {
+          var message = String("Could not render the current figure.");
+          ignore_error(this.status.set_text(message));
+        }
+      } else {
+        this.chooser.cancel();
       }
     }
 
-    /** Reports whether the user has closed the drawing window. */
+    /** Reports whether the plot window is still open. */
     public const method running() bool {
-      return unsafe { gtk_widget_get_visible(this.window); } != 0;
+      return this.window.is_open();
     }
 
-    /** Changes the requested size, allowing applications and acceptance tests to exercise resize. */
-    public method resize(width: i32, height: i32) void {
-      unsafe { gtk_window_set_default_size(this.window, width, height); };
+    /** Requests positive default dimensions through the checked GTK API. */
+    public method resize(width: i32, height: i32) SystemResult<void> {
+      return this.window.set_default_size(width, height);
     }
 
-    /** Releases widgets and the drawing callback's document, including on partial construction. */
+    /** Closes pending dialogs before closing the parent; owned wrappers release remaining resources. */
     deinit() {
-      unsafe {
-        if (this.chooser != null) {
-          gtk_native_dialog_destroy(this.chooser);
-          g_object_unref(this.chooser);
-        }
-        if (this.window != null) {
-          gtk_window_destroy(this.window);
-          g_object_unref(this.window);
-        }
-        if (this.area != null) {
-          g_object_unref(this.area);
-        }
-      };
+      this.chooser.cancel();
+      this.window.close();
     }
   }
 
-  /** Rejects invalid or excessively large dimensions before conversion to native integers. */
+  /** Rejects invalid dimensions before converting them to native integers. */
   function validate(drawing: const ref ui_drawing.Drawing) SystemResult<void> {
     if (drawing.width >= 1.0 and drawing.width <= 16384.0 and drawing.height >= 1.0 and drawing.height <= 16384.0) {
       return SystemResult.Ok;
@@ -297,4 +141,4 @@ public module ui_gtk_drawing {
     return SystemResult.Error(Error(1, "Drawing dimensions must be between 1 and 16384"));
   }
 }
-manifest { libraries: ["stdlib.moon", "sun_ui.moon"] }
+manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon"] }

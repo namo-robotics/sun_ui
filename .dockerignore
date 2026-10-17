@@ -3,3 +3,4 @@
 build*
 tmp
 dist
+src/sun_gobject

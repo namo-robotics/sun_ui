@@ -1,5 +1,7 @@
 # sun_ui
 
+[![Build and test](https://github.com/namo-robotics/sun_ui/actions/workflows/ci.yml/badge.svg)](https://github.com/namo-robotics/sun_ui/actions/workflows/ci.yml)
+
 An experimental React-like UI library written in Sun, with a platform-independent
 core and a GTK rendering backend. Application state describes the interface;
 events update state; reconciliation updates existing controls while preserving
@@ -51,27 +53,56 @@ For separate build, test, and formatting checks:
 ```sh
 sun tools/build.sun -- build
 sun tools/build.sun -- test
-sun fmt --check src tools examples tests
+sun fmt --check src/ui.sun src/drawing.sun src/plot src/adapters tools examples tests
 ```
 
 ### Build the GTK backend
 
 Install GTK 4 development packages and `pkg-config`, plus Xvfb, xauth, and
 `dbus-run-session` for headless tests. The development image includes these tools.
-Build [sun_gobject](https://github.com/namo-robotics/sun_gobject) with its own
-`./build.sh`, using the same Sun compiler, then point sun_ui at that build:
+Manage the [sun_gobject](https://github.com/namo-robotics/sun_gobject) checkout with
+[vcs2l](https://github.com/ros-infrastructure/vcs2l/), whose command is `vcs`.
+The development image includes it. For an existing local environment, install
+`python3-venv`, then set up the same tool version:
 
 ```sh
-SUN_GOBJECT_BUILD=../sun_gobject/build ./build.sh --gtk
+python3 -m venv tmp/vcs2l
+tmp/vcs2l/bin/pip install vcs2l==1.1.7
+export PATH="$PWD/tmp/vcs2l/bin:$PATH"
+```
+
+Import the development checkout and build both projects with the same Sun compiler:
+
+```sh
+vcs import --skip-existing --input deps.repos .
+bash src/sun_gobject/build.sh
+./build.sh --gtk
 ```
 
 This builds the core, backend, and examples, and runs both core tests and GTK
 acceptance tests under a virtual display. The dependency build must contain
 `sun_gobject.moon`, `sun_gtk.moon`, and `native/libsun_gobject_native.a`.
 
-Inside the devcontainer, place the dependency checkout at `tmp/sun_gobject` and
-use `SUN_GOBJECT_BUILD=tmp/sun_gobject/build`, or mount a sibling checkout.
-Interactive examples require a graphical display.
+The default dependency build is `src/sun_gobject/build`; `SUN_GOBJECT_BUILD`
+can select another build. Interactive examples require a graphical display.
+
+### Working across repositories
+
+`src/sun_gobject/` is a separate Git clone, ignored by sun_ui, with its own history
+and development instructions. Edit and review binding changes there; review UI
+changes in this repository. The import command preserves existing checkouts.
+Builds never fetch or reset the dependency automatically.
+
+Development and CI both use `deps.repos`, which follows `main`. Local dependency
+edits are not captured by the parent repository or by the manifest.
+
+```sh
+vcs status src/sun_gobject
+git -C src/sun_gobject diff
+```
+
+Keep formatting scoped to the first-party paths shown above, so sun_ui commands
+do not reformat the nested dependency.
 
 ## Examples
 
@@ -86,8 +117,8 @@ To export and display a scientific plot:
 
 Use **Export SVG…** in the plot window to save the current figure to a chosen file.
 
-The plot viewer requires GTK 4 and librsvg (`librsvg2-2` on Debian/Ubuntu), but no
-sun_gobject checkout. See [sun_plot](src/plot/README.md) for the plotting API and
+The plot viewer requires the sun_gobject build described above, GTK 4, and librsvg
+(`librsvg2-2` on Debian/Ubuntu). See [sun_plot](src/plot/README.md) for the plotting API and
 current limitations.
 
 After building with `--gtk`:
