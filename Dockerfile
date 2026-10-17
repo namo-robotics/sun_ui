@@ -1,7 +1,7 @@
 FROM ubuntu:26.04
 ENV DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates build-essential cmake ninja-build git python3 \
+    ca-certificates build-essential cmake ninja-build git openssh-client python3 \
     clang-20 clangd-20 clang-format-20 lldb-20 lld-20 llvm-20-dev llvm-20-tools libclang-20-dev \
     libzstd-dev zlib1g-dev libxml2-dev libedit-dev libncurses-dev libcurl4-openssl-dev \
     libgtest-dev protobuf-compiler libprotobuf-dev libprotoc-dev \
