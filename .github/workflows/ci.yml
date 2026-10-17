@@ -1,7 +1,10 @@
-name: Build and test
+name: CI
 on:
   push:
   pull_request:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 permissions:
   contents: read
 jobs:
@@ -31,8 +34,12 @@ jobs:
       - name: Build development image
         run: docker build -t sun-ui-dev .
       - name: Build dependency and run native acceptance tests
+        # Keep SSH in the development manifest; fetch the public dependency over HTTPS in CI.
         run: >-
           docker run --rm --user "$(id -u):$(id -g)"
+          -e GIT_CONFIG_COUNT=1
+          -e GIT_CONFIG_KEY_0=url.https://github.com/namo-robotics/sun_gobject.git.insteadOf
+          -e GIT_CONFIG_VALUE_0=git@github.com:namo-robotics/sun_gobject.git
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
           bash -c 'vcs import --input deps.repos . && bash src/sun_gobject/build.sh && ./build.sh --gtk'
       - uses: actions/upload-artifact@v4
@@ -43,3 +50,49 @@ jobs:
             build/sun-version.txt
             build/test-results.log
             build/gtk-test-results.log
+      - name: Upload development bundles
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-bundles
+          if-no-files-found: error
+          path: |
+            build/sun_ui.moon
+            build/sun_plot.moon
+            build/sun_ui_gtk.moon
+            build/sun_ui_gtk_drawing.moon
+            build/sun-version.txt
+  publish-dev:
+    needs: [core, gtk]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download tested bundles
+        uses: actions/download-artifact@v4
+        with:
+          name: dev-bundles
+          path: build/release
+      - name: Update dev release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev
+          target_commitish: ${{ github.sha }}
+          name: Development Build
+          prerelease: true
+          fail_on_unmatched_files: true
+          files: |
+            build/release/*.moon
+            build/release/sun-version.txt
+          body: |
+            Latest development build from main branch.
+
+            Commit: ${{ github.sha }}
+
+            Sun bundles for x86_64 Linux, built and tested on Ubuntu 26.04.
+            Use the compiler version recorded in sun-version.txt and place the
+            bundles in a directory passed to Sun with --lib-path.
+
+            sun_ui.moon and sun_plot.moon do not require GTK.
+            The optional GTK bundles also require compatible sun_gobject.moon,
+            sun_gtk.moon, the sun_gobject native archive, GTK 4, and librsvg.

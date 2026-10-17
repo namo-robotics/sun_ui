@@ -1,6 +1,6 @@
 # sun_ui
 
-[![Build and test](https://github.com/namo-robotics/sun_ui/actions/workflows/ci.yml/badge.svg)](https://github.com/namo-robotics/sun_ui/actions/workflows/ci.yml)
+[![CI](https://github.com/namo-robotics/sun_ui/actions/workflows/ci.yml/badge.svg)](https://github.com/namo-robotics/sun_ui/actions/workflows/ci.yml)
 
 An experimental React-like UI library written in Sun, with a platform-independent
 core and a GTK rendering backend. Application state describes the interface;
@@ -38,6 +38,16 @@ For a local Debian/Ubuntu setup, install the published Sun development package:
 Installation requires network access and package-install privileges; the package
 supports amd64. Use the development compiler rather than an older system version.
 Set `SUN_EXECUTABLE=/absolute/path/to/sun` to use a specific compiler.
+
+### Development releases
+
+After both CI jobs pass on a push to `main`, CI updates the rolling
+[dev prerelease](https://github.com/namo-robotics/sun_ui/releases/tag/dev) with
+the core, plotting, and optional GTK `.moon` bundles for x86_64 Linux. This
+includes each merge to `main`; pull requests and other branches do not publish.
+The release includes `sun-version.txt` identifying the compiler used. Add the
+download directory with `--lib-path`; GTK bundles still need the dependency
+build and system libraries described below.
 
 ### Build and test the core
 
