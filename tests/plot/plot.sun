@@ -1,0 +1,194 @@
+using std;
+/** Verifies numerical layout and safe vector output without GTK. */
+module plot_tests {
+  /** Places four independent figures in distinct viewports without losing their labels. */
+  test_function subplot_grid_composes_panels() TestResult<void> {
+    var grid = plot.Grid(2, 2, String("Study & results"), String("Four panels"));
+    for (var i: i64 = 0; i < 4; i += 1) {
+      var figure = plot.Figure(`Panel ${i}`, String("x"), String("y"));
+      grid.add(try figure.draw(684.0, 471.0));
+    }
+    var drawing = try grid.draw(1440.0, 1100.0);
+    var svg = drawing.svg();
+    try std.test.assert(svg.contains("Study &amp; results"));
+    try std.test.assert(svg.contains("Panel 0"));
+    try std.test.assert(svg.contains("Panel 3"));
+    try std.test.assert(svg.contains("<svg x=\"24\" y=\"110\""));
+    try std.test.assert(svg.contains("<svg x=\"732\" y=\"605\""));
+    try std.test.assert_eq(drawing.width, 1440.0);
+    var small = try grid.draw(1280.0, 1000.0);
+    try std.test.assert_eq(small.height, 1000.0);
+    return TestResult.Ok;
+  }
+
+  /** Rejects missing panels, invalid dimensions, and cells too small for readable axes. */
+  test_function subplot_grid_rejects_invalid_layout() TestResult<void> {
+    var grid = plot.Grid(1, 1, String("Study"), String(""));
+    match grid.draw(800.0, 600.0) {
+      SystemResult.Ok(_) => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    var figure = plot.Figure(String("Panel"), String("x"), String("y"));
+    grid.add(try figure.draw(400.0, 300.0));
+    match grid.draw(400.0, 300.0) {
+      SystemResult.Ok(_) => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    var invalid = plot.Grid(0, 2, String("Study"), String(""));
+    match invalid.draw(1440.0, 1100.0) {
+      SystemResult.Ok(_) => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    return TestResult.Ok;
+  }
+
+  /** Propagates assertion and plotting failures through the test runner. */
+  enum TestResult<T> { Ok(T), Assertion(std.test.AssertionError), System(Error) }
+  /** Checks ordinary and reversed output transforms at interval boundaries. */
+  test_function coordinate_mapping() TestResult<void> {
+    var limits = plot.Limits(-2.0, 2.0);
+    try std.test.assert(limits.valid());
+    try std.test.assert_eq(limits.map(-2.0, 100.0, 500.0), 100.0);
+    try std.test.assert_eq(limits.map(0.0, 100.0, 500.0), 300.0);
+    try std.test.assert_eq(limits.map(2.0, 500.0, 100.0), 100.0);
+    return TestResult.Ok;
+  }
+
+  /** Checks readable tick increments across small and large scales. */
+  test_function tick_intervals_and_labels() TestResult<void> {
+    try std.test.assert_eq(plot.tick_step(10.0), 2.0);
+    try std.test.assert_eq(plot.tick_step(23.0), 5.0);
+    try std.test.assert_eq(plot.tick_step(0.01), 0.002);
+    var zero = plot.tick_label(-1e-16, 0.2);
+    var small = plot.tick_label(0.000002, 0.000001);
+    var large = plot.tick_label(2000000.0, 1000000.0);
+    var offset = plot.tick_label(1000000.2, 0.2);
+    try std.test.assert(zero.equals_literal("0"));
+    try std.test.assert(small.equals_literal("2e-6"));
+    try std.test.assert(large.equals_literal("2e6"));
+    try std.test.assert(offset.equals_literal("1.0000002e6"));
+    return TestResult.Ok;
+  }
+
+  /** Verifies deterministic limits for empty and constant samples. */
+  test_function empty_and_constant_ranges() TestResult<void> {
+    var figure = plot.Figure(String("Empty"), String("x"), String("y"));
+    var empty = figure.bounds(true);
+    try std.test.assert_eq(empty.min, 0.0);
+    try std.test.assert_eq(empty.max, 1.0);
+    var series = plot.Series(String("Constant"), String("blue"), false);
+    series.add(4.0, -3.0);
+    figure.add(series);
+    var x = figure.bounds(true);
+    var y = figure.bounds(false);
+    try std.test.assert(x.min < 4.0 and x.max > 4.0);
+    try std.test.assert(y.min < -3.0 and y.max > -3.0);
+    var drawing = try figure.draw(640.0, 480.0);
+    try std.test.assert_eq(drawing.width, 640.0);
+    return TestResult.Ok;
+  }
+
+  /** Rejects unusable ranges and dimensions before producing a drawing. */
+  test_function invalid_layout_is_rejected() TestResult<void> {
+    var figure = plot.Figure(String("Invalid"), String("x"), String("y"));
+    match figure.draw(0.0, 480.0) {
+      SystemResult.Ok(_) => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    figure.x_limits = Option.Some(plot.Limits(1.0, 1.0));
+    match figure.draw(640.0, 480.0) {
+      SystemResult.Ok(_) => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    figure.x_limits = Option.Some(plot.Limits(2.0, -2.0));
+    match figure.draw(640.0, 480.0) {
+      SystemResult.Ok(_) => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    return TestResult.Ok;
+  }
+
+  /** Ensures user labels cannot become markup or escape XML attributes. */
+  test_function xml_text_is_escaped() TestResult<void> {
+    var text = String("A & B <tag> \"quoted\" 'single'");
+    var escaped = ui_drawing.escape(text);
+    try std.test.assert(escaped.equals_literal("A &amp; B &lt;tag&gt; &quot;quoted&quot; &apos;single&apos;"));
+    return TestResult.Ok;
+  }
+
+  /** Non-finite paired samples neither affect limits nor connect unrelated line segments. */
+  test_function nonfinite_samples_break_lines() TestResult<void> {
+    var huge = F64_MAX;
+    var infinity = huge + huge;
+    var nan = infinity - infinity;
+    try std.test.assert(plot.finite(infinity) == false);
+    try std.test.assert(plot.finite(nan) == false);
+    try std.test.assert_eq(plot.tick_step(infinity), 0.0);
+    var figure = plot.Figure(String("Gaps"), String("x"), String("y"));
+    var series = plot.Series(String(""), String("#123456"), false);
+    series.add(0.0, 0.0);
+    series.add(999.0, nan);
+    series.add(1.0, 1.0);
+    figure.add(series);
+    var bounds = figure.bounds(true);
+    try std.test.assert_eq(bounds.max, 1.0);
+    var drawing = try figure.draw(640.0, 480.0);
+    var svg = drawing.svg();
+    try std.test.assert(svg.contains("stroke=\"#123456\"") == false);
+    return TestResult.Ok;
+  }
+
+  /** Explicit limits are honored and data marks are enclosed in an SVG clipping viewport. */
+  test_function scatter_export_and_explicit_limits() TestResult<void> {
+    var figure = plot.Figure(String("A & B"), String("x < y"), String("µm"));
+    figure.x_limits = Option.Some(plot.Limits(0.0, 10.0));
+    figure.y_limits = Option.Some(plot.Limits(0.0, 10.0));
+    var series = plot.Series(String(""), String("#123456"), true);
+    series.add(5.0, 5.0);
+    series.add(50.0, 50.0);
+    figure.add(series);
+    var drawing = try figure.draw(640.0, 480.0);
+    var svg = drawing.svg();
+    try std.test.assert(svg.contains("<circle cx=\"354\" cy=\"232\""));
+    try std.test.assert(svg.contains("overflow=\"hidden\""));
+    try std.test.assert(svg.contains("A &amp; B"));
+    try std.test.assert(svg.contains("x &lt; y"));
+    try std.test.assert(svg.contains("µm"));
+    return TestResult.Ok;
+  }
+
+  /** Rejects invalid styles and overflowing data bounds rather than exporting invalid geometry. */
+  test_function invalid_styles_and_extreme_ranges() TestResult<void> {
+    var figure = plot.Figure(String("Invalid"), String("x"), String("y"));
+    var series = plot.Series(String(""), String("blue"), false);
+    series.line_width = -1.0;
+    figure.add(series);
+    match figure.draw(640.0, 480.0) {
+      SystemResult.Ok(_) => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    figure.series[0].line_width = 2.0;
+    figure.x_limits = Option.Some(plot.Limits(0.0 - F64_MAX, F64_MAX));
+    match figure.draw(640.0, 480.0) {
+      SystemResult.Ok(_) => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    return TestResult.Ok;
+  }
+}

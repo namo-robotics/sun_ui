@@ -83,16 +83,46 @@ module build_tasks {
     text.append(output.stderr());
     try std.io.write_string(path, text);
     try compile("src/ui.sun", "build/sun_ui.moon", true, false);
+    try compile("src/plot/plot.sun", "build/sun_plot.moon", true, false);
     try compile("tests/main.sun", "build/sun-ui-tests", false, false);
+    try compile("tests/plot/main.sun", "build/sun-plot-tests", false, false);
+    try compile("examples/plot/export.sun", "build/plot-export", false, false);
     return SystemResult.Ok;
   }
 
   /** Builds the optional adapter and both native prototypes against an existing dependency build. */
   public function gtk() SystemResult<void> {
-    try compile("adapters/gtk/renderer.sun", "build/sun_ui_gtk.moon", true, true);
+    try compile("src/adapters/gtk/renderer.sun", "build/sun_ui_gtk.moon", true, true);
     try compile("examples/counter.sun", "build/counter", false, true);
     try compile("examples/tasks.sun", "build/tasks", false, true);
+    try plot_gtk();
     return SystemResult.Ok;
+  }
+
+  /** Builds the vector viewer independently of the sun_gobject button adapter. */
+  public function plot_gtk() SystemResult<void> {
+    try compile("src/adapters/gtk/drawing.sun", "build/sun_ui_gtk_drawing.moon", true, false);
+    var command = try compiler(false);
+    command.add_arg("-lgtk-4");
+    command.add_arg("-lgobject-2.0");
+    command.add_arg("-lglib-2.0");
+    command.add_arg("-lgio-2.0");
+    command.add_arg("-l:librsvg-2.so.2");
+    command.add_arg("-c");
+    command.add_arg("-o");
+    command.add_arg("build/plot-viewer");
+    command.add_arg("examples/plot/viewer.sun");
+    return run(command);
+  }
+
+  /** Exercises native vector drawing, replacement, and resize under a virtual display. */
+  public function test_plot_gtk() SystemResult<void> {
+    var a = make_heap_allocator();
+    var command = std.process.Command(a, "sh");
+    command.add_arg("-eu");
+    command.add_arg("-c");
+    command.add_arg("G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo timeout 30s dbus-run-session -- xvfb-run -a build/plot-viewer --self-test");
+    return run(command);
   }
 
   /** Runs the core tests or bounded GTK acceptance scenarios on a virtual display. */
@@ -100,13 +130,18 @@ module build_tasks {
     var a = make_heap_allocator();
     if (gtk == false) {
       var tests = std.process.Command(a, "build/sun-ui-tests_test");
-      return run(tests);
+      try run(tests);
+      var plot_tests = std.process.Command(a, "build/sun-plot-tests_test");
+      try run(plot_tests);
+      var example = std.process.Command(a, "build/plot-export");
+      return run(example);
     }
     var tests = std.process.Command(a, "sh");
     tests.add_arg("-eu");
     tests.add_arg("-c");
     tests.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a build/counter --self-test; timeout 30s dbus-run-session -- xvfb-run -a build/tasks --self-test");
-    return run(tests);
+    try run(tests);
+    return test_plot_gtk();
   }
 }
 /** Dispatches build and test tasks from the repository root. */
@@ -123,8 +158,12 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
     result = build_tasks.test(false);
   } else if (args.size() == 2 and args[1].equals_literal("test-gtk")) {
     result = build_tasks.test(true);
+  } else if (args.size() == 2 and args[1].equals_literal("plot-gtk")) {
+    result = build_tasks.plot_gtk();
+  } else if (args.size() == 2 and args[1].equals_literal("test-plot-gtk")) {
+    result = build_tasks.test_plot_gtk();
   } else {
-    eprintln("Usage: sun tools/build.sun -- [build|test|gtk|test-gtk]");
+    eprintln("Usage: sun tools/build.sun -- [build|test|gtk|test-gtk|plot-gtk|test-plot-gtk]");
     return 1;
   }
   return match result {

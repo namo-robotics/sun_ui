@@ -1,0 +1,357 @@
+using std;
+/** Builds scientific line and scatter figures using sun_ui's vector drawing API. */
+public module plot {
+  /** Returns the magnitude of a floating-point coordinate. */
+  function absolute(value: f64) f64 {
+    return value < 0.0 ? 0.0 - value : value;
+  }
+
+  /** Reports whether a coordinate is a finite floating-point value. */
+  public function finite(value: f64) bool {
+    return value == value and value <= F64_MAX and value >= 0.0 - F64_MAX;
+  }
+
+  /** Stores one data-space sample; non-finite samples break line segments. */
+  public class Point {
+    public var x: f64;
+    public var y: f64;
+    /** Captures a pair of scalar coordinates. */
+    init(x: f64, y: f64) {
+      this.x = x;
+      this.y = y;
+    }
+  }
+
+  /** Owns samples, legend text, and appearance for one line or scatter series. */
+  public class Series {
+    public var points: Vec<Point>;
+    public var label: String;
+    public var color: String;
+    public var scatter: bool;
+    public var line_width: f64 = 2.0;
+    public var marker_radius: f64 = 3.5;
+    /** Takes ownership of labels and allocates sample storage explicitly. */
+    init(label: String, color: String, scatter: bool) {
+      var a = make_heap_allocator();
+      this.points = Vec<Point>(a, 16);
+      this.label = label;
+      this.color = color;
+      this.scatter = scatter;
+    }
+
+    /** Appends one sample, retaining input order for line plots. */
+    public method add(x: f64, y: f64) void {
+      this.points.push(Point(x, y));
+    }
+  }
+
+  /** Describes a finite ascending axis interval. */
+  public class Limits {
+    public var min: f64;
+    public var max: f64;
+    /** Records requested limits; rendering validates them before use. */
+    init(min: f64, max: f64) {
+      this.min = min;
+      this.max = max;
+    }
+
+    /** Rejects reversed, degenerate, non-finite, or overflowing intervals. */
+    public const method valid() bool {
+      return finite(this.min) and finite(this.max) and this.max > this.min and finite(this.max - this.min);
+    }
+
+    /** Maps a data coordinate into a supplied output interval. */
+    public const method map(value: f64, start: f64, end: f64) f64 {
+      return start + ((value - this.min) / (this.max - this.min)) * (end - start);
+    }
+  }
+
+  /** Chooses a readable decimal tick interval; returns zero for unsupported spans. */
+  public function tick_step(span: f64) f64 {
+    if (finite(span) == false or span < 1e-280) {
+      return 0.0;
+    }
+    var target = span / 5.0;
+    var power: f64 = 1.0;
+    while (target >= 10.0) {
+      target /= 10.0;
+      power *= 10.0;
+    }
+    while (target < 1.0 and target > 0.0) {
+      target *= 10.0;
+      power /= 10.0;
+    }
+    if (target <= 1.0) {
+      return power;
+    }
+    if (target <= 2.0) {
+      return 2.0 * power;
+    }
+    if (target <= 5.0) {
+      return 5.0 * power;
+    }
+    return 10.0 * power;
+  }
+
+  /** Formats a tick with bounded precision and scientific notation at extreme scales. */
+  public function tick_label(value: f64, step: f64) String {
+    if (finite(value) == false or finite(step) == false or step <= 0.0) {
+      return String("?");
+    }
+    if (absolute(value) < step * 0.000001) {
+      return String("0");
+    }
+    var scaled = value;
+    var scaled_step = step;
+    var exponent: i64 = 0;
+    while (absolute(scaled) >= 10.0) {
+      scaled /= 10.0;
+      scaled_step /= 10.0;
+      exponent += 1;
+    }
+    while (absolute(scaled) < 1.0) {
+      scaled *= 10.0;
+      scaled_step *= 10.0;
+      exponent -= 1;
+    }
+    var result = String("");
+    if (exponent >= 5 or exponent <= -4) {
+      var precision: f64 = 1.0;
+      while (scaled_step * precision < 1.0 and precision < 1e15) {
+        precision *= 10.0;
+      }
+      var rounded = _convert<i64>(scaled * precision + (scaled >= 0.0 ? 0.5 : -0.5));
+      result.append(_convert<f64>(rounded) / precision);
+      result.append("e");
+      result.append(exponent);
+    } else {
+      var precision: f64 = 1.0;
+      while (step * precision < 1.0 and precision < 1000000000.0) {
+        precision *= 10.0;
+      }
+      var rounded = _convert<i64>(value * precision + (value >= 0.0 ? 0.5 : -0.5));
+      result.append(_convert<f64>(rounded) / precision);
+    }
+    return result;
+  }
+
+  /** Owns one axes, series, and labels; rendering borrows data and returns an owned drawing. */
+  public class Figure {
+    public var title: String;
+    public var x_label: String;
+    public var y_label: String;
+    public var series: Vec<Series>;
+    public var x_limits: Option<Limits> = Option.None;
+    public var y_limits: Option<Limits> = Option.None;
+    public var grid: bool = true;
+    /** Allocates figure storage and takes ownership of the figure labels. */
+    init(title: String, x_label: String, y_label: String) {
+      var a = make_heap_allocator();
+      this.series = Vec<Series>(a, 8);
+      this.title = title;
+      this.x_label = x_label;
+      this.y_label = y_label;
+    }
+
+    /** Transfers a complete series into the figure. */
+    public method add(series: Series) void {
+      this.series.push(series);
+    }
+
+    /** Finds finite paired samples, with deterministic defaults for empty and constant data. */
+    public const method bounds(horizontal: bool) Limits {
+      var low = F64_MAX;
+      var high = 0.0 - F64_MAX;
+      for (var series: ref Series in this.series) {
+        for (var point: ref Point in series.points) {
+          if (finite(point.x) and finite(point.y)) {
+            var value = horizontal ? point.x : point.y;
+            low = compute_min(low, value);
+            high = compute_max(high, value);
+          }
+        }
+      }
+      if (low > high) {
+        return Limits(0.0, 1.0);
+      }
+      if (low == high) {
+        var margin = compute_max(absolute(low) * 0.05, 0.5);
+        return Limits(low - margin, high + margin);
+      }
+      return Limits(low, high);
+    }
+
+    /** Lays out labelled axes and clipped series; invalid sizes, ranges, and styles return errors. */
+    public const method draw(width: f64, height: f64) SystemResult<ui_drawing.Drawing> {
+      if (finite(width) == false or finite(height) == false or width < 400.0 or height < 300.0 or width > 16384.0 or height > 16384.0) {
+        return SystemResult.Error(Error(1, "Figure dimensions must be finite and between 400x300 and 16384x16384"));
+      }
+      var x = match this.x_limits {
+        Option.Some(limits) => Limits(limits.min, limits.max),
+        Option.None => this.bounds(true)
+      };
+      var y = match this.y_limits {
+        Option.Some(limits) => Limits(limits.min, limits.max),
+        Option.None => this.bounds(false)
+      };
+      if (x.valid() == false or y.valid() == false or x.max - x.min < 1e-280 or y.max - y.min < 1e-280) {
+        return SystemResult.Error(Error(1, "Axis limits must have a finite positive span of at least 1e-280"));
+      }
+      var xs = tick_step(x.max - x.min);
+      var ys = tick_step(y.max - y.min);
+      var left: f64 = 100.0;
+      var right = width - 32.0;
+      var top: f64 = 60.0;
+      var legend_rows: i64 = 0;
+      for (var series: ref Series in this.series) {
+        if (series.label.length() > 0) {
+          legend_rows += 1;
+        }
+        if (finite(series.line_width) == false or series.line_width <= 0.0 or finite(series.marker_radius) == false or series.marker_radius <= 0.0) {
+          return SystemResult.Error(Error(1, "Series widths and marker radii must be finite and positive"));
+        }
+      }
+      var bottom = height - 76.0 - _convert<f64>(legend_rows) * 23.0;
+      if (bottom - top < 80.0) {
+        return SystemResult.Error(Error(1, "Figure is too short for its legend"));
+      }
+      var drawing = ui_drawing.Drawing(width, height);
+      var ink = String("#343d4d");
+      var grid = String("#e1e5eb");
+      drawing.text((left + right) / 2.0, 30.0, this.title, 19.0, true, 0.0);
+      drawing.text((left + right) / 2.0, bottom + 53.0, this.x_label, 15.0, true, 0.0);
+      drawing.text(22.0, (top + bottom) / 2.0, this.y_label, 15.0, true, -90.0);
+      for (var axis: i64 = 0; axis < 2; axis += 1) {
+        var min = axis == 0 ? x.min : y.min;
+        var max = axis == 0 ? x.max : y.max;
+        var step = axis == 0 ? xs : ys;
+        if (absolute(min / step) > 9e15) {
+          return SystemResult.Error(Error(1, "Axis offset is too large relative to its span"));
+        }
+        var first = _convert<f64>(_convert<i64>(min / step)) * step;
+        if (first < min) {
+          first += step;
+        }
+        for (var i: i64 = 0; i < 12; i += 1) {
+          var value = first + _convert<f64>(i) * step;
+          if (finite(value) == false or (value > max and value - max > step * 0.000001)) {
+            break;
+          }
+          var label = tick_label(value, step);
+          if (axis == 0) {
+            var px = x.map(value, left, right);
+            if (this.grid) {
+              drawing.line(px, top, px, bottom, grid, 1.0);
+            }
+            drawing.line(px, bottom, px, bottom + 5.0, ink, 1.0);
+            drawing.text(px, bottom + 23.0, label, 12.0, true, 0.0);
+          } else {
+            var py = y.map(value, bottom, top);
+            if (this.grid) {
+              drawing.line(left, py, right, py, grid, 1.0);
+            }
+            drawing.line(left - 5.0, py, left, py, ink, 1.0);
+            drawing.text(35.0, py + 4.0, label, 12.0, false, 0.0);
+          }
+        }
+      }
+      drawing.begin_clip(left, top, right - left, bottom - top);
+      for (var series: ref Series in this.series) {
+        var connected = false;
+        var previous_x: f64 = 0.0;
+        var previous_y: f64 = 0.0;
+        for (var point: ref Point in series.points) {
+          if (finite(point.x) == false or finite(point.y) == false) {
+            connected = false;
+            continue;
+          }
+          var px = x.map(point.x, left, right);
+          var py = y.map(point.y, bottom, top);
+          if (finite(px) == false or finite(py) == false) {
+            connected = false;
+            continue;
+          }
+          if (series.scatter) {
+            drawing.circle(px, py, series.marker_radius, series.color);
+          } else if (connected) {
+            drawing.line(previous_x, previous_y, px, py, series.color, series.line_width);
+          }
+          connected = true;
+          previous_x = px;
+          previous_y = py;
+        }
+      }
+      drawing.end_clip();
+      drawing.line(left, top, left, bottom, ink, 1.2);
+      drawing.line(left, bottom, right, bottom, ink, 1.2);
+      var legend_y = bottom + 79.0;
+      for (var series: ref Series in this.series) {
+        if (series.label.length() == 0) {
+          continue;
+        }
+        if (series.scatter) {
+          drawing.circle(left + 12.0, legend_y - 4.0, series.marker_radius, series.color);
+        } else {
+          drawing.line(left, legend_y - 4.0, left + 24.0, legend_y - 4.0, series.color, series.line_width);
+        }
+        drawing.text(left + 34.0, legend_y, series.label, 12.0, false, 0.0);
+        legend_y += 23.0;
+      }
+      return SystemResult.Ok(drawing);
+    }
+  }
+  /** Owns rendered panels in a rectangular grid, ordered left to right and then top to bottom. */
+  public class Grid {
+    public var title: String;
+    public var subtitle: String;
+    public var panels: Vec<ui_drawing.Drawing>;
+    var rows: i64;
+    var columns: i64;
+    /** Takes heading ownership; drawing validates grid dimensions and panel count. */
+    init(rows: i64, columns: i64, title: String, subtitle: String) {
+      var a = make_heap_allocator();
+      this.rows = rows;
+      this.columns = columns;
+      this.title = title;
+      this.subtitle = subtitle;
+      this.panels = Vec<ui_drawing.Drawing>(a, 4);
+    }
+
+    /** Transfers a panel into the next cell, retaining independent axes and legends. */
+    public method add(panel: ui_drawing.Drawing) void {
+      this.panels.push(panel);
+    }
+
+    /** Fits panels into equal cells, preserving aspect ratios; rejects invalid or undersized grids. */
+    public const method draw(width: f64, height: f64) SystemResult<ui_drawing.Drawing> {
+      if (this.rows < 1 or this.columns < 1 or this.rows > 32 or this.columns > 32) {
+        return SystemResult.Error(Error(1, "Grid rows and columns must be between 1 and 32"));
+      }
+      if (this.panels.size() != this.rows * this.columns) {
+        return SystemResult.Error(Error(1, "Grid must contain exactly one figure per cell"));
+      }
+      if (finite(width) == false or finite(height) == false or width <= 0.0 or height <= 0.0 or width > 16384.0 or height > 16384.0) {
+        return SystemResult.Error(Error(1, "Grid dimensions must be positive and at most 16384"));
+      }
+      var gap: f64 = 24.0;
+      var top: f64 = 110.0;
+      var panel_width = (width - gap * _convert<f64>(this.columns + 1)) / _convert<f64>(this.columns);
+      var panel_height = (height - top - gap * _convert<f64>(this.rows)) / _convert<f64>(this.rows);
+      if (panel_width < 400.0 or panel_height < 300.0) {
+        return SystemResult.Error(Error(1, "Each grid cell must have at least 400x300 logical pixels"));
+      }
+      var drawing = ui_drawing.Drawing(width, height);
+      drawing.text(width / 2.0, 41.0, this.title, 28.0, true, 0.0);
+      drawing.text(width / 2.0, 70.0, this.subtitle, 14.0, true, 0.0);
+      var accent = String("#147d92");
+      drawing.line(width / 2.0 - 40.0, 88.0, width / 2.0 + 40.0, 88.0, accent, 3.0);
+      for (var i: i64 = 0; i < this.panels.size(); i += 1) {
+        var x = gap + _convert<f64>(i % this.columns) * (panel_width + gap);
+        var y = top + _convert<f64>(i / this.columns) * (panel_height + gap);
+        drawing.place_scaled(x, y, panel_width, panel_height, this.panels[i]);
+      }
+      return SystemResult.Ok(drawing);
+    }
+  }
+}
+manifest { libraries: ["stdlib.moon", "sun_ui.moon"] }

@@ -1,0 +1,65 @@
+using std;
+/** Shares a deterministic four-panel dynamics study between SVG export and the GTK viewer. */
+module plot_example {
+  /** Integrates a unit-frequency damped oscillator with a small symplectic Euler step. */
+  function oscillator(displacement: ref plot.Series, phase: ref plot.Series, energy: ref plot.Series, damping: f64) void {
+    var x: f64 = 1.0;
+    var velocity: f64 = 0.0;
+    var dt: f64 = 0.005;
+    for (var i: i64 = 0; i <= 6000; i += 1) {
+      if (i % 10 == 0) {
+        displacement.add(_convert<f64>(i) * dt, x);
+        phase.add(x, velocity);
+        energy.add(_convert<f64>(i) * dt, x * x + velocity * velocity);
+      }
+      velocity += (0.0 - x - 2.0 * damping * velocity) * dt;
+      x += velocity * dt;
+    }
+  }
+
+  /** Builds related time, phase, energy, and frequency-domain views of damped oscillators. */
+  public function figure() SystemResult<plot.Grid> {
+    var grid = plot.Grid(2, 2, String("The anatomy of a damped oscillator"), String("SYNTHETIC DYNAMICS STUDY   /   Unit natural frequency   /   Two damping regimes"));
+    var motion = plot.Figure(String("A   |   Transient response"), String("Dimensionless time, ω₀t"), String("Displacement, x / x₀"));
+    var phase = plot.Figure(String("B   |   Phase portrait"), String("Displacement, x / x₀"), String("Velocity, v / (ω₀x₀)"));
+    var energy = plot.Figure(String("C   |   Energy dissipation"), String("Dimensionless time, ω₀t"), String("Normalized energy, E / E₀"));
+    var resonance = plot.Figure(String("D   |   Resonance spectrum"), String("Frequency ratio, ω / ω₀"), String("Power gain, |H(ω)|²"));
+    var light_motion = plot.Series(String("Light damping · ζ = 0.08"), String("#147d92"), false);
+    var light_phase = plot.Series(String("Spiral toward equilibrium"), String("#147d92"), false);
+    var light_energy = plot.Series(String("Light damping · ζ = 0.08"), String("#147d92"), false);
+    var heavy_motion = plot.Series(String("Strong damping · ζ = 0.30"), String("#d0653c"), false);
+    var heavy_phase = plot.Series(String("Faster relaxation"), String("#d0653c"), false);
+    var heavy_energy = plot.Series(String("Strong damping · ζ = 0.30"), String("#d0653c"), false);
+    oscillator(light_motion, light_phase, light_energy, 0.08);
+    oscillator(heavy_motion, heavy_phase, heavy_energy, 0.30);
+    motion.add(light_motion);
+    motion.add(heavy_motion);
+    phase.add(light_phase);
+    phase.add(heavy_phase);
+    energy.add(light_energy);
+    energy.add(heavy_energy);
+    var light_spectrum = plot.Series(String("Narrow resonance · ζ = 0.08"), String("#147d92"), false);
+    var heavy_spectrum = plot.Series(String("Broad response · ζ = 0.30"), String("#d0653c"), false);
+    for (var i: i64 = 0; i <= 500; i += 1) {
+      var ratio = _convert<f64>(i) / 250.0;
+      var detuning = 1.0 - ratio * ratio;
+      light_spectrum.add(ratio, 1.0 / (detuning * detuning + 4.0 * 0.08 * 0.08 * ratio * ratio));
+      heavy_spectrum.add(ratio, 1.0 / (detuning * detuning + 4.0 * 0.30 * 0.30 * ratio * ratio));
+    }
+    resonance.add(light_spectrum);
+    resonance.add(heavy_spectrum);
+    motion.x_limits = Option.Some(plot.Limits(0.0, 30.0));
+    motion.y_limits = Option.Some(plot.Limits(-1.1, 1.1));
+    phase.x_limits = Option.Some(plot.Limits(-1.1, 1.1));
+    phase.y_limits = Option.Some(plot.Limits(-1.1, 1.1));
+    energy.x_limits = Option.Some(plot.Limits(0.0, 30.0));
+    energy.y_limits = Option.Some(plot.Limits(0.0, 1.05));
+    resonance.x_limits = Option.Some(plot.Limits(0.0, 2.0));
+    resonance.y_limits = Option.Some(plot.Limits(0.0, 42.0));
+    grid.add(try motion.draw(684.0, 471.0));
+    grid.add(try phase.draw(684.0, 471.0));
+    grid.add(try energy.draw(684.0, 471.0));
+    grid.add(try resonance.draw(684.0, 471.0));
+    return SystemResult.Ok(grid);
+  }
+}

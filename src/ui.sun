@@ -314,4 +314,4 @@ public module ui {
     }
   }
 }
-manifest { libraries: ["stdlib.moon"] }
+manifest { libraries: ["stdlib.moon"], source_files: ["drawing.sun"] }

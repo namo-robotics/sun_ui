@@ -10,6 +10,11 @@ without it, but displaying an interface requires the backend. This prototype
 supports native buttons in a flat vertical list, demonstrated by a counter and a
 task list. It is not yet a general widget toolkit.
 
+This repository also maintains **[sun_plot](src/plot/README.md)**, a separate
+scientific plotting library built on sun_ui. It supports line and scatter series,
+labelled linear axes, legends, subplot grids, SVG export, and a resizable GTK
+vector viewer. The plotting example presents a four-panel damped oscillator study.
+
 ## Setup
 
 Run commands from the repository root. The included VS Code devcontainer provides
@@ -38,14 +43,15 @@ Set `SUN_EXECUTABLE=/absolute/path/to/sun` to use a specific compiler.
 ./build.sh
 ```
 
-This builds `build/sun_ui.moon` and runs the core tests without GTK or
+This builds `build/sun_ui.moon`, `build/sun_plot.moon`, and the plot export example,
+then runs the UI and plotting tests without GTK or
 `sun_gobject`. The compiler version and test results are recorded in `build/`.
 For separate build, test, and formatting checks:
 
 ```sh
 sun tools/build.sun -- build
 sun tools/build.sun -- test
-sun fmt --check src adapters tools examples tests
+sun fmt --check src tools examples tests
 ```
 
 ### Build the GTK backend
@@ -68,6 +74,21 @@ use `SUN_GOBJECT_BUILD=tmp/sun_gobject/build`, or mount a sibling checkout.
 Interactive examples require a graphical display.
 
 ## Examples
+
+To export and display a scientific plot:
+
+```sh
+./build.sh
+./build/plot-export                 # build/scientific-plot.svg
+./build.sh --plot-gtk               # native plot viewer and acceptance test
+./build/plot-viewer
+```
+
+Use **Export SVG…** in the plot window to save the current figure to a chosen file.
+
+The plot viewer requires GTK 4 and librsvg (`librsvg2-2` on Debian/Ubuntu), but no
+sun_gobject checkout. See [sun_plot](src/plot/README.md) for the plotting API and
+current limitations.
 
 After building with `--gtk`:
 
@@ -118,7 +139,10 @@ flowchart LR
 | Path | Responsibility |
 | --- | --- |
 | [src/ui.sun](src/ui.sun) | Views, state sessions, event queues, and reconciliation |
-| [adapters/gtk/renderer.sun](adapters/gtk/renderer.sun) | Checked GTK widgets and native-to-semantic event translation |
+| [src/drawing.sun](src/drawing.sun) | Platform-independent vector drawings and SVG export |
+| [src/plot/](src/plot/) | Scientific plotting library, API documentation, and roadmap |
+| [src/adapters/gtk/drawing.sun](src/adapters/gtk/drawing.sun) | Resizable native vector drawing window |
+| [src/adapters/gtk/renderer.sun](src/adapters/gtk/renderer.sun) | Checked GTK widgets and native-to-semantic event translation |
 | [examples/](examples/) | Runnable applications and GTK acceptance scenarios |
 | [tests/](tests/) | Core tests using a recording renderer |
 | [tools/build.sun](tools/build.sun) | Build and test orchestration |

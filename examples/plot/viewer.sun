@@ -1,0 +1,71 @@
+using std;
+/** Waits briefly between acceptance polls so GTK's frame clock can advance. */
+extern "C" function g_usleep(microseconds: u64) void;
+
+/** Waits for a successful paint with a bounded deadline. */
+function await_frame(window: ref ui_gtk_drawing.Window) SystemResult<void> {
+  for (var i: i64 = 0; i < 200; i += 1) {
+    window.poll(false);
+    if (window.rendered()) {
+      return SystemResult.Ok;
+    }
+    unsafe { g_usleep(10000); };
+  }
+  return SystemResult.Error(Error(1, "GTK did not render the vector document"));
+}
+
+/** Displays a vector figure or exercises native rendering, replacement, resize, and cleanup. */
+function run(automated: bool) SystemResult<void> {
+  var figure = try plot_example.figure();
+  var drawing = try figure.draw(1440.0, 1100.0);
+  var title = String("Sun Plot — Damped oscillator study");
+  var window = try ui_gtk_drawing.Window(title, drawing);
+  if (automated) {
+    try await_frame(window);
+    figure.title = String("Updated damping study");
+    var updated = try figure.draw(1280.0, 1000.0);
+    try window.update(updated);
+    window.resize(1280, 1000);
+    try await_frame(window);
+    var export_path = String("build/plot-viewer-export.svg");
+    try window.export_svg(export_path);
+    var allocator = make_heap_allocator();
+    var exported = try std.io.read_to_string(allocator, export_path);
+    var expected = updated.svg();
+    if (exported.equals(expected) == false) {
+      return SystemResult.Error(Error(1, "Export did not save the current drawing"));
+    }
+    var invalid_path = String("build");
+    match window.export_svg(invalid_path) {
+      SystemResult.Ok => {
+        return SystemResult.Error(Error(1, "Export to a directory unexpectedly succeeded"));
+      },
+      SystemResult.Error(_) => {}
+    };
+    try window.export_svg(export_path);
+    if (window.running() == false) {
+      return SystemResult.Error(Error(1, "Drawing window closed unexpectedly"));
+    }
+    println("Plot GTK acceptance passed");
+    return SystemResult.Ok;
+  }
+  while (window.running()) {
+    window.poll(true);
+  }
+  return SystemResult.Ok;
+}
+
+/** Selects the interactive viewer or its bounded native acceptance scenario. */
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
+  var a = make_heap_allocator();
+  var env = std.env.Env(a);
+  var args = env.args(argc, argv);
+  return match run(args.size() == 2 and args[1].equals_literal("--self-test")) {
+    SystemResult.Ok => 0,
+    SystemResult.Error(error) => {
+      eprintln(error.message());
+      return 1;
+    }
+  };
+}
+manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_plot.moon", "sun_ui_gtk_drawing.moon"], source_files: ["data.sun"] }

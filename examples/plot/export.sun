@@ -1,0 +1,24 @@
+using std;
+
+/** Writes the scientific example as a portable vector figure. */
+function main() i32 {
+  return match export_plot() {
+    SystemResult.Ok => 0,
+    SystemResult.Error(error) => {
+      eprintln(error.message());
+      return 1;
+    }
+  };
+}
+
+/** Generates an SVG in the build directory without requiring a graphical display. */
+function export_plot() SystemResult<void> {
+  var figure = try plot_example.figure();
+  var drawing = try figure.draw(1440.0, 1100.0);
+  var path = String("build/scientific-plot.svg");
+  try drawing.save(path);
+  println("Wrote build/scientific-plot.svg");
+  return SystemResult.Ok;
+}
+
+manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_plot.moon"], source_files: ["data.sun"] }

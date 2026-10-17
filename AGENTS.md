@@ -10,8 +10,10 @@ A file for guiding coding agents.
 - Core build and tests: `./build.sh`. Optional GTK build and acceptance tests: `./build.sh --gtk` with `SUN_GOBJECT_BUILD` pointing to a compatible dependency build.
 - Core build: `sun tools/build.sun -- build`.
 - Tests: `sun tools/build.sun -- test`; selected tests: `sun test tests/main.sun --test-filter <name>`.
-- Keep platform-independent Sun source in `src/`, optional adapters separately, tests in `tests/`, and generated artifacts in `build/`.
+- Keep Sun source in `src/`, platform adapters in `src/adapters/`, tests in `tests/`, and generated artifacts in `build/`.
 - The core must not depend on GTK or sun_gobject. Keep application state explicitly owned and platform handles out of component code.
+- Keep sun_plot in `src/plot/`, with tests in `tests/plot/` and examples in `examples/plot/`. Build it as `sun_plot.moon` against sun_ui's public APIs; sun_ui must not depend on sun_plot.
+- `./build.sh` also builds and tests sun_plot and generates its SVG example. `./build.sh --plot-gtk` additionally builds and tests the native plot viewer without requiring sun_gobject.
 
 ## Sun Language Conventions
 

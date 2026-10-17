@@ -1,0 +1,5 @@
+/** Provides the entry point for the independent scientific plotting tests. */
+function main() i32 {
+  return 0;
+}
+manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_plot.moon"], test_files: ["plot.sun"] }
