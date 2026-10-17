@@ -8,7 +8,7 @@ A file for guiding coding agents.
 - Run all commands from the workspace root. Create any temp files in `${workspaceRoot}/tmp`.
 - `sun fmt` for formatting sun source files
 - Core build and tests: `./build.sh`. Optional GTK build and acceptance tests: `./build.sh --gtk` with `SUN_GOBJECT_BUILD` pointing to a compatible dependency build.
-- Sun build: `sun tools/build.sun -- build`.
+- Core build: `sun tools/build.sun -- build`.
 - Tests: `sun tools/build.sun -- test`; selected tests: `sun test tests/main.sun --test-filter <name>`.
 - Keep platform-independent Sun source in `src/`, optional adapters separately, tests in `tests/`, and generated artifacts in `build/`.
 - The core must not depend on GTK or sun_gobject. Keep application state explicitly owned and platform handles out of component code.
@@ -17,16 +17,9 @@ A file for guiding coding agents.
 
 - Implement as much project functionality, tooling, and test logic as possible in Sun rather than other scripts or languages. Use other languages only where Sun cannot reasonably provide the required functionality.
 
-- Sun DOES NOT ALLOW IMPLICIT COPIES.
-- Sun DOES NOT HAVE MACROS
-- Sun minimizes and discourages alternative syntaxes that do the same thing.
-- Sun avoids hidden memory allocations
-- Sun is a memory-safe language that guarantees the absence of undefined behavior outside of `unsafe` blocks
-- Usage of `unsafe` blocks is highly discouraged
-
-## Compiler Conventions
-
-- Errors: `logError()` / `logAndThrowError()` for compilation errors.
+- Sun does not allow implicit copies; make ownership transfers and any required copies explicit.
+- Sun does not have macros; use ordinary functions for reusable logic.
+- Keep allocations explicit and avoid `unsafe` blocks wherever possible.
 
 ## Code Comments (all code, including .sun files)
 - Write concise comments in plain English for a general audience of software engineers.
