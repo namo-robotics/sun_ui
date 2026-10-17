@@ -1,0 +1,51 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Bootstrap Sun",
+      "type": "shell",
+      "command": "./scripts/bootstrap-sun.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build and test",
+      "type": "shell",
+      "command": "./build.sh",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test",
+      "type": "shell",
+      "command": "sun tools/build.sun -- test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build Sun",
+      "type": "shell",
+      "command": "sun tools/build.sun -- build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Build and test GTK",
+      "type": "shell",
+      "command": "./build.sh --gtk",
+      "problemMatcher": []
+    },
+    {
+      "label": "Counter",
+      "type": "shell",
+      "command": "./build/counter",
+      "problemMatcher": []
+    },
+    {
+      "label": "Keyed tasks",
+      "type": "shell",
+      "command": "./build/tasks",
+      "problemMatcher": []
+    }
+  ]
+}

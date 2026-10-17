@@ -1,0 +1,5 @@
+/** Produces the executable whose companion runs the independent core tests. */
+function main() i32 {
+  return 0;
+}
+manifest { libraries: ["stdlib.moon", "sun_ui.moon"], test_files: ["core.sun"] }

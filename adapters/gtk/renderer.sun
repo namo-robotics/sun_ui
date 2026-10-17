@@ -1,0 +1,231 @@
+using std;
+/** Adapts semantic buttons to GTK using sun_gobject's owned widgets and event queues. */
+public module ui_gtk {
+  /** Creates the adapter's vertical layout container. */
+  extern "C" function gtk_box_new(orientation: i32, spacing: i32) raw_ptr<u8>;
+
+  /** Installs the adapter-owned container into its window. */
+  extern "C" function gtk_window_set_child(window: raw_ptr<u8>, child: raw_ptr<u8>) void;
+
+  /** Appends a previously unparented control. */
+  extern "C" function gtk_box_append(box: raw_ptr<u8>, child: raw_ptr<u8>) void;
+
+  /** Moves an existing child without unparenting it, preserving focus. */
+  extern "C" function gtk_box_reorder_child_after(box: raw_ptr<u8>, child: raw_ptr<u8>, sibling: raw_ptr<u8>) void;
+
+  /** Releases the container's reference to a child. */
+  extern "C" function gtk_box_remove(box: raw_ptr<u8>, child: raw_ptr<u8>) void;
+
+  /** Reports parenting so newly created controls can be inserted once. */
+  extern "C" function gtk_widget_get_parent(widget: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Checks current ordering to avoid unnecessary layout changes. */
+  extern "C" function gtk_widget_get_prev_sibling(widget: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Applies the core's post-commit focus request. */
+  extern "C" function gtk_widget_grab_focus(widget: raw_ptr<u8>) i32;
+
+  /** Reads focus for display-backed acceptance checks. */
+  extern "C" function gtk_widget_is_focus(widget: raw_ptr<u8>) i32;
+
+  /** Owns a button and its independently managed click subscription. */
+  class Control {
+    var identity: u64;
+    var button: gtk.Button;
+    /** Creates a native button using the checked sun_gobject API. */
+    init(identity: u64, text: const ref String) SystemResult<void> {
+      var a = make_heap_allocator();
+      var label = text.clone(a);
+      this.identity = identity;
+      this.button = try gtk.Button(label);
+    }
+  }
+
+  /** Owns the application, window, layout, and controls on the GTK main thread. */
+  public class Renderer implements ui.Renderer {
+    var app: gtk.Application;
+    var window: gtk.Window;
+    var box: raw_ptr<u8>;
+    var controls: Vec<Control>;
+    public var updates: i64 = 0;
+    public var creates: i64 = 0;
+    public var removals: i64 = 0;
+    /** Opens a native window; all unsafe platform operations stay inside this adapter. */
+    init(title: ref String) SystemResult<void> {
+      var a = make_heap_allocator();
+      var id = String("org.sunlang.UIPrototype");
+      this.app = try gtk.Application(id);
+      this.window = gtk.Window(this.app);
+      this.controls = Vec<Control>(a, 8);
+      this.box = unsafe { gtk_box_new(1, 8); };
+      unsafe {
+        gobject.raw.g_object_ref_sink(this.box);
+        gtk_window_set_child(this.window.raw_handle(), this.box);
+      };
+      try this.window.set_title(title);
+      try this.window.set_default_size(440, 360);
+      try this.window.present();
+    }
+
+    /** Disconnects every button subscription before releasing the container. */
+    deinit() {
+      this.clear();
+      this.window.close();
+      unsafe { gobject.raw.g_object_unref(this.box); };
+    }
+
+    /** Finds a live control by its core-issued identity. */
+    method index(identity: u64) i64 {
+      for (var i: i64 = 0; i < this.controls.size(); i += 1) {
+        if (this.controls[i].identity == identity) {
+          return i;
+        }
+      }
+      return -1;
+    }
+
+    /** Creates a native button and its owned polling subscription. */
+    public method create(identity: u64, text: const ref String) SystemResult<void> {
+      var control = try Control(identity, text);
+      this.controls.push(control);
+      this.creates += 1;
+      return SystemResult.Ok;
+    }
+
+    /** Copies changed text into the existing native button. */
+    public method update(identity: u64, text: const ref String) SystemResult<void> {
+      var index = this.index(identity);
+      if (index < 0) {
+        return SystemResult.Error(Error(1, "Unknown GTK control"));
+      }
+      var a = make_heap_allocator();
+      var label = text.clone(a);
+      try this.controls[index].button.set_label(label);
+      this.updates += 1;
+      return SystemResult.Ok;
+    }
+
+    /** Reorders without removing surviving widgets from their parent. */
+    public method place(identity: u64, previous: u64) SystemResult<void> {
+      var index = this.index(identity);
+      if (index < 0) {
+        return SystemResult.Error(Error(1, "Unknown GTK control"));
+      }
+      var sibling: raw_ptr<u8> = null;
+      if (previous != 0) {
+        var before = this.index(previous);
+        if (before < 0) {
+          return SystemResult.Error(Error(1, "Unknown GTK sibling"));
+        }
+        sibling = unsafe { this.controls[before].button.raw_handle(); };
+      }
+      unsafe {
+        var widget = this.controls[index].button.raw_handle();
+        if (gtk_widget_get_parent(widget) == null) {
+          gtk_box_append(this.box, widget);
+        }
+        if (gtk_widget_get_prev_sibling(widget) != sibling) {
+          gtk_box_reorder_child_after(this.box, widget, sibling);
+        }
+      };
+      return SystemResult.Ok;
+    }
+
+    /** Unparents the button and destroys its wrapper, disconnecting its click signal. */
+    public method remove(identity: u64) void {
+      var index = this.index(identity);
+      if (index < 0) {
+        return;
+      }
+      unsafe {
+        var widget = this.controls[index].button.raw_handle();
+        if (gtk_widget_get_parent(widget) != null) {
+          gtk_box_remove(this.box, widget);
+        }
+      };
+      match this.controls.remove(index) {
+        AccessResult.Ok(_) => {},
+        AccessResult.OutOfBounds(_) => {}
+      };
+      this.removals += 1;
+    }
+
+    /** Requests native focus only after reconciliation finishes. */
+    public method focus(identity: u64) void {
+      var index = this.index(identity);
+      if (index >= 0) {
+        unsafe { gtk_widget_grab_focus(this.controls[index].button.raw_handle()); };
+      }
+    }
+
+    /** Removes every owned subscription; safe to call repeatedly. */
+    public method clear() void {
+      while (this.controls.size() > 0) {
+        this.remove(this.controls[0].identity);
+      }
+    }
+
+    /** Captures a bounded batch of already queued native clicks without invoking handlers. */
+    method collect(tree: ref ui.Tree, queue: ref ui.EventQueue) void {
+      for (var control: ref Control in this.controls) {
+        // Bound each source so one busy button cannot monopolize a dispatch boundary.
+        for (var i: i64 = 0; i < 64; i += 1) {
+          if (control.button.take_click() == false) {
+            break;
+          }
+          tree.enqueue(control.identity, queue);
+        }
+      }
+    }
+
+    /** Gives GTK a turn and blocks only when neither queue has work and the window is open. */
+    public method poll(tree: ref ui.Tree, queue: ref ui.EventQueue, block: bool) void {
+      this.app.iterate(false);
+      this.collect(tree, queue);
+      if (block and queue.size() == 0 and this.running()) {
+        this.app.iterate(true);
+        this.collect(tree, queue);
+      }
+    }
+
+    /** Reports whether the user has left the window open. */
+    public method running() bool {
+      return this.window.is_open();
+    }
+
+    /** Emits a real GTK clicked signal for deterministic acceptance scenarios. */
+    public method click(identity: u64) void {
+      var index = this.index(identity);
+      if (index >= 0) {
+        this.controls[index].button.click();
+      }
+    }
+
+    /** Checks that a surviving widget retains native focus. */
+    public method focused(identity: u64) bool {
+      var index = this.index(identity);
+      if (index < 0) {
+        return false;
+      }
+      return unsafe { gtk_widget_is_focus(this.controls[index].button.raw_handle()); } != 0;
+    }
+
+    /** Reads native sibling order for acceptance checks. */
+    public method follows(identity: u64, previous: u64) bool {
+      var index = this.index(identity);
+      if (index < 0) {
+        return false;
+      }
+      var sibling: raw_ptr<u8> = null;
+      if (previous != 0) {
+        var before = this.index(previous);
+        if (before < 0) {
+          return false;
+        }
+        sibling = unsafe { this.controls[before].button.raw_handle(); };
+      }
+      return unsafe { gtk_widget_get_prev_sibling(this.controls[index].button.raw_handle()); } == sibling;
+    }
+  }
+}
+manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon"] }

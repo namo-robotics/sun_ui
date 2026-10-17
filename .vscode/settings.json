@@ -1,0 +1,22 @@
+{
+  "sun.sun_path": [
+    "/usr/lib/sun",
+    "build",
+    "../sun_gobject/build",
+    "tmp/sun_gobject/build"
+  ],
+  "files.watcherExclude": {
+    "**/.toolchain/**": true,
+    "**/build/**": true
+  },
+  "sun.lsp_path": "/usr/bin/sun-lsp",
+  "sun.compiler_path": "/usr/bin/sun",
+  "sun.sun_configs": [
+    "sun-config.json"
+  ],
+  "sun.syntaxOnly": false,
+  "[sun]": {
+    "editor.defaultFormatter": "namo-robotics.sun-language",
+    "editor.formatOnSave": true
+  }
+}

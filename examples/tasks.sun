@@ -1,0 +1,144 @@
+using std;
+/** Demonstrates keyed component composition and owned task-ID event payloads. */
+module tasks {
+  /** Owns task IDs and selection independently of any renderer or widget handle. */
+  class State {
+    var ids: Vec<i64>;
+    var next_id: i64 = 3;
+    var selected: i64 = 0;
+    var reversed: bool = false;
+    /** Seeds two tasks with stable keys. */
+    init() {
+      var a = make_heap_allocator();
+      this.ids = Vec<i64>(a, 8);
+      this.ids.push(1);
+      this.ids.push(2);
+    }
+  }
+  /** Composes a task button using its durable ID as both key and event payload. */
+  function task(view: ref ui.View, id: i64, selected: bool) void {
+    var label = `Task ${id}`;
+    if (selected) {
+      label.append(" — selected");
+    }
+    view.button(id, label, 4, id);
+  }
+
+  /** Builds toolbar and task components from a read-only state borrow. */
+  function view(state: const ref State) ui.View {
+    var a = make_heap_allocator();
+    var result = ui.View(a);
+    result.button(-1, String("Add task"), 1, 0);
+    result.button(-2, String("Reverse tasks"), 2, 0);
+    result.button(-3, String("Remove selected task"), 3, 0);
+    for (var i: i64 = 0; i < state.ids.size(); i += 1) {
+      var index = state.reversed ? state.ids.size() - 1 - i : i;
+      var id = state.ids[index];
+      task(result, id, state.selected == id);
+    }
+    return result;
+  }
+
+  /** Updates task state using a captured scalar message, never a platform handle. */
+  function handle(state: ref State, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+    if (event.action == 1) {
+      state.ids.push(state.next_id);
+      state.next_id += 1;
+    } else if (event.action == 2) {
+      state.reversed = state.reversed == false;
+    } else if (event.action == 3) {
+      for (var i: i64 = 0; i < state.ids.size(); i += 1) {
+        if (state.ids[i] == state.selected) {
+          match state.ids.remove(i) {
+            AccessResult.Ok(_) => {},
+            AccessResult.OutOfBounds(_) => {}
+          };
+          state.selected = 0;
+          break;
+        }
+      }
+    } else if (event.action == 4) {
+      state.selected = event.payload;
+    }
+    return SystemResult.Ok;
+  }
+
+  /** Delivers a real native click through the framework's explicit dispatch boundary. */
+  function click(renderer: ref ui_gtk.Renderer, session: ref ui.Session<State>, key: i64) SystemResult<void> {
+    renderer.click(session.tree.identity(key));
+    renderer.poll(session.tree, session.queue, false);
+    return session.dispatch(renderer);
+  }
+
+  /** Checks identity, native order, focus, targeted updates, and subscription cleanup. */
+  function acceptance(renderer: ref ui_gtk.Renderer, session: ref ui.Session<State>) SystemResult<void> {
+    var first = session.tree.identity(1);
+    var second = session.tree.identity(2);
+    try click(renderer, session, 2);
+    if (session.state.selected != 2 or renderer.updates != 1) {
+      return SystemResult.Error(Error(1, "Task payload or targeted selection update failed"));
+    }
+    renderer.focus(second);
+    if (renderer.focused(second) == false) {
+      return SystemResult.Error(Error(1, "Initial native focus failed"));
+    }
+    try click(renderer, session, -2);
+    if (renderer.focused(second) == false or renderer.follows(first, second) == false) {
+      return SystemResult.Error(Error(1, "Reorder did not preserve native focus and order"));
+    }
+    try click(renderer, session, -1);
+    var third = session.tree.identity(3);
+    if (third == 0 or renderer.follows(second, third) == false or renderer.focused(second) == false) {
+      return SystemResult.Error(Error(1, "Insertion did not preserve focus or order"));
+    }
+    if (session.tree.identity(1) != first or session.tree.identity(2) != second or renderer.creates != 6) {
+      return SystemResult.Error(Error(1, "Surviving tasks were remounted"));
+    }
+    try click(renderer, session, -3);
+    if (session.tree.identity(2) != 0 or renderer.removals != 1 or renderer.follows(first, third) == false) {
+      return SystemResult.Error(Error(1, "Removal did not clean up the selected task"));
+    }
+    session.tree.enqueue(second, session.queue);
+    if (session.queue.size() != 0) {
+      return SystemResult.Error(Error(1, "Removed task still delivers events"));
+    }
+    session.tree.shutdown(renderer);
+    if (renderer.removals != renderer.creates) {
+      return SystemResult.Error(Error(1, "Subscriptions survived shutdown"));
+    }
+    println("Task list acceptance passed");
+    return SystemResult.Ok;
+  }
+
+  /** Runs the native task list with explicitly owned state and bounded dispatch turns. */
+  public function run(automated: bool) SystemResult<void> {
+    var title = String("Sun UI — Keyed tasks");
+    var renderer = try ui_gtk.Renderer(title);
+    var state = State();
+    var session = ui.Session<State>(state, view, handle);
+    try session.render(renderer);
+    if (automated) {
+      return acceptance(renderer, session);
+    }
+    while (renderer.running()) {
+      renderer.poll(session.tree, session.queue, true);
+      try session.dispatch(renderer);
+    }
+    session.tree.shutdown(renderer);
+    return SystemResult.Ok;
+  }
+}
+/** Runs the interactive demo or its display-backed acceptance scenario. */
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
+  var a = make_heap_allocator();
+  var env = std.env.Env(a);
+  var args = env.args(argc, argv);
+  return match tasks.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
+    SystemResult.Ok => 0,
+    SystemResult.Error(error) => {
+      eprintln(error.message());
+      return 1;
+    }
+  };
+}
+manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon", "sun_ui_gtk.moon"] }

@@ -1,0 +1,317 @@
+using std;
+/** Describes keyed semantic buttons and reconciles them without platform dependencies. */
+public module ui {
+  /** Owns one button description and an integer message payload, never a borrowed callback. */
+  public class Element {
+    public var key: i64;
+    public var text: String;
+    public var action: i64;
+    public var payload: i64;
+    /** Transfers the label into this render description. */
+    init(key: i64, text: String, action: i64, payload: i64) {
+      this.key = key;
+      this.text = text;
+      this.action = action;
+      this.payload = payload;
+    }
+  }
+
+  /** Owns a flat sibling list; ordinary functions compose views by appending elements. */
+  public class View {
+    public var elements: Vec<Element>;
+    public var focus_key: Option<i64> = Option.None;
+    /** Allocates description storage explicitly for this render. */
+    init(a: const ref HeapAllocator) {
+      this.elements = Vec<Element>(a, 8);
+    }
+
+    /** Appends an owned semantic button. Keys must be unique in this view. */
+    public method button(key: i64, text: String, action: i64, payload: i64) void {
+      this.elements.push(Element(key, text, action, payload));
+    }
+  }
+
+  /** Owns a message captured at enqueue time and the mounted identity that produced it. */
+  public class Event {
+    public var identity: u64;
+    public var action: i64;
+    public var payload: i64;
+    /** Captures scalar message data without retaining application or stack references. */
+    init(identity: u64, action: i64, payload: i64) {
+      this.identity = identity;
+      this.action = action;
+      this.payload = payload;
+    }
+  }
+
+  /** Collects events for a later dispatch boundary, including events emitted by handlers. */
+  public class EventQueue {
+    var pending: Vec<Event>;
+    /** Allocates owned FIFO storage. */
+    init(a: const ref HeapAllocator) {
+      this.pending = Vec<Event>(a, 8);
+    }
+
+    /** Transfers a message to the next dispatch; never executes user code. */
+    public method post(event: Event) void {
+      this.pending.push(event);
+    }
+
+    /** Reports pending work so a platform loop can avoid blocking. */
+    public const method size() i64 {
+      return this.pending.size();
+    }
+  }
+
+  /** Supplies platform operations; create/remove own the lifetime of event subscriptions. */
+  public interface Renderer {
+    /** Creates an unparented native control and its event subscription. */
+    public method create(identity: u64, text: const ref String) SystemResult<void>;
+
+    /** Changes only the label of an existing control. */
+    public method update(identity: u64, text: const ref String) SystemResult<void>;
+
+    /** Places a control after its sibling; zero denotes the first position. */
+    public method place(identity: u64, previous: u64) SystemResult<void>;
+
+    /** Disconnects subscriptions and releases the removed control. */
+    public method remove(identity: u64) void;
+
+    /** Applies an explicit focus effect after a successful commit. */
+    public method focus(identity: u64) void;
+
+    /** Releases every control and subscription after shutdown or a failed commit. */
+    public method clear() void;
+  }
+
+  /** Retains a mounted identity and its last committed description. */
+  class Mounted {
+    var identity: u64;
+    var element: Element;
+    /** Takes ownership of a committed element description. */
+    init(identity: u64, element: Element) {
+      this.identity = identity;
+      this.element = element;
+    }
+  }
+
+  /** Reconciles stable sibling keys; renderer failures terminate this tree until recreated. */
+  public class Tree {
+    var mounted: Vec<Mounted>;
+    var next_identity: u64 = 1;
+    var stopped: bool = false;
+    /** Allocates the retained mounted list. */
+    init(a: const ref HeapAllocator) {
+      this.mounted = Vec<Mounted>(a, 8);
+    }
+
+    /** Finds a mounted key without allocating. */
+    const method index(key: i64) i64 {
+      for (var i: i64 = 0; i < this.mounted.size(); i += 1) {
+        if (this.mounted[i].element.key == key) {
+          return i;
+        }
+      }
+      return -1;
+    }
+
+    /** Returns zero for an unmounted key; identities are never reused by this tree. */
+    public const method identity(key: i64) u64 {
+      var index = this.index(key);
+      if (index < 0) {
+        return 0;
+      }
+      return this.mounted[index].identity;
+    }
+
+    /** Rejects duplicate keys before touching the mounted tree or renderer. */
+    method validate(view: const ref View) SystemResult<void> {
+      for (var i: i64 = 0; i < view.elements.size(); i += 1) {
+        for (var j: i64 = 0; j < i; j += 1) {
+          if (view.elements[i].key == view.elements[j].key) {
+            return SystemResult.Error(Error(1, "Duplicate sibling key"));
+          }
+        }
+      }
+      return SystemResult.Ok;
+    }
+
+    /** Applies changes while moving surviving descriptions into the next mounted list. */
+    method commit(renderer: ref Renderer, view: ref View) SystemResult<void> {
+      var a = make_heap_allocator();
+      var next = Vec<Mounted>(a, 8);
+      var previous: u64 = 0;
+      while (view.elements.size() > 0) {
+        var element = match view.elements.remove(0) {
+          AccessResult.Ok(value) => value,
+          AccessResult.OutOfBounds(_) => {
+            return SystemResult.Error(Error(1, "Internal index error"));
+          }
+        };
+        var index = this.index(element.key);
+        var id: u64 = 0;
+        if (index >= 0) {
+          var old = match this.mounted.remove(index) {
+            AccessResult.Ok(value) => value,
+            AccessResult.OutOfBounds(_) => {
+              return SystemResult.Error(Error(1, "Internal index error"));
+            }
+          };
+          id = old.identity;
+          if (old.element.text.equals(element.text) == false) {
+            try renderer.update(id, element.text);
+          }
+        } else {
+          if (this.next_identity == 0) {
+            return SystemResult.Error(Error(1, "Mounted identities exhausted"));
+          }
+          id = this.next_identity;
+          this.next_identity += 1;
+          try renderer.create(id, element.text);
+        }
+        try renderer.place(id, previous);
+        previous = id;
+        next.push(Mounted(id, element));
+      }
+      for (var old: ref Mounted in this.mounted) {
+        renderer.remove(old.identity);
+      }
+      this.mounted = next;
+      match view.focus_key {
+        Option.Some(key) => {
+          var id = this.identity(key);
+          if (id != 0) {
+            renderer.focus(id);
+          }
+        },
+        Option.None => {}
+      };
+      return SystemResult.Ok;
+    }
+
+    /** Commits a view, or clears all native resources if a platform operation fails. */
+    public method render(renderer: ref Renderer, view: View) SystemResult<void> {
+      if (this.stopped) {
+        return SystemResult.Error(Error(1, "Tree is stopped"));
+      }
+      try this.validate(view);
+      match this.commit(renderer, view) {
+        SystemResult.Ok => {
+          return SystemResult.Ok;
+        },
+        SystemResult.Error(error) => {
+          this.shutdown(renderer);
+          return SystemResult.Error(error);
+        }
+      };
+    }
+
+    /** Captures the current message for a native event, ignoring removed identities. */
+    public method enqueue(identity: u64, queue: ref EventQueue) void {
+      for (var item: ref Mounted in this.mounted) {
+        if (item.identity == identity) {
+          queue.post(Event(identity, item.element.action, item.element.payload));
+          return;
+        }
+      }
+    }
+
+    /** Checks whether a queued event's owner is still mounted. */
+    public const method alive(identity: u64) bool {
+      for (var item: ref Mounted in this.mounted) {
+        if (item.identity == identity) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /** Reports whether this tree can accept further rendering and event dispatch. */
+    public const method active() bool {
+      return this.stopped == false;
+    }
+
+    /** Idempotently releases mounted subscriptions and permanently stops this tree. */
+    public method shutdown(renderer: ref Renderer) void {
+      renderer.clear();
+      this.mounted.clear();
+      this.stopped = true;
+    }
+  }
+
+  /** Owns application state and provides one bounded, nonrecursive dispatch boundary. */
+  public class Session<State> {
+    public var state: State;
+    public var tree: Tree;
+    public var queue: EventQueue;
+    var dispatching: bool = false;
+    var view: function (const ref State) View;
+    var handle: function (ref State, const ref Event, ref EventQueue) SystemResult<void>;
+    /** Takes state ownership; named functions borrow it only for the duration of a call. */
+    init(state: State, view: function (const ref State) View, handle: function (ref State, const ref Event, ref EventQueue) SystemResult<void>) {
+      var a = make_heap_allocator();
+      this.state = state;
+      this.tree = Tree(a);
+      this.queue = EventQueue(a);
+      this.view = view;
+      this.handle = handle;
+    }
+
+    /** Evaluates the pure view and commits it; call once before platform dispatch. */
+    public method render(renderer: ref Renderer) SystemResult<void> {
+      var view = this.view(this.state);
+      match this.tree.render(renderer, view) {
+        SystemResult.Ok => {
+          return SystemResult.Ok;
+        },
+        SystemResult.Error(error) => {
+          if (this.tree.active() == false) {
+            this.queue.pending.clear();
+          }
+          return SystemResult.Error(error);
+        }
+      };
+    }
+
+    /** Processes only the current queue snapshot and batches one render afterwards. */
+    public method dispatch(renderer: ref Renderer) SystemResult<void> {
+      if (this.tree.active() == false) {
+        this.queue.pending.clear();
+        return SystemResult.Error(Error(1, "Tree is stopped"));
+      }
+      if (this.dispatching) {
+        return SystemResult.Error(Error(1, "Recursive dispatch is forbidden"));
+      }
+      this.dispatching = true;
+      var count = this.queue.pending.size();
+      var changed = false;
+      for (var i: i64 = 0; i < count; i += 1) {
+        var event = match this.queue.pending.remove(0) {
+          AccessResult.Ok(value) => value,
+          AccessResult.OutOfBounds(_) => {
+            return SystemResult.Error(Error(1, "Internal index error"));
+          }
+        };
+        if (this.tree.alive(event.identity)) {
+          match this.handle(this.state, event, this.queue) {
+            SystemResult.Ok => {
+              changed = true;
+            },
+            SystemResult.Error(error) => {
+              this.tree.shutdown(renderer);
+              this.queue.pending.clear();
+              this.dispatching = false;
+              return SystemResult.Error(error);
+            }
+          };
+        }
+      }
+      this.dispatching = false;
+      if (changed) {
+        return this.render(renderer);
+      }
+      return SystemResult.Ok;
+    }
+  }
+}
+manifest { libraries: ["stdlib.moon"] }

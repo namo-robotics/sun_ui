@@ -1,0 +1,74 @@
+using std;
+/** Provides a pure counter view and a named state update handler. */
+module counter {
+  /** Creates a button whose label is derived only from application state. */
+  function view(state: const ref i64) ui.View {
+    var a = make_heap_allocator();
+    var view = ui.View(a);
+    view.button(1, `Count: ${state}`, 1, 0);
+    return view;
+  }
+
+  /** Mutates borrowed application state after native event dispatch has returned. */
+  function increment(state: ref i64, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+    state += 1;
+    return SystemResult.Ok;
+  }
+
+  /** Runs the interactive counter or a real-signal acceptance scenario. */
+  public function run(automated: bool) SystemResult<void> {
+    var title = String("Sun UI — Counter");
+    var renderer = try ui_gtk.Renderer(title);
+    var session = ui.Session<i64>(0, view, increment);
+    try session.render(renderer);
+    var original = session.tree.identity(1);
+    if (automated) {
+      renderer.click(original);
+      renderer.poll(session.tree, session.queue, false);
+      try session.dispatch(renderer);
+      if (session.state != 1 or session.tree.identity(1) != original or renderer.updates != 1 or renderer.creates != 1) {
+        return SystemResult.Error(Error(1, "Counter did not perform one targeted text update"));
+      }
+      // More clicks than one native collection turn must remain runnable without new input.
+      for (var i: i64 = 0; i < 65; i += 1) {
+        renderer.click(original);
+      }
+      renderer.poll(session.tree, session.queue, true);
+      if (session.queue.size() != 64) {
+        return SystemResult.Error(Error(1, "Native batch was not bounded"));
+      }
+      try session.dispatch(renderer);
+      renderer.poll(session.tree, session.queue, true);
+      try session.dispatch(renderer);
+      if (session.state != 66 or renderer.creates != 1) {
+        return SystemResult.Error(Error(1, "Pending native clicks were stranded"));
+      }
+      session.tree.shutdown(renderer);
+      if (renderer.removals != 1) {
+        return SystemResult.Error(Error(1, "Counter subscription was not removed"));
+      }
+      println("Counter acceptance passed");
+      return SystemResult.Ok;
+    }
+    while (renderer.running()) {
+      renderer.poll(session.tree, session.queue, true);
+      try session.dispatch(renderer);
+    }
+    session.tree.shutdown(renderer);
+    return SystemResult.Ok;
+  }
+}
+/** Selects interactive execution or the bounded automated scenario. */
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
+  var a = make_heap_allocator();
+  var env = std.env.Env(a);
+  var args = env.args(argc, argv);
+  return match counter.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
+    SystemResult.Ok => 0,
+    SystemResult.Error(error) => {
+      eprintln(error.message());
+      return 1;
+    }
+  };
+}
+manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon", "sun_ui_gtk.moon"] }

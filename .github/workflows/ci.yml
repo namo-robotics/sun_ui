@@ -1,0 +1,50 @@
+name: Build and test
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build development image
+        run: docker build -t sun-ui-dev .
+      - name: Build and test without sun_gobject
+        run: >-
+          docker run --rm --user "$(id -u):$(id -g)"
+          -v "$PWD:/workspaces/sun_ui" sun-ui-dev
+          bash -c './build.sh && sun fmt --check src adapters tools examples tests'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: core-tests
+          path: |
+            build/sun-version.txt
+            build/test-results.log
+  gtk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: namo-robotics/sun_gobject
+          ref: 8a6529dd7dc314da82ce935a66bd6359275bb2dc
+          path: tmp/sun_gobject
+      - name: Build development image
+        run: docker build -t sun-ui-dev .
+      - name: Build dependency and run native acceptance tests
+        run: >-
+          docker run --rm --user "$(id -u):$(id -g)"
+          -e SUN_GOBJECT_BUILD=tmp/sun_gobject/build
+          -v "$PWD:/workspaces/sun_ui" sun-ui-dev
+          bash -c '(cd tmp/sun_gobject && ./build.sh) && ./build.sh --gtk'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gtk-tests
+          path: |
+            build/sun-version.txt
+            build/test-results.log
+            build/gtk-test-results.log

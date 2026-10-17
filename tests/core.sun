@@ -1,0 +1,300 @@
+using std;
+/** Tests core behavior without loading GTK, native libraries, or a display. */
+module core_tests {
+  /** Combines assertion and framework errors for readable test failures. */
+  enum TestResult<T> { Ok(T), Assertion(std.test.AssertionError), System(Error) }
+  /** Records renderer operations and models live native subscriptions. */
+  class Recording implements ui.Renderer {
+    public var created: i64 = 0;
+    public var updated: i64 = 0;
+    public var removed: i64 = 0;
+    public var live: i64 = 0;
+    public var focused: u64 = 0;
+    public var fail: bool = false;
+    public var fail_update: bool = false;
+    public var order: Vec<u64>;
+    /** Allocates the recorded order buffer. */
+    init() {
+      var a = make_heap_allocator();
+      this.order = Vec<u64>(a, 8);
+    }
+
+    /** Records a newly allocated subscription, or simulates platform failure. */
+    public method create(identity: u64, text: const ref String) SystemResult<void> {
+      if (this.fail) {
+        return SystemResult.Error(Error(1, "Injected create failure"));
+      }
+      this.created += 1;
+      this.live += 1;
+      return SystemResult.Ok;
+    }
+
+    /** Counts targeted text updates, or simulates a failed platform update. */
+    public method update(identity: u64, text: const ref String) SystemResult<void> {
+      if (this.fail_update) {
+        return SystemResult.Error(Error(1, "Injected update failure"));
+      }
+      this.updated += 1;
+      return SystemResult.Ok;
+    }
+
+    /** Records each desired sibling sequence. */
+    public method place(identity: u64, previous: u64) SystemResult<void> {
+      if (previous == 0) {
+        this.order.clear();
+      }
+      this.order.push(identity);
+      return SystemResult.Ok;
+    }
+
+    /** Models subscription cleanup at unmount. */
+    public method remove(identity: u64) void {
+      this.removed += 1;
+      this.live -= 1;
+    }
+
+    /** Records a post-commit focus effect. */
+    public method focus(identity: u64) void {
+      this.focused = identity;
+    }
+
+    /** Models idempotent release of every remaining resource. */
+    public method clear() void {
+      this.removed += this.live;
+      this.live = 0;
+    }
+  }
+  /** Builds a two-button description in the supplied key order. */
+  function pair(first: i64, second: i64) ui.View {
+    var a = make_heap_allocator();
+    var view = ui.View(a);
+    view.button(first, String("Task"), 1, first);
+    view.button(second, String("Task"), 1, second);
+    return view;
+  }
+
+  /** Preserves mounted identity and subscriptions across a sibling reorder. */
+  test_function keyed_reorder() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    try tree.render(renderer, pair(10, 20));
+    var first = tree.identity(10);
+    var second = tree.identity(20);
+    try tree.render(renderer, pair(20, 10));
+    try std.test.assert_eq(tree.identity(10), first);
+    try std.test.assert_eq(tree.identity(20), second);
+    try std.test.assert_eq(renderer.order[0], second);
+    try std.test.assert_eq(renderer.order[1], first);
+    try std.test.assert_eq(renderer.created, 2);
+    try std.test.assert_eq(renderer.updated, 0);
+    try std.test.assert_eq(renderer.removed, 0);
+  }
+
+  /** Rejects duplicate sibling keys before any renderer mutation and permits a later valid render. */
+  test_function duplicates_are_atomic() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    try tree.render(renderer, pair(10, 20));
+    var original = tree.identity(10);
+    match tree.render(renderer, pair(10, 10)) {
+      SystemResult.Ok => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    try std.test.assert_eq(renderer.created, 2);
+    try std.test.assert_eq(renderer.removed, 0);
+    try std.test.assert_eq(tree.identity(10), original);
+    try tree.render(renderer, pair(20, 10));
+  }
+
+  /** Allocates a new identity for a reinserted key and cleans removed subscriptions exactly once. */
+  test_function removal_reinsertion_and_shutdown() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    try tree.render(renderer, pair(10, 20));
+    var original = tree.identity(10);
+    try tree.render(renderer, pair(20, 30));
+    try std.test.assert_eq(renderer.removed, 1);
+    try std.test.assert(tree.alive(original) == false);
+    try tree.render(renderer, pair(10, 20));
+    try std.test.assert(tree.identity(10) != original);
+    tree.shutdown(renderer);
+    tree.shutdown(renderer);
+    try std.test.assert_eq(renderer.live, 0);
+    try std.test.assert_eq(renderer.removed, renderer.created);
+  }
+
+  /** Clears even partially committed resources and rejects later renders after a native failure. */
+  test_function renderer_failure_stops_tree() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    try tree.render(renderer, pair(10, 20));
+    renderer.fail = true;
+    match tree.render(renderer, pair(20, 30)) {
+      SystemResult.Ok => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    try std.test.assert_eq(renderer.live, 0);
+    try std.test.assert_eq(tree.identity(20), 0);
+    renderer.fail = false;
+    match tree.render(renderer, pair(10, 20)) {
+      SystemResult.Ok => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+  }
+
+  /** Produces a state-derived label for dispatch and targeted-update tests. */
+  function view(state: const ref i64) ui.View {
+    var a = make_heap_allocator();
+    var result = ui.View(a);
+    result.button(1, `Count ${state}`, 7, 42);
+    return result;
+  }
+
+  /** Posts one follow-up event to verify handler execution never recurses. */
+  function handler(state: ref i64, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+    if (event.action != 7 or event.payload != 42) {
+      return SystemResult.Error(Error(1, "Lost message payload"));
+    }
+    state += 1;
+    if (state == 1) {
+      queue.post(ui.Event(event.identity, 7, 42));
+    }
+    return SystemResult.Ok;
+  }
+
+  /** Defers handler-posted messages to the next boundary and batches one render per snapshot. */
+  test_function deferred_delivery_and_batching() TestResult<void> {
+    var renderer = Recording();
+    var session = ui.Session<i64>(0, view, handler);
+    try session.render(renderer);
+    var id = session.tree.identity(1);
+    session.tree.enqueue(id, session.queue);
+    session.tree.enqueue(id, session.queue);
+    try session.dispatch(renderer);
+    try std.test.assert_eq(session.state, 2);
+    try std.test.assert_eq(session.queue.size(), 1);
+    try std.test.assert_eq(renderer.updated, 1);
+    try session.dispatch(renderer);
+    try std.test.assert_eq(session.state, 3);
+    try std.test.assert_eq(renderer.updated, 2);
+    try std.test.assert_eq(session.queue.size(), 0);
+  }
+
+  /** Discards deliveries queued for a removed mount even if its key is reused. */
+  test_function stale_events_are_skipped() TestResult<void> {
+    var a = make_heap_allocator();
+    var renderer = Recording();
+    var session = ui.Session<i64>(0, view, handler);
+    try session.render(renderer);
+    session.tree.enqueue(session.tree.identity(1), session.queue);
+    var empty = ui.View(a);
+    try session.tree.render(renderer, empty);
+    try session.render(renderer);
+    try session.dispatch(renderer);
+    try std.test.assert_eq(session.state, 0);
+    try std.test.assert_eq(session.queue.size(), 0);
+  }
+
+  /** Captures owned event data when queued, independently of subsequent descriptions. */
+  test_function payload_is_captured() TestResult<void> {
+    var a = make_heap_allocator();
+    var renderer = Recording();
+    var session = ui.Session<i64>(0, view, handler);
+    try session.render(renderer);
+    session.tree.enqueue(session.tree.identity(1), session.queue);
+    var next = ui.View(a);
+    next.button(1, String("Changed"), 99, 99);
+    try session.tree.render(renderer, next);
+    try session.dispatch(renderer);
+    try std.test.assert_eq(session.state, 1);
+  }
+
+  /** Simulates a handler failure after mutating explicitly owned state. */
+  function failing(state: ref i64, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+    state += 1;
+    return SystemResult.Error(Error(1, "Handler failed"));
+  }
+
+  /** Stops and cleans subscriptions on handler failure without pretending to roll back state. */
+  test_function handler_error_cleans_up() TestResult<void> {
+    var renderer = Recording();
+    var session = ui.Session<i64>(0, view, failing);
+    try session.render(renderer);
+    var id = session.tree.identity(1);
+    session.tree.enqueue(id, session.queue);
+    session.tree.enqueue(id, session.queue);
+    match session.dispatch(renderer) {
+      SystemResult.Ok => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    match session.dispatch(renderer) {
+      SystemResult.Ok => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    try std.test.assert_eq(session.state, 1);
+    try std.test.assert_eq(renderer.live, 0);
+    try std.test.assert_eq(session.queue.size(), 0);
+  }
+
+  /** Exercises storage growth and an empty commit without replacing surviving identities. */
+  test_function growing_list_and_empty_commit() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    var initial = ui.View(a);
+    for (var i: i64 = 0; i < 40; i += 1) {
+      initial.button(i, String("Task"), 1, i);
+    }
+    try tree.render(renderer, initial);
+    var retained = tree.identity(19);
+    var reverse = ui.View(a);
+    for (var i: i64 = 39; i >= 0; i -= 1) {
+      reverse.button(i, String("Task"), 1, i);
+    }
+    try tree.render(renderer, reverse);
+    try std.test.assert_eq(tree.identity(19), retained);
+    try std.test.assert_eq(renderer.created, 40);
+    var empty = ui.View(a);
+    try tree.render(renderer, empty);
+    try std.test.assert_eq(renderer.live, 0);
+    try std.test.assert_eq(renderer.removed, 40);
+  }
+
+  /** Applies focus after successful commit and suppresses effects after a failed update. */
+  test_function focus_and_failed_update() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    var initial = pair(1, 2);
+    initial.focus_key = Option.Some(2);
+    try tree.render(renderer, initial);
+    var focused = tree.identity(2);
+    try std.test.assert_eq(renderer.focused, focused);
+    renderer.fail_update = true;
+    var next = ui.View(a);
+    next.button(1, String("Changed"), 1, 1);
+    next.focus_key = Option.Some(1);
+    match tree.render(renderer, next) {
+      SystemResult.Ok => {
+        try std.test.assert(false);
+      },
+      SystemResult.Error(_) => {}
+    };
+    try std.test.assert_eq(renderer.focused, focused);
+    try std.test.assert_eq(renderer.live, 0);
+  }
+}

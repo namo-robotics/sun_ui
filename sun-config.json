@@ -1,0 +1,8 @@
+{
+  "root": true,
+  "sun_path": ["$SUN_UI_BUILD"],
+  "path_variables": {"SUN_UI_BUILD": "build"},
+  "entrypoints": [
+    {"name": "tests", "path": "tests/main.sun", "type": "binary", "output_name": "build/sun-ui-tests", "test_binary_name": "build/sun-ui-tests_test"}
+  ]
+}
