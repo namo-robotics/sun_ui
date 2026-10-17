@@ -1,4 +1,9 @@
 {
+  "git.autoRepositoryDetection": true,
+  "git.repositoryScanMaxDepth": 3,
+  "git.scanRepositories": [
+    "src/sun_gobject"
+  ],
   "sun.sun_path": [
     "/usr/lib/sun",
     "build",
