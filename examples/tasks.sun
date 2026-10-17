@@ -78,6 +78,15 @@ module tasks {
     if (session.state.selected != 2 or renderer.updates != 1) {
       return SystemResult.Error(Error(1, "Task payload or targeted selection update failed"));
     }
+    // Collection must preserve native order across controls, independently of tree order.
+    renderer.click(second);
+    renderer.click(first);
+    renderer.poll(session.tree, session.queue, false);
+    try session.dispatch(renderer);
+    if (session.state.selected != 1) {
+      return SystemResult.Error(Error(1, "Cross-widget native event order was changed"));
+    }
+    try click(renderer, session, 2);
     renderer.focus(second);
     if (renderer.focused(second) == false) {
       return SystemResult.Error(Error(1, "Initial native focus failed"));

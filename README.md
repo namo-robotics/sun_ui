@@ -88,7 +88,8 @@ flowchart LR
     State[Application state] --> View[View description]
     View --> Tree[Keyed reconciliation]
     Tree --> GTK[GTK controls]
-    GTK --> Queue[Event queue]
+    GTK --> Native[sun_gobject native event queue]
+    Native --> Queue[sun_ui semantic messages]
     Queue --> Handler[State update handler]
     Handler --> State
 ```
@@ -99,17 +100,25 @@ flowchart LR
 - **Reconciliation:** `Tree` compares sibling keys to create, update, reorder, or
   remove controls through a renderer. Reordering preserves control identity;
   duplicate keys are rejected before changing the interface.
-- **Events:** The platform loop polls native events and queues messages.
-  `Session.dispatch` runs handlers with mutable access to state, then renders
-  once per batch. Messages carry an action number and an integer payload.
-- **GTK backend:** Owns windows, controls, and subscriptions through `sun_gobject`.
-  GTK provides layout, text rendering, keyboard activation, focus navigation,
-  and native button accessibility.
+- **Events:** The GTK backend translates `sun_gobject`'s FIFO native deliveries
+  into semantic messages in bounded batches. `Session.dispatch` owns mutable state
+  updates, handler failure policy, and rendering once per batch. Messages carry an
+  action number and an integer payload.
+- **GTK backend:** Owns windows, boxes, controls, and subscriptions through checked
+  `sun_gobject` APIs. It chooses collection batches, keyed placement, focus requests,
+  and when to stop after window closure. GTK provides layout, text rendering,
+  keyboard activation, focus navigation, and native button accessibility.
+- **Dependency boundary:** `sun_gobject` owns native reference lifetimes, parenting
+  and thread checks, signal delivery, and GLib timeout sources. Its `gtk.EventQueue`
+  owns no application state and applies no render or window-lifetime policy.
+  `sun_ui` uses that queue directly rather than the optional imperative
+  `gtk.EventLoop<State>`. The platform-independent core imports neither GTK nor
+  `sun_gobject`.
 
 | Path | Responsibility |
 | --- | --- |
 | [src/ui.sun](src/ui.sun) | Views, state sessions, event queues, and reconciliation |
-| [adapters/gtk/renderer.sun](adapters/gtk/renderer.sun) | GTK rendering and native event polling |
+| [adapters/gtk/renderer.sun](adapters/gtk/renderer.sun) | Checked GTK widgets and native-to-semantic event translation |
 | [examples/](examples/) | Runnable applications and GTK acceptance scenarios |
 | [tests/](tests/) | Core tests using a recording renderer |
 | [tools/build.sun](tools/build.sun) | Build and test orchestration |
