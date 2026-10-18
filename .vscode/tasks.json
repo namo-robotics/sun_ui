@@ -20,13 +20,13 @@
     {
       "label": "Test",
       "type": "shell",
-      "command": "sun tools/build.sun -- test",
+      "command": "sun src/tools/build.sun -- test",
       "problemMatcher": []
     },
     {
       "label": "Build Sun",
       "type": "shell",
-      "command": "sun tools/build.sun -- build",
+      "command": "sun src/tools/build.sun -- build",
       "problemMatcher": []
     },
     {

@@ -62,10 +62,17 @@ without GTK or `sun_gobject`. The compiler version and test results are recorded
 For separate build, test, and formatting checks:
 
 ```sh
-sun tools/build.sun -- build
-sun tools/build.sun -- test
-sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/adapters tools examples tests
+sun src/tools/build.sun -- build
+sun src/tools/build.sun -- test
+sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/adapters src/tools examples tests
 ```
+
+Build targets are declared in `sun-config.json`, including bundle types, source
+entry points, and output paths. `src/tools/build.sun` selects those targets by
+name and handles build order, XML generation, GTK linker flags, and acceptance
+tests. Use `./build.sh` for core builds or `./build.sh --gtk` for the full build;
+`sun -c sun-config.json` selects every entry and does not perform those preparation
+steps or supply GTK's native linker flags.
 
 ### Build the GTK backend
 
@@ -187,7 +194,7 @@ flowchart LR
 | [src/adapters/gtk/renderer.sun](src/adapters/gtk/renderer.sun) | Checked GTK widgets and native-to-semantic event translation |
 | [examples/](examples/) | Runnable applications and GTK acceptance scenarios |
 | [tests/](tests/) | Core tests using a recording renderer |
-| [tools/build.sun](tools/build.sun) | Build and test orchestration |
+| [src/tools/build.sun](src/tools/build.sun) | Build and test orchestration |
 
 Applications import `sun_ui.moon`. GTK applications additionally import
 `sun_ui_gtk.moon`, `sun_gobject.moon`, and `sun_gtk.moon`, and link GTK and the

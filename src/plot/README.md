@@ -58,7 +58,7 @@ figure.y_limits = Option.Some(plot.Limits(-2.0, 8.0));
 
 For a window, also import `sun_ui_gtk_drawing.moon`, `sun_gobject.moon`, and
 `sun_gtk.moon`, and link their native dependencies
-as shown in [the build tool](../../tools/build.sun):
+as shown in [the build tool](../../src/tools/build.sun):
 
 ```sun
 var title = String("Experiment");

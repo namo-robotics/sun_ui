@@ -1,9 +1,123 @@
 {
   "root": true,
-  "sun_path": ["$SUN_UI_BUILD"],
-  "path_variables": {"SUN_UI_BUILD": "build"},
+  "sun_path": [
+    "$SUN_UI_BUILD"
+  ],
+  "path_variables": {
+    "SUN_UI_BUILD": "build"
+  },
   "entrypoints": [
-    {"name": "tests", "path": "tests/main.sun", "type": "binary", "output_name": "build/sun-ui-tests", "test_binary_name": "build/sun-ui-tests_test"},
-    {"name": "plot-tests", "path": "tests/plot/main.sun", "type": "binary", "output_name": "build/sun-plot-tests", "test_binary_name": "build/sun-plot-tests_test"}
+    {
+      "name": "sun_ui",
+      "path": "src/ui.sun",
+      "type": "library",
+      "output_name": "build/sun_ui.moon"
+    },
+    {
+      "name": "sun_plot",
+      "path": "src/plot/plot.sun",
+      "type": "library",
+      "output_name": "build/sun_plot.moon"
+    },
+    {
+      "name": "tests",
+      "path": "tests/main.sun",
+      "type": "binary",
+      "output_name": "build/sun-ui-tests",
+      "test_binary_name": "build/sun-ui-tests_test"
+    },
+    {
+      "name": "plot-tests",
+      "path": "tests/plot/main.sun",
+      "type": "binary",
+      "output_name": "build/sun-plot-tests",
+      "test_binary_name": "build/sun-plot-tests_test"
+    },
+    {
+      "name": "sun_ui_gtk",
+      "path": "src/adapters/gtk/renderer.sun",
+      "type": "library",
+      "output_name": "build/sun_ui_gtk.moon"
+    },
+    {
+      "name": "sun_ui_gtk_drawing",
+      "path": "src/adapters/gtk/drawing.sun",
+      "type": "library",
+      "output_name": "build/sun_ui_gtk_drawing.moon"
+    },
+    {
+      "name": "counter",
+      "path": "examples/counter/main.sun",
+      "type": "binary",
+      "output_name": "build/counter"
+    },
+    {
+      "name": "tasks",
+      "path": "examples/tasks/main.sun",
+      "type": "binary",
+      "output_name": "build/tasks"
+    },
+    {
+      "name": "plot-export",
+      "path": "examples/plot-export/main.sun",
+      "type": "binary",
+      "output_name": "build/plot-export"
+    },
+    {
+      "name": "plot-viewer",
+      "path": "examples/plot-viewer/main.sun",
+      "type": "binary",
+      "output_name": "build/plot-viewer"
+    },
+    {
+      "name": "viewc",
+      "path": "src/tools/viewc.sun",
+      "type": "binary",
+      "output_name": "build/sun-viewc"
+    },
+    {
+      "name": "xml-probe",
+      "path": "src/tools/xml_probe.sun",
+      "type": "binary",
+      "output_name": "build/xml-probe"
+    },
+    {
+      "name": "markup-tests",
+      "path": "tests/markup/main.sun",
+      "type": "binary",
+      "output_name": "build/markup-tests",
+      "test_binary_name": "build/markup-tests_test"
+    },
+    {
+      "name": "generated-view-tests",
+      "path": "tests/markup/generated.sun",
+      "type": "binary",
+      "output_name": "build/generated-view-tests",
+      "test_binary_name": "build/generated-view-tests_test"
+    },
+    {
+      "name": "counter-xml",
+      "path": "examples/counter-xml/main.sun",
+      "type": "binary",
+      "output_name": "build/counter-xml"
+    },
+    {
+      "name": "tasks-xml",
+      "path": "examples/tasks-xml/main.sun",
+      "type": "binary",
+      "output_name": "build/tasks-xml"
+    },
+    {
+      "name": "forms",
+      "path": "examples/forms/main.sun",
+      "type": "binary",
+      "output_name": "build/forms-xml"
+    },
+    {
+      "name": "build-tool",
+      "path": "src/tools/build.sun",
+      "type": "binary",
+      "output_name": "build/sun-ui-build"
+    }
   ]
 }

@@ -16,7 +16,8 @@ module markup_pipeline_tests {
   /** Runs the already-built generator and captures structural diagnostics. */
   function generate() SystemResult<std.process.Output> {
     var a = make_heap_allocator();
-    var command = std.process.Command(a, "build/sun-viewc");
+    var target = try build_targets.load("viewc");
+    var command = std.process.Command(a, target.output);
     command.add_arg("tmp/markup-pipeline/main.view.xml");
     command.add_arg("build/generated/tests/pipeline/main.view.sun");
     return command.output();

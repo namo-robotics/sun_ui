@@ -17,9 +17,9 @@ older compiler. No separate stdlib bundle is needed.
 ./build/forms-xml
 ```
 
-For focused work, `sun tools/build.sun -- markup` builds the compiler, runs compiler
+For focused work, `sun src/tools/build.sun -- markup` builds the compiler, runs compiler
 and generated-description tests, and generates examples without GTK or sun_gobject.
-`sun tools/build.sun -- markup-gtk` additionally compiles and runs the generated
+`sun src/tools/build.sun -- markup-gtk` additionally compiles and runs the generated
 counter, task list, and form acceptance scenarios after the GTK adapter is built.
 Both are included in the corresponding normal build and CI workflows.
 

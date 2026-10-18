@@ -28,8 +28,6 @@ module build_tasks {
     var executable = setting("SUN_EXECUTABLE", "sun");
     var command = std.process.Command(a, executable);
     command.add_arg("--dynamic");
-    command.add_arg("--lib-path");
-    command.add_arg("build");
     if (gtk) {
       var dependency = setting("SUN_GOBJECT_BUILD", "src/sun_gobject/build");
       command.add_arg("--lib-path");
@@ -58,14 +56,15 @@ module build_tasks {
     return SystemResult.Ok(command);
   }
 
-  /** Compiles one source as an executable or reusable Sun bundle. */
-  function compile(source: static_ptr<u8>, output: static_ptr<u8>, bundle: bool, gtk: bool) SystemResult<void> {
+  /** Compiles a named configuration entry with optional native GTK dependencies. */
+  function compile(name: static_ptr<u8>, gtk: bool) SystemResult<void> {
+    var target = try build_targets.load(name);
     var command = try compiler(gtk);
-    command.add_arg(bundle ? "--emit-moon" : "-c");
+    command.add_arg(target.library ? "--emit-moon" : "-c");
     command.add_arg("-o");
-    command.add_arg(output);
-    command.add_arg(source);
-    var source_path = String(source);
+    command.add_arg(target.output);
+    command.add_arg(target.source);
+    var source_path = target.source.clone(make_heap_allocator());
     if (source_path.equals_literal("examples/counter-xml/main.sun") or source_path.equals_literal("examples/tasks-xml/main.sun") or source_path.equals_literal("examples/forms/main.sun")) {
       var result = try command.output();
       print(result.stdout());
@@ -95,18 +94,28 @@ module build_tasks {
   /** Checks XML support before compiling products that require it. */
   function check_xml() SystemResult<void> {
     var a = make_heap_allocator();
-    var executable = setting("SUN_EXECUTABLE", "sun");
-    var probe = std.process.Command(a, executable);
-    probe.add_arg("--dynamic");
-    probe.add_arg("-c");
-    probe.add_arg("-o");
-    probe.add_arg("build/xml-probe");
-    probe.add_arg("tools/xml_probe.sun");
-    if (try probe.status() != 0) {
-      return SystemResult.Error(Error(1, "XML reader and source-span APIs are required. Run ./scripts/bootstrap-sun.sh --update or set SUN_EXECUTABLE to a current compiler."));
-    }
-    var check = std.process.Command(a, "build/xml-probe");
+    match compile("xml-probe", false) {
+      SystemResult.Ok => {},
+      SystemResult.Error(_) => {
+        return SystemResult.Error(Error(1, "XML reader and source-span APIs are required. Run ./scripts/bootstrap-sun.sh --update or set SUN_EXECUTABLE to a current compiler."));
+      }
+    };
+    var target = try build_targets.load("xml-probe");
+    var check = std.process.Command(a, target.output);
     return run(check);
+  }
+
+  /** Runs a configured GTK program's acceptance scenario under a bounded virtual display. */
+  function acceptance(name: static_ptr<u8>) SystemResult<void> {
+    var a = make_heap_allocator();
+    var target = try build_targets.load(name);
+    var command = std.process.Command(a, "sh");
+    command.add_arg("-eu");
+    command.add_arg("-c");
+    command.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test");
+    command.add_arg("sun-ui-acceptance");
+    command.add_arg(target.output);
+    return run(command);
   }
 
   /** Builds core products without requiring GTK or sun_gobject. */
@@ -126,11 +135,11 @@ module build_tasks {
     var text = output.stdout().clone(a);
     text.append(output.stderr());
     try std.io.write_string(path, text);
-    try compile("src/ui.sun", "build/sun_ui.moon", true, false);
-    try compile("src/plot/plot.sun", "build/sun_plot.moon", true, false);
-    try compile("tests/main.sun", "build/sun-ui-tests", false, false);
-    try compile("tests/plot/main.sun", "build/sun-plot-tests", false, false);
-    try compile("examples/plot-export/main.sun", "build/plot-export", false, false);
+    try compile("sun_ui", false);
+    try compile("sun_plot", false);
+    try compile("tests", false);
+    try compile("plot-tests", false);
+    try compile("plot-export", false);
     return SystemResult.Ok;
   }
 
@@ -142,27 +151,15 @@ module build_tasks {
     directory.add_arg("build/generated/examples");
     try run(directory);
     try check_xml();
-    var sources = Vec<String>(a, 2);
-    sources.push(String("tools/viewc.sun"));
-    sources.push(String("tests/markup/main.sun"));
-    var outputs = Vec<String>(a, 2);
-    outputs.push(String("build/sun-viewc"));
-    outputs.push(String("build/markup-tests"));
-    for (var i: i64 = 0; i < sources.size(); i += 1) {
-      var command = try compiler(false);
-      command.add_arg("-c");
-      command.add_arg("-o");
-      command.add_arg(outputs[i]);
-      command.add_arg(sources[i]);
-      if (try command.status() != 0) {
-        return SystemResult.Error(Error(1, "Markup compilation failed; see the compiler diagnostic above."));
-      }
-    }
-    var tests = std.process.Command(a, "build/markup-tests_test");
+    try compile("viewc", false);
+    try compile("markup-tests", false);
+    var markup_target = try build_targets.load("markup-tests");
+    var tests = std.process.Command(a, markup_target.tests);
     try run(tests);
+    var viewc = try build_targets.load("viewc");
     var names = String("counter tasks forms").split_whitespace(a);
     for (var name: ref String in names) {
-      var generate = std.process.Command(a, "build/sun-viewc");
+      var generate = std.process.Command(a, viewc.output);
       var example = name.clone(a);
       if (name.equals_literal("forms") == false) {
         example.append("-xml");
@@ -181,16 +178,17 @@ module build_tasks {
       generate.add_arg(output);
       try run(generate);
     }
-    var scoped = std.process.Command(a, "build/sun-viewc");
+    var scoped = std.process.Command(a, viewc.output);
     scoped.add_arg("tests/markup/scoped.view.xml");
     scoped.add_arg("build/generated/tests/markup/scoped.view.sun");
     try run(scoped);
-    var actions = std.process.Command(a, "build/sun-viewc");
+    var actions = std.process.Command(a, viewc.output);
     actions.add_arg("tests/markup/actions.view.xml");
     actions.add_arg("build/generated/tests/markup/actions.view.sun");
     try run(actions);
-    try compile("tests/markup/generated.sun", "build/generated-view-tests", false, false);
-    var generated_tests = std.process.Command(a, "build/generated-view-tests_test");
+    try compile("generated-view-tests", false);
+    var generated_target = try build_targets.load("generated-view-tests");
+    var generated_tests = std.process.Command(a, generated_target.tests);
     try run(generated_tests);
     return SystemResult.Ok;
   }
@@ -198,63 +196,50 @@ module build_tasks {
   /** Generates and compiles XML examples before their native acceptance checks. */
   public function markup_gtk() SystemResult<void> {
     try markup();
-    try compile("examples/counter-xml/main.sun", "build/counter-xml", false, true);
-    try compile("examples/tasks-xml/main.sun", "build/tasks-xml", false, true);
-    try compile("examples/forms/main.sun", "build/forms-xml", false, true);
-    var a = make_heap_allocator();
-    var command = std.process.Command(a, "sh");
-    command.add_arg("-eu");
-    command.add_arg("-c");
-    command.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a build/counter-xml --self-test; timeout 30s dbus-run-session -- xvfb-run -a build/tasks-xml --self-test; timeout 30s dbus-run-session -- xvfb-run -a build/forms-xml --self-test");
-    return run(command);
+    try compile("counter-xml", true);
+    try compile("tasks-xml", true);
+    try compile("forms", true);
+    try acceptance("counter-xml");
+    try acceptance("tasks-xml");
+    return acceptance("forms");
   }
 
   /** Builds the optional adapter and both native prototypes against an existing dependency build. */
   public function gtk() SystemResult<void> {
-    try compile("src/adapters/gtk/renderer.sun", "build/sun_ui_gtk.moon", true, true);
-    try compile("examples/counter/main.sun", "build/counter", false, true);
-    try compile("examples/tasks/main.sun", "build/tasks", false, true);
+    try compile("sun_ui_gtk", true);
+    try compile("counter", true);
+    try compile("tasks", true);
     try plot_gtk();
     return SystemResult.Ok;
   }
 
   /** Builds the vector viewer against the checked GTK drawing bindings. */
   public function plot_gtk() SystemResult<void> {
-    try compile("src/adapters/gtk/drawing.sun", "build/sun_ui_gtk_drawing.moon", true, true);
-    var command = try compiler(true);
-    command.add_arg("-c");
-    command.add_arg("-o");
-    command.add_arg("build/plot-viewer");
-    command.add_arg("examples/plot-viewer/main.sun");
-    return run(command);
+    try compile("sun_ui_gtk_drawing", true);
+    return compile("plot-viewer", true);
   }
 
   /** Exercises native vector drawing, replacement, and resize under a virtual display. */
   public function test_plot_gtk() SystemResult<void> {
-    var a = make_heap_allocator();
-    var command = std.process.Command(a, "sh");
-    command.add_arg("-eu");
-    command.add_arg("-c");
-    command.add_arg("G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo timeout 30s dbus-run-session -- xvfb-run -a build/plot-viewer --self-test");
-    return run(command);
+    return acceptance("plot-viewer");
   }
 
   /** Runs the core tests or bounded GTK acceptance scenarios on a virtual display. */
   public function test(gtk: bool) SystemResult<void> {
     var a = make_heap_allocator();
     if (gtk == false) {
-      var tests = std.process.Command(a, "build/sun-ui-tests_test");
+      var core = try build_targets.load("tests");
+      var tests = std.process.Command(a, core.tests);
       try run(tests);
-      var plot_tests = std.process.Command(a, "build/sun-plot-tests_test");
+      var plot = try build_targets.load("plot-tests");
+      var plot_tests = std.process.Command(a, plot.tests);
       try run(plot_tests);
-      var example = std.process.Command(a, "build/plot-export");
+      var export_target = try build_targets.load("plot-export");
+      var example = std.process.Command(a, export_target.output);
       return run(example);
     }
-    var tests = std.process.Command(a, "sh");
-    tests.add_arg("-eu");
-    tests.add_arg("-c");
-    tests.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a build/counter --self-test; timeout 30s dbus-run-session -- xvfb-run -a build/tasks --self-test");
-    try run(tests);
+    try acceptance("counter");
+    try acceptance("tasks");
     return test_plot_gtk();
   }
 }
@@ -282,7 +267,7 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   } else if (args.size() == 2 and args[1].equals_literal("markup-gtk")) {
     result = build_tasks.markup_gtk();
   } else {
-    eprintln("Usage: sun tools/build.sun -- [build|test|gtk|test-gtk|plot-gtk|test-plot-gtk|markup|markup-gtk]");
+    eprintln("Usage: sun src/tools/build.sun -- [build|test|gtk|test-gtk|plot-gtk|test-plot-gtk|markup|markup-gtk]");
     return 1;
   }
   return match result {
@@ -293,4 +278,4 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
     }
   };
 }
-manifest { libraries: ["stdlib.moon"], source_files: ["diagnostics.sun"] }
+manifest { libraries: ["stdlib.moon"], source_files: ["diagnostics.sun", "targets.sun"] }
