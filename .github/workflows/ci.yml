@@ -47,12 +47,13 @@ jobs:
           -e GIT_CONFIG_KEY_0=url.https://github.com/namo-robotics/sun_gobject.git.insteadOf
           -e GIT_CONFIG_VALUE_0=git@github.com:namo-robotics/sun_gobject.git
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
-          bash -c 'vcs import --input deps.repos . && bash src/sun_gobject/build.sh && ./build.sh --gtk'
+          bash -c 'vcs import --input deps.repos . && bash scripts/build-ci-dependency.sh && ./build.sh --gtk'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: gtk-tests
           path: |
+            src/sun_gobject/build/test-results.log
             build/sun-version.txt
             build/test-results.log
             build/gtk-test-results.log
