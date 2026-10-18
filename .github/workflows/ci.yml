@@ -15,8 +15,11 @@ jobs:
       - name: Build development image
         run: docker build -t sun-ui-dev .
       - name: Build and test without sun_gobject
+        # Make the runner's UID and GID resolvable inside the container.
         run: >-
           docker run --rm --user "$(id -u):$(id -g)"
+          -v /etc/passwd:/etc/passwd:ro
+          -v /etc/group:/etc/group:ro
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
           bash -c './build.sh && sun fmt --check src/ui.sun src/drawing.sun src/plot src/adapters tools examples tests'
       - uses: actions/upload-artifact@v4
@@ -35,8 +38,11 @@ jobs:
         run: docker build -t sun-ui-dev .
       - name: Build dependency and run native acceptance tests
         # Keep SSH in the development manifest; fetch the public dependency over HTTPS in CI.
+        # D-Bus needs a passwd entry for the runner's UID inside the container.
         run: >-
           docker run --rm --user "$(id -u):$(id -g)"
+          -v /etc/passwd:/etc/passwd:ro
+          -v /etc/group:/etc/group:ro
           -e GIT_CONFIG_COUNT=1
           -e GIT_CONFIG_KEY_0=url.https://github.com/namo-robotics/sun_gobject.git.insteadOf
           -e GIT_CONFIG_VALUE_0=git@github.com:namo-robotics/sun_gobject.git
