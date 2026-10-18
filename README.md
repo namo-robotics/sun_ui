@@ -9,8 +9,9 @@ their keyed identity.
 
 GTK is currently the only graphical backend. The core can be built and tested
 without it, but displaying an interface requires the backend. This prototype
-supports native buttons in a flat vertical list, demonstrated by a counter and a
-task list. It is not yet a general widget toolkit.
+supports nested layouts, grids, scrolling, labels, buttons, controlled form inputs,
+and structured themes. Optional [XML views](docs/xml-views.md) compile to ordinary
+Sun functions; handwritten counter and task-list examples remain supported.
 
 This repository also maintains **[sun_plot](src/plot/README.md)**, a separate
 scientific plotting library built on sun_ui. It supports line and scatter series,
@@ -56,14 +57,14 @@ build and system libraries described below.
 ```
 
 This builds `build/sun_ui.moon`, `build/sun_plot.moon`, and the plot export example,
-then runs the UI and plotting tests without GTK or
-`sun_gobject`. The compiler version and test results are recorded in `build/`.
+then runs UI, plotting, and XML compiler tests and generates the XML examples
+without GTK or `sun_gobject`. The compiler version and test results are recorded in `build/`.
 For separate build, test, and formatting checks:
 
 ```sh
 sun tools/build.sun -- build
 sun tools/build.sun -- test
-sun fmt --check src/ui.sun src/drawing.sun src/plot src/adapters tools examples tests
+sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/adapters tools examples tests
 ```
 
 ### Build the GTK backend
@@ -135,8 +136,8 @@ After building with `--gtk`:
 
 | Run | Source | Demonstrates |
 | --- | --- | --- |
-| `./build/counter` | [counter.sun](examples/counter.sun) | Click to increment state and update the same button's label. |
-| `./build/tasks` | [tasks.sun](examples/tasks.sun) | Add tasks, click to select, reverse their order, and remove the selected task. Stable keys preserve surviving controls and focus. |
+| `./build/counter` | [counter/main.sun](examples/counter/main.sun) | Click to increment state and update the same button's label. |
+| `./build/tasks` | [tasks/main.sun](examples/tasks/main.sun) | Add tasks, click to select, reverse their order, and remove the selected task. Stable keys preserve surviving controls and focus. |
 
 Both examples accept `--self-test`; the GTK build runs these checks automatically.
 The counter is the smallest complete example of a view function, event handler,
@@ -159,13 +160,13 @@ flowchart LR
 - **State and views:** `Session<State>` owns application state. View functions
   borrow it read-only and produce owned descriptions. Components are ordinary
   functions that append elements to a view; they never receive platform handles.
-- **Reconciliation:** `Tree` compares sibling keys to create, update, reorder, or
+- **Reconciliation:** `Tree` compares parent-scoped keys and node kinds to create, update, reorder, or
   remove controls through a renderer. Reordering preserves control identity;
   duplicate keys are rejected before changing the interface.
 - **Events:** The GTK backend translates `sun_gobject`'s FIFO native deliveries
   into semantic messages in bounded batches. `Session.dispatch` owns mutable state
   updates, handler failure policy, and rendering once per batch. Messages carry an
-  action number and an integer payload.
+  action number, integer application context, and an owned edit value.
 - **GTK backend:** Owns windows, boxes, controls, and subscriptions through checked
   `sun_gobject` APIs. It chooses collection batches, keyed placement, focus requests,
   and when to stop after window closure. GTK provides layout, text rendering,
@@ -195,5 +196,10 @@ loop. Call `Tree.shutdown(renderer)` when a session ends to clear mounted resour
 Renderer or handler errors stop the affected tree; recreate the session to recover.
 
 The current implementation allocates view storage on each render and uses linear
-key searches, making it suitable for small prototypes. Nested layouts, editable
-controls, typed message payloads, and additional backends remain future work.
+key searches, making it suitable for small applications. See the
+[XML view guide](docs/xml-views.md) for generation, forms, resource dictionaries,
+themes, component scopes, templates, and renderer migration. XML tooling requires
+the current published compiler with XML source spans; the build checks this API.
+The [upstream notes](upstream/README.md) record the migration history.
+GTK applications require the corresponding changes in the separate sun_gobject
+checkout; additional rendering backends remain future work.

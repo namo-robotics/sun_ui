@@ -1,57 +1,197 @@
 using std;
 
-/** Adapts semantic buttons to GTK using sun_gobject's owned widgets and event queues. */
+/** Renders owned UI descriptions using checked GTK widgets and native FIFO events. */
 public module ui_gtk {
 
-  /** Owns a button and its independently managed click subscription. */
+  /** Maps platform-independent node kinds to the checked binding vocabulary. */
+  function widget_kind(kind: ui.Kind) i32 {
+    return match kind {
+      ui.Kind.Group => 0,
+      ui.Kind.Row => 1,
+      ui.Kind.Column => 2,
+      ui.Kind.Grid => 3,
+      ui.Kind.Scroll => 4,
+      ui.Kind.Label => 5,
+      ui.Kind.Button => 6,
+      ui.Kind.TextInput => 7,
+      ui.Kind.Checkbox => 8,
+      ui.Kind.Select => 9
+    };
+  }
+
+  /** Maps common alignment to GTK's fill, start, end, and center order. */
+  function alignment(value: ui.Align) i32 {
+    return match value {
+      ui.Align.Fill => 0,
+      ui.Align.Start => 1,
+      ui.Align.End => 2,
+      ui.Align.Center => 3
+    };
+  }
+
+  /** Encodes a packed RGB color using numeric CSS channels. */
+  function color(value: i64) String {
+    return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`;
+  }
+
+  /** Emits one validated appearance with a fixed interaction selector. */
+  function appearance(output: ref String, selector: static_ptr<u8>, value: const ref ui.Appearance) void {
+    output.append(selector);
+    output.append(" {");
+    if (value.foreground >= 0) {
+      output.append("color:");
+      output.append(color(value.foreground));
+      output.append(";");
+    }
+    if (value.background >= 0) {
+      output.append("background-color:");
+      output.append(color(value.background));
+      output.append(";background-image:none;");
+    }
+    if (not value.font.is_empty()) {
+      output.append("font-family:\"");
+      output.append(value.font);
+      output.append("\";");
+    }
+    if (value.font_size > 0) {
+      output.append("font-size:");
+      output.append(value.font_size);
+      output.append("px;");
+    }
+    output.append("}\n");
+  }
+
+  /** Translates structured styles to fixed GTK interaction selectors. */
+  function stylesheet(style: const ref ui.Style) String {
+    var css = String("");
+    appearance(css, "*", style.normal);
+    appearance(css, "*:hover", style.hover);
+    appearance(css, "*:focus", style.focus);
+    appearance(css, "*:disabled", style.disabled);
+    return css;
+  }
+
+  /** Owns a heterogeneous widget, its subscription, and placement metadata. */
   class Control {
     var identity: u64;
-    var button: gtk.Button;
-    var click_id: gtk.RegistrationId;
+    var kind: ui.Kind;
+    var parent: u64 = 0;
+    var previous: u64 = 0;
+    var widget: gtk.Widget;
+    var subscriptions: Vec<gtk.RegistrationId>;
+    var row: i32 = 0;
+    var column: i32 = 0;
+    var row_span: i32 = 1;
+    var column_span: i32 = 1;
+    var choices: Vec<ui.Choice>;
 
-    /** Creates a native button using the checked sun_gobject API. */
-    init(identity: u64, text: const ref String, events: ref gtk.EventQueue) SystemResult<void> {
+    /** Constructs a native control before registering user events. */
+    init(identity: u64, element: const ref ui.Element, events: ref gtk.EventQueue) SystemResult<void> {
       var a = make_heap_allocator();
-      var label = text.clone(a);
       this.identity = identity;
-      this.button = try gtk.Button(label);
-      this.click_id = try events.on_clicked(this.button);
+      this.kind = element.kind;
+      this.widget = try gtk.Widget(widget_kind(element.kind));
+      this.choices = Vec<ui.Choice>(a, 4);
+      this.subscriptions = Vec<gtk.RegistrationId>(a, 4);
+      try this.apply(element);
+      if (element.kind == ui.Kind.Button or element.kind == ui.Kind.TextInput or element.kind == ui.Kind.Checkbox or element.kind == ui.Kind.Select) {
+        this.subscriptions.push(try events.on_widget(this.widget));
+      }
+    }
+
+    /** Applies controlled values and common properties through checked APIs. */
+    method apply(element: const ref ui.Element) SystemResult<void> {
+      var a = make_heap_allocator();
+      if (element.kind == ui.Kind.Button or element.kind == ui.Kind.Label or element.kind == ui.Kind.TextInput or element.kind == ui.Kind.Checkbox) {
+        var text = element.text.clone(a);
+        try this.widget.set_text(text);
+      }
+      if (element.kind == ui.Kind.Checkbox) {
+        try this.widget.set_value(element.checked ? 1 : 0);
+      }
+      if (element.kind == ui.Kind.Select) {
+        var changed = this.choices.size() != element.choices.size();
+        if (not changed) {
+          for (var i: i64 = 0; i < this.choices.size(); i += 1) {
+            if (not this.choices[i].key.equals(element.choices[i].key) or not this.choices[i].text.equals(element.choices[i].text)) {
+              changed = true;
+            }
+          }
+        }
+        if (changed) {
+          try this.widget.clear_options();
+          this.choices.clear();
+          for (var i: i64 = 0; i < element.choices.size(); i += 1) {
+            var text = element.choices[i].text.clone(a);
+            var key = element.choices[i].key.encoded();
+            try this.widget.add_option(text, key);
+            this.choices.push(ui.Choice(element.choices[i].key.clone(a), element.choices[i].text.clone(a)));
+          }
+        }
+        try this.widget.set_value(_convert<i32>(element.selected));
+      }
+      if (element.kind == ui.Kind.Grid) {
+        try this.widget.track(false, 0, 0, true);
+        try this.widget.track(true, 0, 0, true);
+        if (element.rows.size() == 0) {
+          try this.widget.track(false, 0, 0, false);
+        }
+        if (element.columns.size() == 0) {
+          try this.widget.track(true, 0, 0, false);
+        }
+        for (var i: i64 = 0; i < element.rows.size(); i += 1) {
+          var track = element.rows[i];
+          try this.widget.track(false, track.kind == ui.TrackKind.Auto ? 0 : (track.kind == ui.TrackKind.Fixed ? 1 : 2), track.value, false);
+        }
+        for (var i: i64 = 0; i < element.columns.size(); i += 1) {
+          var track = element.columns[i];
+          try this.widget.track(true, track.kind == ui.TrackKind.Auto ? 0 : (track.kind == ui.TrackKind.Fixed ? 1 : 2), track.value, false);
+        }
+      }
+      var css = stylesheet(element.style);
+      try this.widget.style(css);
+      this.row = element.row;
+      this.column = element.column;
+      this.row_span = element.row_span;
+      this.column_span = element.column_span;
+      return this.widget.properties(element.enabled, element.visible, element.margin, element.width > element.min_width ? element.width : element.min_width, element.height > element.min_height ? element.height : element.min_height, alignment(element.horizontal), alignment(element.vertical), element.expand_x, element.expand_y, element.spacing);
     }
   }
 
-  /** Owns the application, window, layout, and controls on the GTK main thread. */
+  /** Owns the application, window, native controls, and exclusive GTK event queue. */
   public class Renderer implements ui.Renderer {
     var app: gtk.Application;
     var window: gtk.Window;
-    var box: gtk.Box;
+    var root: gtk.Widget;
     var events: gtk.EventQueue;
     var controls: Vec<Control>;
     public var updates: i64 = 0;
     public var creates: i64 = 0;
     public var removals: i64 = 0;
 
-    /** Opens checked native widgets and acquires a state-independent GTK event queue. */
+    /** Opens a window with a root vertical layout. */
     init(title: ref String) SystemResult<void> {
       var a = make_heap_allocator();
       var id = String("org.sunlang.UIPrototype");
       this.app = try gtk.Application(id);
       this.window = gtk.Window(this.app);
+      this.root = try gtk.Widget(2);
       this.controls = Vec<Control>(a, 8);
-      this.box = try gtk.Box(gtk.Orientation.Vertical, 8);
-      try this.window.set_box(this.box);
+      try this.root.properties(true, true, 0, -1, -1, 0, 0, false, false, 8);
+      try this.window.set_widget(this.root);
       this.events = try gtk.EventQueue(this.app);
       try this.window.set_title(title);
       try this.window.set_default_size(440, 360);
       try this.window.present();
     }
 
-    /** Disconnects every button subscription before releasing the container. */
+    /** Disconnects subscriptions before closing the window. */
     deinit() {
       this.clear();
       this.window.close();
     }
 
-    /** Finds a live control by its core-issued identity. */
+    /** Finds a live core-issued identity. */
     method index(identity: u64) i64 {
       for (var i: i64 = 0; i < this.controls.size(); i += 1) {
         if (this.controls[i].identity == identity) {
@@ -61,52 +201,97 @@ public module ui_gtk {
       return -1;
     }
 
-    /** Creates a checked native button and a FIFO click subscription. */
-    public method create(identity: u64, text: const ref String) SystemResult<void> {
-      var control = try Control(identity, text, this.events);
-      this.controls.push(control);
+    /** Creates an owned typed control and any native edit subscription. */
+    public method create(identity: u64, element: const ref ui.Element) SystemResult<void> {
+      this.controls.push(try Control(identity, element, this.events));
       this.creates += 1;
       return SystemResult.Ok;
     }
 
-    /** Copies changed text into the existing native button. */
-    public method update(identity: u64, text: const ref String) SystemResult<void> {
+    /** Applies changed properties or restores a rejected controlled edit. */
+    public method update(identity: u64, element: const ref ui.Element) SystemResult<void> {
       var index = this.index(identity);
       if (index < 0) {
         return SystemResult.Error(Error(1, "Unknown GTK control"));
       }
-      var a = make_heap_allocator();
-      var label = text.clone(a);
-      try this.controls[index].button.set_label(label);
+      try this.controls[index].apply(element);
       this.updates += 1;
       return SystemResult.Ok;
     }
 
-    /** Reorders without removing surviving widgets from their parent. */
-    public method place(identity: u64, previous: u64) SystemResult<void> {
-      var index = this.index(identity);
-      if (index < 0) {
-        return SystemResult.Error(Error(1, "Unknown GTK control"));
+    /** Records logical placement for completion after all sibling scopes are known. */
+    public method place(identity: u64, parent: u64, previous: u64) SystemResult<void> {
+      var i = this.index(identity);
+      if (i < 0) {
+        return SystemResult.Error(Error(1, "Unknown GTK placement identity"));
       }
-      if (previous == 0) {
-        return this.box.place_first(this.controls[index].button);
-      }
-      var before = this.index(previous);
-      if (before < 0) {
-        return SystemResult.Error(Error(1, "Unknown GTK sibling"));
-      }
-      return this.box.place_after(this.controls[index].button, this.controls[before].button);
+      this.controls[i].parent = parent;
+      this.controls[i].previous = previous;
+      return SystemResult.Ok;
     }
 
-    /** Unparents the button and destroys its wrapper, disconnecting its click signal. */
+    /** Places scoped siblings while flattening logical groups into their physical parent. */
+    method layout(scope: u64, parent: u64, previous: u64) SystemResult<u64> {
+      var logical_previous: u64 = 0;
+      var native_previous = previous;
+      for (var count: i64 = 0; count < this.controls.size(); count += 1) {
+        var index: i64 = -1;
+        for (var i: i64 = 0; i < this.controls.size(); i += 1) {
+          if (this.controls[i].parent == scope and this.controls[i].previous == logical_previous) {
+            index = i;
+            break;
+          }
+        }
+        if (index < 0) {
+          break;
+        }
+        var identity = this.controls[index].identity;
+        logical_previous = identity;
+        if (this.controls[index].kind == ui.Kind.Group) {
+          native_previous = try this.layout(identity, parent, native_previous);
+          continue;
+        }
+        var p = this.index(parent);
+        var before = this.index(native_previous);
+        var child = this.controls[index];
+        if (parent == 0) {
+          if (before < 0) {
+            try this.root.place_first(child.widget, child.row, child.column, child.row_span, child.column_span);
+          } else {
+            try this.root.place_after(child.widget, this.controls[before].widget, child.row, child.column, child.row_span, child.column_span);
+          }
+        } else {
+          if (p < 0) {
+            return SystemResult.Error(Error(1, "Unknown GTK parent"));
+          }
+          if (before < 0) {
+            try this.controls[p].widget.place_first(child.widget, child.row, child.column, child.row_span, child.column_span);
+          } else {
+            try this.controls[p].widget.place_after(child.widget, this.controls[before].widget, child.row, child.column, child.row_span, child.column_span);
+          }
+        }
+        try this.layout(identity, identity, 0);
+        native_previous = identity;
+      }
+      return SystemResult.Ok(native_previous);
+    }
+
+    /** Completes native placement after all logical scopes have been recorded. */
+    public method finish() SystemResult<void> {
+      try this.layout(0, 0, 0);
+      return SystemResult.Ok;
+    }
+
+    /** Disconnects and detaches one node after its descendants are removed. */
     public method remove(identity: u64) void {
       var index = this.index(identity);
       if (index < 0) {
         return;
       }
-      // The identity was created by this renderer's queue, so cancellation cannot fail.
-      ignore_error(this.events.disconnect(this.controls[index].click_id));
-      this.box.remove(this.controls[index].button);
+      if (this.controls[index].subscriptions.size() > 0) {
+        ignore_error(this.events.disconnect(this.controls[index].subscriptions[0]));
+      }
+      this.controls[index].widget.detach();
       match this.controls.remove(index) {
         AccessResult.Ok(_) => {},
         AccessResult.OutOfBounds(_) => {}
@@ -114,30 +299,58 @@ public module ui_gtk {
       this.removals += 1;
     }
 
-    /** Requests native focus only after reconciliation finishes. */
+    /** Requests native keyboard focus after a successful commit. */
     public method focus(identity: u64) void {
-      var index = this.index(identity);
-      if (index >= 0) {
-        this.controls[index].button.focus();
+      var i = this.index(identity);
+      if (i >= 0) {
+        this.controls[i].widget.focus();
       }
     }
 
-    /** Removes every owned subscription; safe to call repeatedly. */
+    /** Releases every control in reverse creation order. */
     public method clear() void {
       while (this.controls.size() > 0) {
-        this.remove(this.controls[0].identity);
+        this.remove(this.controls[this.controls.size() - 1].identity);
       }
     }
 
-    /** Translates a bounded FIFO batch into semantic messages without running handlers. */
+    /** Converts a bounded native FIFO batch to owned semantic edit values. */
     method collect(tree: ref ui.Tree, queue: ref ui.EventQueue) void {
+      var a = make_heap_allocator();
       for (var i: i64 = 0; i < 64; i += 1) {
         match this.events.next() {
           Option.Some(event) => {
             var id = event.registration();
             for (var control: ref Control in this.controls) {
-              if (control.click_id.equals(id)) {
-                tree.enqueue(control.identity, queue);
+              var matches = false;
+              if (control.subscriptions.size() > 0) {
+                matches = control.subscriptions[0].equals(id);
+              }
+              if (matches) {
+                if (event.kind() == gtk.EventKind.TextChanged) {
+                  tree.enqueue_value(control.identity, ui.EventValue(event.text.clone(a)), queue);
+                } else if (event.kind() == gtk.EventKind.Toggled) {
+                  tree.enqueue_value(control.identity, ui.EventValue(event.value != 0), queue);
+                } else if (event.kind() == gtk.EventKind.Selected) {
+                  if (event.text.length() >= 2) {
+                    var encoded = match event.text.substr(a, 2, event.text.length() - 2) {
+                      AccessResult.Ok(value) => value,
+                      AccessResult.OutOfBounds(_) => String("")
+                    };
+                    if (event.text.starts_with("s:")) {
+                      tree.enqueue_value(control.identity, ui.EventValue(ui.Key(encoded)), queue);
+                    } else {
+                      match encoded.parse_i64() {
+                        Option.Some(key) => {
+                          tree.enqueue_value(control.identity, ui.EventValue(ui.Key(key)), queue);
+                        },
+                        Option.None => {}
+                      };
+                    }
+                  }
+                } else {
+                  tree.enqueue(control.identity, queue);
+                }
                 break;
               }
             }
@@ -149,7 +362,7 @@ public module ui_gtk {
       }
     }
 
-    /** Applies this backend's batching and window-lifetime policy around native dispatch. */
+    /** Services GTK and collects native events according to this adapter's batching policy. */
     public method poll(tree: ref ui.Tree, queue: ref ui.EventQueue, block: bool) void {
       this.events.iterate(false);
       this.collect(tree, queue);
@@ -159,42 +372,51 @@ public module ui_gtk {
       }
     }
 
-    /** Reports whether the user has left the window open. */
+    /** Reports whether the application window remains open. */
     public method running() bool {
       return this.window.is_open();
     }
 
-    /** Emits a real GTK clicked signal for deterministic acceptance scenarios. */
+    /** Emits a native click for acceptance tests. */
     public method click(identity: u64) void {
-      var index = this.index(identity);
-      if (index >= 0) {
-        this.controls[index].button.click();
+      var i = this.index(identity);
+      if (i >= 0) {
+        this.controls[i].widget.click();
       }
     }
 
-    /** Checks that a surviving widget retains native focus. */
+    /** Simulates native editable input without bypassing event capture. */
+    public method edit(identity: u64, text: ref String, value: i32) SystemResult<void> {
+      var i = this.index(identity);
+      if (i < 0) {
+        return SystemResult.Error(Error(1, "Unknown editable identity"));
+      }
+      return this.controls[i].widget.edit(text, value);
+    }
+
+    /** Reads native allocation for layout acceptance checks. */
+    public method extent(identity: u64, horizontal: bool) i32 {
+      var i = this.index(identity);
+      return i < 0 ? 0 : this.controls[i].widget.extent(horizontal);
+    }
+
+    /** Checks native keyboard focus for acceptance tests. */
     public method focused(identity: u64) bool {
-      var index = this.index(identity);
-      if (index < 0) {
-        return false;
-      }
-      return this.controls[index].button.is_focused();
+      var i = this.index(identity);
+      return i >= 0 and this.controls[i].widget.focused();
     }
 
-    /** Reads native sibling order for acceptance checks. */
+    /** Checks native sibling order for acceptance tests. */
     public method follows(identity: u64, previous: u64) bool {
-      var index = this.index(identity);
-      if (index < 0) {
+      var i = this.index(identity);
+      var p = this.index(previous);
+      if (i < 0) {
         return false;
       }
       if (previous == 0) {
-        return this.box.is_first(this.controls[index].button);
+        return this.controls[i].widget.first();
       }
-      var before = this.index(previous);
-      if (before < 0) {
-        return false;
-      }
-      return this.box.follows(this.controls[index].button, this.controls[before].button);
+      return p >= 0 and this.controls[i].widget.follows(this.controls[p].widget);
     }
   }
 }

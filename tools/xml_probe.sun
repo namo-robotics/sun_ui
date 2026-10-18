@@ -1,0 +1,50 @@
+using std;
+
+/** Verifies reader and attribute spans in the selected compiler's standard library. */
+function main() i32 {
+  var a = make_heap_allocator();
+  var input = String("<probe value=\"1\"/>");
+  var reader = XmlReader(a, input);
+  match reader.next() {
+    XmlResult.Ok(event) => {
+      match event {
+        Option.Some(value) => {
+          match value {
+            XmlEvent.Start(element) => {
+              var span = reader.source_span();
+              if (span.start != 0 or span.end != input.length()) {
+                return 1;
+              }
+              match element.attribute_source_span(0) {
+                XmlResult.Ok(attribute) => {
+                  match attribute {
+                    Option.Some(range) => {
+                      return range.start == 7 and range.end == 16 ? 0 : 1;
+                    },
+                    Option.None => {
+                      return 1;
+                    }
+                  };
+                },
+                XmlResult.Error(_) => {
+                  return 1;
+                }
+              };
+            },
+            _ => {
+              return 1;
+            }
+          };
+        },
+        Option.None => {
+          return 1;
+        }
+      };
+    },
+    XmlResult.Error(_) => {
+      return 1;
+    }
+  };
+  return 1;
+}
+manifest { libraries: ["stdlib.moon"] }

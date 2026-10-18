@@ -1,0 +1,14 @@
+<Views module="tasks">
+  <Import name="Task" function="task">
+    <Param name="id" type="i64" />
+    <Param name="selected" type="bool" />
+  </Import>
+  <View name="view" state="State" fallback="handle">
+    <Button text="Add task" action="add_task" />
+    <Button text="Reverse tasks" action="state.reverse_tasks" />
+    <Button text="Remove selected task" action="remove_selected" />
+    <For each="id" in="{visible_ids(state)}" key="{id}">
+      <Task key="task" id="{id}" selected="{state.selected == id}" />
+    </For>
+  </View>
+</Views>

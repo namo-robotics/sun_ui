@@ -1,0 +1,1102 @@
+using std;
+
+/** Compiles declarative XML into ordinary owned Sun view-building functions. */
+public module markup {
+
+  /** Owns an XML attribute and its original input location. */
+  class Attribute {
+    var name: String;
+    var value: String;
+    var offset: i64;
+
+    /** Takes decoded content and a parser-provided source offset. */
+    init(name: String, value: String, offset: i64) {
+      this.name = name;
+      this.value = value;
+      this.offset = offset;
+    }
+  }
+
+  /** Stores a parsed declaration in parent-before-child order. */
+  class Node {
+    var name: String;
+    var attributes: Vec<Attribute>;
+    var parent: i64;
+    var offset: i64;
+
+    /** Allocates attribute storage for a validated XML element. */
+    init(name: String, parent: i64, offset: i64) {
+      var a = make_heap_allocator();
+      this.name = name;
+      this.parent = parent;
+      this.offset = offset;
+      this.attributes = Vec<Attribute>(a, 4);
+    }
+
+    /** Copies an attribute value, using an empty string for absence. */
+    const method attr(name: static_ptr<u8>) String {
+      var a = make_heap_allocator();
+      for (var i: i64 = 0; i < this.attributes.size(); i += 1) {
+        if (this.attributes[i].name.equals_literal(name)) {
+          return this.attributes[i].value.clone(a);
+        }
+      }
+      return String("");
+    }
+  }
+
+  /** Escapes a decoded XML value as a Sun string literal. */
+  function quote(value: const ref String) String {
+    var result = String("\"");
+    for (var i: i64 = 0; i < value.length(); i += 1) {
+      var c = match value.at(i) {
+        AccessResult.Ok(c) => c,
+        AccessResult.OutOfBounds(_) => 0
+      };
+      if (c == 34) {
+        result.append("\\\"");
+      } else if (c == 92) {
+        result.append("\\\\");
+      } else if (c == 10) {
+        result.append("\\n");
+      } else if (c == 13) {
+        result.append("\\r");
+      } else if (c == 9) {
+        result.append("\\t");
+      } else {
+        result.append_char(c);
+      }
+    }
+    result.append("\"");
+    return result;
+  }
+
+  /** Recognizes a single Sun identifier used for generated declarations. */
+  function identifier(value: const ref String) bool {
+    if (value.is_empty()) {
+      return false;
+    }
+    for (var i: i64 = 0; i < value.length(); i += 1) {
+      var c = match value.at(i) {
+        AccessResult.Ok(c) => c,
+        AccessResult.OutOfBounds(_) => 0
+      };
+      if (not ((c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95 or (i > 0 and c >= 48 and c <= 57))) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /** Recognizes a qualified Sun function name without permitting executable code. */
+  function qualified(value: const ref String) bool {
+    var a = make_heap_allocator();
+    var parts = value.split(a, b'.');
+    if (parts.size() == 0) {
+      return false;
+    }
+    for (var part: ref String in parts) {
+      if (not identifier(part)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /** Restricts imported markup to relative files below the current view directory. */
+  function import_path(value: const ref String) bool {
+    if (value.starts_with("/") or not value.ends_with(".view.xml") or value.contains("\\")) {
+      return false;
+    }
+    var a = make_heap_allocator();
+    var parts = value.split(a, b'/');
+    for (var part: ref String in parts) {
+      if (part.is_empty() or part.equals_literal(".") or part.equals_literal("..")) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /** Extracts a whole-attribute expression or emits a typed literal. */
+  function expression(value: const ref String, string_value: bool) String {
+    var a = make_heap_allocator();
+    if (value.starts_with("{") and value.ends_with("}")) {
+      return match value.substr(a, 1, value.length() - 2) {
+        AccessResult.Ok(text) => text,
+        AccessResult.OutOfBounds(_) => String("")
+      };
+    }
+    if (string_value) {
+      var result = String("String(");
+      result.append(quote(value));
+      result.append(")");
+      return result;
+    }
+    return value.clone(a);
+  }
+
+  /** Tests whether a tag names a built-in UI node. */
+  function builtin(name: const ref String) bool {
+    return name.equals_literal("Group") or name.equals_literal("Row") or name.equals_literal("Column") or name.equals_literal("Grid") or name.equals_literal("Scroll") or name.equals_literal("Label") or name.equals_literal("Button") or name.equals_literal("TextInput") or name.equals_literal("Checkbox") or name.equals_literal("Select");
+  }
+
+  /** Owns parsing, validation, generated source, and its source map for one file. */
+  public class Compiler {
+    var input: String;
+    var filename: String;
+    var nodes: Vec<Node>;
+    public var output: String = String("");
+    public var imports: Vec<String>;
+    public var source_map: String = String("");
+    var line: i64 = 1;
+
+    /** Takes original input without normalizing offsets or retaining external borrows. */
+    init(filename: String, input: String) {
+      var a = make_heap_allocator();
+      this.filename = filename;
+      this.input = input;
+      this.nodes = Vec<Node>(a, 32);
+      this.imports = Vec<String>(a, 4);
+    }
+
+    /** Formats a semantic diagnostic at an original byte offset. */
+    method failure(offset: i64, message: static_ptr<u8>) Error {
+      var a = make_heap_allocator();
+      var line: i64 = 1;
+      var column: i64 = 1;
+      for (var i: i64 = 0; i < offset; i += 1) {
+        var c = match this.input.at(i) {
+          AccessResult.Ok(c) => c,
+          AccessResult.OutOfBounds(_) => 0
+        };
+        if (c == 13) {
+          line += 1;
+          column = 1;
+        } else if (c == 10) {
+          var previous = i > 0 ? match this.input.at(i - 1) {
+            AccessResult.Ok(c) => c,
+            AccessResult.OutOfBounds(_) => 0
+          } : 0;
+          if (previous != 13) {
+            line += 1;
+          }
+          column = 1;
+        } else if (c < 128 or c >= 192) {
+          column += 1;
+        }
+      }
+      var text = this.filename.clone(a);
+      text.append(":");
+      text.append(line);
+      text.append(":");
+      text.append(column);
+      text.append(": ");
+      text.append(message);
+      return Error(1, text);
+    }
+
+    /** Copies one reader element while its borrow remains valid. */
+    method node(element: const ref XmlElement, parent: i64, offset: i64) XmlResult<Node> {
+      var a = make_heap_allocator();
+      var node = Node(element.name().local().clone(a), parent, offset);
+      if (not element.name().uri().is_empty()) {
+        node.name = String("unsupported-namespace");
+      }
+      for (var i: i64 = 0; i < element.attribute_count(); i += 1) {
+        var name = try element.attribute_name(i);
+        var offset = node.offset;
+        match try element.attribute_source_span(i) {
+          Option.Some(span) => {
+            offset = span.start;
+          },
+          Option.None => {}
+        };
+        match element.attribute(name) {
+          Option.Some(value) => {
+            var attribute_name = name.local().clone(a);
+            if (not name.uri().is_empty()) {
+              attribute_name = String("unsupported-namespace");
+            }
+            node.attributes.push(Attribute(attribute_name, value.clone(a), offset));
+          },
+          Option.None => {}
+        };
+      }
+      return XmlResult.Ok(node);
+    }
+
+    /** Parses exclusively through stdlib events and preserves their source spans. */
+    method parse() XmlResult<void> {
+      var a = make_heap_allocator();
+      var reader = XmlReader(a, this.input);
+      var parent: i64 = -1;
+      while (true) {
+        match try reader.next() {
+          Option.None => {
+            return XmlResult.Ok;
+          },
+          Option.Some(event) => {
+            match event {
+              XmlEvent.Start(element) => {
+                var node = try this.node(element, parent, reader.source_span().start);
+                parent = this.nodes.size();
+                this.nodes.push(node);
+              },
+              XmlEvent.End(_) => {
+                parent = this.nodes[parent].parent;
+              },
+              XmlEvent.Text(text) => {
+                text.trim();
+                if (not text.is_empty()) {
+                  this.nodes.push(Node(String("unexpected-text"), parent, reader.source_span().start));
+                }
+              },
+              XmlEvent.Comment(_) => {},
+              XmlEvent.Instruction(_) => {}
+            };
+          }
+        };
+      }
+      return XmlResult.Ok;
+    }
+
+    /** Adds generated lines and their corresponding original input offsets. */
+    method emit(text: const ref String, offset: i64) void {
+      this.source_map.append(this.line);
+      this.source_map.append("\t");
+      this.source_map.append(offset);
+      this.source_map.append("\n");
+      this.output.append(text);
+      this.output.append("\n");
+      this.line += 1;
+      for (var i: i64 = 0; i < text.length(); i += 1) {
+        match text.at(i) {
+          AccessResult.Ok(c) => {
+            if (c == 10) {
+              this.line += 1;
+            }
+          },
+          AccessResult.OutOfBounds(_) => {}
+        };
+      }
+    }
+
+    /** Rejects attributes outside a declaration's supported vocabulary. */
+    method attributes(index: i64, allowed: static_ptr<u8>) SystemResult<void> {
+      var a = make_heap_allocator();
+      var names = String(allowed).split_whitespace(a);
+      for (var i: i64 = 0; i < this.nodes[index].attributes.size(); i += 1) {
+        var found = false;
+        for (var name: ref String in names) {
+          if (name.equals(this.nodes[index].attributes[i].name)) {
+            found = true;
+            break;
+          }
+        }
+        if (not found) {
+          return SystemResult.Error(this.failure(this.nodes[index].attributes[i].offset, "Unknown attribute"));
+        }
+      }
+      return SystemResult.Ok;
+    }
+
+    /** Compiles children in source order under one UI parent expression. */
+    method children(index: i64, parent: const ref String) SystemResult<void> {
+      var owner: const ref String = this.nodes[index].name;
+      var component = owner.equals_literal("View") or owner.equals_literal("Component") or owner.equals_literal("Template");
+      if (component) {
+        for (var r = index + 1; r < this.nodes.size(); r += 1) {
+          if (this.nodes[r].parent == index and this.nodes[r].name.equals_literal("Resources")) {
+            try this.resources(r, true);
+          }
+        }
+      }
+      for (var i = index + 1; i < this.nodes.size(); i += 1) {
+        if (this.nodes[i].parent != index) {
+          continue;
+        }
+        var name: const ref String = this.nodes[i].name;
+        if (component and name.equals_literal("Resources")) {
+          continue;
+        }
+        var owner: const ref String = this.nodes[index].name;
+        if (name.equals_literal("Param") and (owner.equals_literal("Component") or owner.equals_literal("Template"))) {
+          continue;
+        }
+        if ((name.equals_literal("Grid.Rows") or name.equals_literal("Grid.Columns")) and owner.equals_literal("Grid")) {
+          continue;
+        }
+        if (name.equals_literal("Select.Options") and owner.equals_literal("Select")) {
+          continue;
+        }
+        try this.child(i, parent);
+      }
+      return SystemResult.Ok;
+    }
+
+    /** Resolves literal template names lexically, then through application and theme dictionaries. */
+    method template_resource(index: i64, name: const ref String, theme_only: bool) SystemResult<i64> {
+      var owner = index;
+      while (owner >= 0) {
+        var candidate: i64 = -1;
+        for (var r: i64 = 1; r < this.nodes.size(); r += 1) {
+          var dictionary = this.nodes[r].parent;
+          if (dictionary < 0 or not this.nodes[dictionary].name.equals_literal("Resources") or this.nodes[dictionary].parent != owner) {
+            continue;
+          }
+          var key = this.nodes[r].attr("name");
+          if (not key.equals(name)) {
+            continue;
+          }
+          var scope = this.nodes[r].attr("scope");
+          if (theme_only and not scope.equals_literal("theme")) {
+            continue;
+          }
+          if (candidate < 0 or not scope.equals_literal("theme")) {
+            candidate = r;
+          }
+        }
+        if (candidate >= 0) {
+          if (not this.nodes[candidate].name.equals_literal("Template")) {
+            return SystemResult.Error(this.failure(this.nodes[candidate].offset, "Resource type mismatch: expected Template"));
+          }
+          return SystemResult.Ok(candidate);
+        }
+        owner = this.nodes[owner].parent;
+      }
+      return SystemResult.Error(this.failure(this.nodes[index].offset, "Missing template resource"));
+    }
+
+    /** Resolves template aliases to a declared function whose parameters define the resource type. */
+    method template_target(index: i64) SystemResult<i64> {
+      var current = index;
+      for (var depth: i64 = 0; depth <= this.nodes.size(); depth += 1) {
+        var reference = this.nodes[current].attr("ref");
+        if (not reference.is_empty()) {
+          var scope = this.nodes[current].attr("scope");
+          current = try this.template_resource(this.nodes[this.nodes[current].parent].parent, reference, scope.equals_literal("theme"));
+          continue;
+        }
+        var value = this.nodes[current].attr("value");
+        for (var d: i64 = 1; d < this.nodes.size(); d += 1) {
+          if (this.nodes[d].parent != 0) {
+            continue;
+          }
+          var tag: const ref String = this.nodes[d].name;
+          if (not (tag.equals_literal("Template") or tag.equals_literal("Component") or tag.equals_literal("Import"))) {
+            continue;
+          }
+          var name = this.nodes[d].attr("name");
+          if (name.equals(value)) {
+            return SystemResult.Ok(d);
+          }
+        }
+        return SystemResult.Error(this.failure(this.nodes[current].offset, "Template resource requires a declared component function"));
+      }
+      return SystemResult.Error(this.failure(this.nodes[index].offset, "Template resource cycle"));
+    }
+
+    /** Emits a typed function-valued resource; Sun checks even unused imported signatures. */
+    method template_factory(index: i64) SystemResult<void> {
+      var target = try this.template_target(index);
+      var function_name = this.nodes[target].attr("function");
+      if (function_name.is_empty()) {
+        function_name = this.nodes[target].attr("name");
+      }
+      this.emit(String("/** Returns the typed component function stored by this template resource. */"), this.nodes[index].offset);
+      var line = `function template_resource_${index}() function (ref ui.View, i64`;
+      for (var p = target + 1; p < this.nodes.size(); p += 1) {
+        if (this.nodes[p].parent == target and this.nodes[p].name.equals_literal("Param")) {
+          var type = this.nodes[p].attr("type");
+          line.append(", ");
+          line.append(type);
+        }
+      }
+      line.append(") void { return ");
+      line.append(function_name);
+      line.append("; }");
+      this.emit(line, this.nodes[index].offset);
+      return SystemResult.Ok;
+    }
+
+    /** Finds the view that owns a declaration, excluding independent component definitions. */
+    const method action_owner(index: i64) i64 {
+      var current = index;
+      while (current >= 0) {
+        if (this.nodes[current].name.equals_literal("View")) {
+          return current;
+        }
+        current = this.nodes[current].parent;
+      }
+      return -1;
+    }
+
+    /** Creates a deterministic route namespace separate from numeric application actions. */
+    const method action_scope(index: i64) String {
+      var name = this.nodes[index].attr("name");
+      return `${this.filename}#${name}`;
+    }
+
+    /** Emits queued dispatch to named functions or methods, preserving numeric fallback handling. */
+    method action_dispatch(index: i64) SystemResult<void> {
+      var name = this.nodes[index].attr("name");
+      var state = this.nodes[index].attr("state");
+      var fallback = this.nodes[index].attr("fallback");
+      if (not fallback.is_empty() and not qualified(fallback)) {
+        return SystemResult.Error(this.failure(this.nodes[index].offset, "Fallback requires a function name"));
+      }
+      this.emit(String("/** Dispatches captured actions to typed Sun handlers after native event collection. */"), this.nodes[index].offset);
+      var line = `function ${name}_handle(state: ref ${state}, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {`;
+      this.emit(line, this.nodes[index].offset);
+      var scope = this.action_scope(index);
+      line = String("var scope = ");
+      line.append(expression(scope, true));
+      line.append(";");
+      this.emit(line, this.nodes[index].offset);
+      this.emit(String("if (event.action_scope.equals(scope)) {"), this.nodes[index].offset);
+      for (var n = index + 1; n < this.nodes.size(); n += 1) {
+        if (this.action_owner(n) != index or not builtin(this.nodes[n].name)) {
+          continue;
+        }
+        for (var attribute: ref Attribute in this.nodes[n].attributes) {
+          if (not (attribute.name.equals_literal("action") or attribute.name.equals_literal("changeAction")) or not qualified(attribute.value)) {
+            continue;
+          }
+          var id = n * 2 + (attribute.name.equals_literal("changeAction") ? 1 : 0);
+          line = `if (event.action == ${id}) { return `;
+          line.append(attribute.value);
+          line.append(attribute.value.starts_with("state.") ? "(event, queue); }" : "(state, event, queue); }");
+          this.emit(line, attribute.offset);
+        }
+      }
+      this.emit(String("return SystemResult.Error(Error(1, \"Unknown generated action\")); }"), this.nodes[index].offset);
+      this.emit(String("if (not event.action_scope.is_empty()) { return SystemResult.Error(Error(1, \"Action belongs to another view\")); }"), this.nodes[index].offset);
+      if (fallback.is_empty()) {
+        this.emit(String("return SystemResult.Ok;"), this.nodes[index].offset);
+      } else {
+        line = `return ${fallback}`;
+        line.append(fallback.starts_with("state.") ? "(event, queue);" : "(state, event, queue);");
+        this.emit(line, this.nodes[index].offset);
+      }
+      this.emit(String("}"), this.nodes[index].offset);
+      return SystemResult.Ok;
+    }
+
+    /** Compiles a node, conditional, keyed repetition, or component call. */
+    method child(index: i64, parent: const ref String) SystemResult<void> {
+      var a = make_heap_allocator();
+      var node = this.nodes[index];
+      var template_factory = String("");
+      if (node.name.equals_literal("Use")) {
+        var resource_name = node.attr("template");
+        if (resource_name.is_empty()) {
+          return SystemResult.Error(this.failure(node.offset, "Use requires a template resource name"));
+        }
+        var resource = try this.template_resource(index, resource_name, false);
+        var target = try this.template_target(resource);
+        node.name = this.nodes[target].attr("name");
+        template_factory = `template_resource_${resource}`;
+        for (var attribute: i64 = 0; attribute < node.attributes.size(); attribute += 1) {
+          if (node.attributes[attribute].name.equals_literal("template")) {
+            match node.attributes.remove(attribute) {
+              AccessResult.Ok(_) => {},
+              AccessResult.OutOfBounds(_) => {}
+            };
+            break;
+          }
+        }
+      }
+      if (node.name.equals_literal("Slot")) {
+        try this.attributes(index, "name");
+        var name = node.attr("name");
+        if (not identifier(name)) {
+          return SystemResult.Error(this.failure(node.offset, "Slot requires a parameter name"));
+        }
+        var line = `${name}(result, ${parent});`;
+        this.emit(line, node.offset);
+        return SystemResult.Ok;
+      }
+      if (node.name.equals_literal("If")) {
+        try this.attributes(index, "test");
+        var test = node.attr("test");
+        if (test.is_empty()) {
+          return SystemResult.Error(this.failure(node.offset, "If requires test"));
+        }
+        var line = String("if (");
+        line.append(expression(test, false));
+        line.append(") {");
+        this.emit(line, node.offset);
+        var otherwise: i64 = -1;
+        for (var i = index + 1; i < this.nodes.size(); i += 1) {
+          if (this.nodes[i].parent == index) {
+            if (this.nodes[i].name.equals_literal("Else")) {
+              if (otherwise >= 0) {
+                return SystemResult.Error(this.failure(this.nodes[i].offset, "Duplicate Else"));
+              }
+              otherwise = i;
+            } else {
+              if (otherwise >= 0) {
+                return SystemResult.Error(this.failure(this.nodes[i].offset, "Else must be last"));
+              }
+              try this.child(i, parent);
+            }
+          }
+        }
+        if (otherwise >= 0) {
+          try this.attributes(otherwise, "");
+          this.emit(String("} else {"), this.nodes[otherwise].offset);
+          try this.children(otherwise, parent);
+        }
+        this.emit(String("}"), node.offset);
+        return SystemResult.Ok;
+      }
+      if (node.name.equals_literal("For")) {
+        try this.attributes(index, "each in key");
+        var each = node.attr("each");
+        var collection = node.attr("in");
+        var key = node.attr("key");
+        if (not identifier(each) or collection.is_empty() or key.is_empty()) {
+          return SystemResult.Error(this.failure(node.offset, "For requires each, in, and stable key"));
+        }
+        var items = `items_${index}`;
+        var cursor = `index_${index}`;
+        var scope = `scope_${index}`;
+        var line = String("var ");
+        line.append(items);
+        line.append(" = ");
+        line.append(expression(collection, false));
+        line.append(";");
+        this.emit(line, node.offset);
+        line = `for (var ${cursor}: i64 = 0; ${cursor} < ${items}.size(); ${cursor} += 1) {`;
+        this.emit(line, node.offset);
+        line = `var ${each} = ${items}[${cursor}];`;
+        this.emit(line, node.offset);
+        line = `var ${scope} = result.append(${parent}, ui.Element(ui.Key(`;
+        line.append(expression(key, true));
+        line.append("), ui.Kind.Group));");
+        this.emit(line, node.offset);
+        try this.children(index, scope);
+        this.emit(String("}"), node.offset);
+        return SystemResult.Ok;
+      }
+      if (builtin(node.name)) {
+        try this.attributes(index, "key text value action changeAction payload enabled visible checked selected spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize styleResource foregroundResource backgroundResource fontResource spacingResource marginResource");
+        var activation = node.attr("action");
+        var change = node.attr("changeAction");
+        if (not activation.is_empty() and not change.is_empty()) {
+          return SystemResult.Error(this.failure(node.offset, "Specify either action or changeAction, not both"));
+        }
+        var key = node.attr("key");
+        if (key.is_empty()) {
+          key = `@${index}`;
+        }
+        var variable = `node_${index}`;
+        var location = `parent_${index}`;
+        var line = `var ${variable} = ui.Element(ui.Key(`;
+        line.append(expression(key, true));
+        line.append("), ui.Kind.");
+        line.append(node.name);
+        line.append(");");
+        this.emit(line, node.offset);
+        for (var i: i64 = 0; i < node.attributes.size(); i += 1) {
+          var attribute = node.attributes[i];
+          if (attribute.name.equals_literal("key")) {
+            continue;
+          }
+          var field = attribute.name.clone(a);
+          if ((field.equals_literal("action") or field.equals_literal("changeAction")) and qualified(attribute.value)) {
+            var owner = this.action_owner(index);
+            if (owner < 0) {
+              return SystemResult.Error(this.failure(attribute.offset, "Named actions require a View; pass numeric actions into reusable components"));
+            }
+            var id = index * 2 + (field.equals_literal("changeAction") ? 1 : 0);
+            line = `${variable}.action = ${id};`;
+            this.emit(line, attribute.offset);
+            var scope = this.action_scope(owner);
+            line = `${variable}.action_scope = `;
+            line.append(expression(scope, true));
+            line.append(";");
+            this.emit(line, attribute.offset);
+            continue;
+          }
+          if (field.ends_with("Resource")) {
+            var method = String("number_resource");
+            var kind = String("ui.ResourceKind.Spacing");
+            if (field.equals_literal("styleResource")) {
+              field = String("style");
+              method = String("style_resource");
+            } else if (field.equals_literal("fontResource")) {
+              field = String("overrides.normal.font");
+              method = String("font_resource");
+            } else if (field.equals_literal("foregroundResource")) {
+              field = String("overrides.normal.foreground");
+              kind = String("ui.ResourceKind.Color");
+            } else if (field.equals_literal("backgroundResource")) {
+              field = String("overrides.normal.background");
+              kind = String("ui.ResourceKind.Color");
+            } else if (field.equals_literal("marginResource")) {
+              field = String("margin");
+            } else {
+              field = String("spacing");
+            }
+            line = `${variable}.${field} = result.${method}(`;
+            line.append(expression(attribute.value, true));
+            if (method.equals_literal("number_resource")) {
+              line.append(", ");
+              line.append(kind);
+            }
+            line.append(");");
+            this.emit(line, attribute.offset);
+            continue;
+          }
+          var string_value = field.equals_literal("text") or field.equals_literal("value") or field.equals_literal("font");
+          if (field.equals_literal("value")) {
+            field = String("text");
+          }
+          if (field.equals_literal("changeAction")) {
+            field = String("action");
+          }
+          if (field.equals_literal("expandX")) {
+            field = String("expand_x");
+          }
+          if (field.equals_literal("expandY")) {
+            field = String("expand_y");
+          }
+          if (field.equals_literal("minWidth")) {
+            field = String("min_width");
+          }
+          if (field.equals_literal("minHeight")) {
+            field = String("min_height");
+          }
+          if (field.equals_literal("rowSpan")) {
+            field = String("row_span");
+          }
+          if (field.equals_literal("columnSpan")) {
+            field = String("column_span");
+          }
+          if (field.equals_literal("foreground") or field.equals_literal("background") or field.equals_literal("font")) {
+            var prefix = String("overrides.normal.");
+            prefix.append(field);
+            field = prefix;
+          }
+          if (field.equals_literal("fontSize")) {
+            field = String("overrides.normal.font_size");
+          }
+          line = `${variable}.${field} = `;
+          if ((field.equals_literal("horizontal") or field.equals_literal("vertical")) and not attribute.value.starts_with("{")) {
+            line.append("ui.Align.");
+          }
+          line.append(expression(attribute.value, string_value));
+          line.append(";");
+          this.emit(line, attribute.offset);
+        }
+        for (var property = index + 1; property < this.nodes.size(); property += 1) {
+          if (this.nodes[property].parent != index) {
+            continue;
+          }
+          var property_node = this.nodes[property];
+          if (property_node.name.equals_literal("Grid.Rows") or property_node.name.equals_literal("Grid.Columns")) {
+            if (not node.name.equals_literal("Grid")) {
+              return SystemResult.Error(this.failure(property_node.offset, "Grid tracks require a Grid"));
+            }
+            try this.attributes(property, "");
+            for (var t = property + 1; t < this.nodes.size(); t += 1) {
+              if (this.nodes[t].parent != property) {
+                continue;
+              }
+              if (not this.nodes[t].name.equals_literal("Track")) {
+                return SystemResult.Error(this.failure(this.nodes[t].offset, "Expected Track"));
+              }
+              try this.attributes(t, "kind value");
+              var kind = this.nodes[t].attr("kind");
+              var value = this.nodes[t].attr("value");
+              if (value.is_empty()) {
+                value = String("0");
+              }
+              var field = String(property_node.name.equals_literal("Grid.Rows") ? "rows" : "columns");
+              line = `${variable}.${field}.push(ui.Track(ui.TrackKind.${kind}, `;
+              line.append(expression(value, false));
+              line.append("));");
+              this.emit(line, this.nodes[t].offset);
+            }
+          } else if (property_node.name.equals_literal("Select.Options")) {
+            if (not node.name.equals_literal("Select")) {
+              return SystemResult.Error(this.failure(property_node.offset, "Options require a Select"));
+            }
+            try this.attributes(property, "");
+            for (var t = property + 1; t < this.nodes.size(); t += 1) {
+              if (this.nodes[t].parent != property) {
+                continue;
+              }
+              if (not this.nodes[t].name.equals_literal("Option")) {
+                return SystemResult.Error(this.failure(this.nodes[t].offset, "Expected Option"));
+              }
+              try this.attributes(t, "key text");
+              var key = this.nodes[t].attr("key");
+              var text = this.nodes[t].attr("text");
+              if (key.is_empty()) {
+                return SystemResult.Error(this.failure(this.nodes[t].offset, "Option requires stable key"));
+              }
+              line = `${variable}.choices.push(ui.Choice(ui.Key(`;
+              line.append(expression(key, true));
+              line.append("), ");
+              line.append(expression(text, true));
+              line.append("));");
+              this.emit(line, this.nodes[t].offset);
+            }
+          } else if (not (node.name.equals_literal("Group") or node.name.equals_literal("Row") or node.name.equals_literal("Column") or node.name.equals_literal("Grid") or node.name.equals_literal("Scroll"))) {
+            return SystemResult.Error(this.failure(property_node.offset, "Control cannot contain view children"));
+          }
+        }
+        line = `var ${location} = result.append(${parent}, ${variable});`;
+        this.emit(line, node.offset);
+        try this.children(index, location);
+        return SystemResult.Ok;
+      }
+      for (var declaration: i64 = 1; declaration < this.nodes.size(); declaration += 1) {
+        var imported = this.nodes[declaration];
+        if (imported.parent != 0) {
+          continue;
+        }
+        if (not (imported.name.equals_literal("Import") or imported.name.equals_literal("Component") or imported.name.equals_literal("Template"))) {
+          continue;
+        }
+        var imported_name = imported.attr("name");
+        if (not imported_name.equals(node.name)) {
+          continue;
+        }
+        var function_name = imported.attr("function");
+        if (function_name.is_empty()) {
+          function_name = imported.attr("name");
+        }
+        var component_key = node.attr("key");
+        if (component_key.is_empty()) {
+          component_key = `@${index}`;
+        }
+        var scope = `component_${index}`;
+        var description = `component_node_${index}`;
+        var scope_line = `var ${description} = ui.Element(ui.Key(`;
+        scope_line.append(expression(component_key, true));
+        scope_line.append("), ui.Kind.Group);");
+        this.emit(scope_line, node.offset);
+        scope_line = `${description}.template_id = `;
+        scope_line.append(expression(function_name, true));
+        scope_line.append(";");
+        this.emit(scope_line, node.offset);
+        scope_line = `var ${scope} = result.append(${parent}, ${description});`;
+        this.emit(scope_line, node.offset);
+        var line = function_name.clone(a);
+        if (not template_factory.is_empty()) {
+          var callable = `template_callable_${index}`;
+          var binding = `var ${callable} = ${template_factory}();`;
+          this.emit(binding, node.offset);
+          line = callable;
+        }
+        line.append("(result, ");
+        line.append(scope);
+        var allowed = String("key");
+        for (var p = declaration + 1; p < this.nodes.size(); p += 1) {
+          if (this.nodes[p].parent != declaration or not this.nodes[p].name.equals_literal("Param")) {
+            continue;
+          }
+          if (not this.nodes[p].name.equals_literal("Param")) {
+            return SystemResult.Error(this.failure(this.nodes[p].offset, "Expected imported Param"));
+          }
+          try this.attributes(p, "name type");
+          var name = this.nodes[p].attr("name");
+          var type = this.nodes[p].attr("type");
+          if (not identifier(name) or type.is_empty()) {
+            return SystemResult.Error(this.failure(this.nodes[p].offset, "Param requires name and type"));
+          }
+          allowed.append(" ");
+          allowed.append(name);
+          var found = false;
+          for (var j: i64 = 0; j < node.attributes.size(); j += 1) {
+            if (node.attributes[j].name.equals(name)) {
+              line.append(", ");
+              line.append(expression(node.attributes[j].value, type.equals_literal("String")));
+              found = true;
+              break;
+            }
+          }
+          if (not found) {
+            return SystemResult.Error(this.failure(node.offset, "Missing component input"));
+          }
+        }
+        var names = allowed.split_whitespace(a);
+        for (var j: i64 = 0; j < node.attributes.size(); j += 1) {
+          var known = false;
+          for (var name: ref String in names) {
+            if (name.equals(node.attributes[j].name)) {
+              known = true;
+            }
+          }
+          if (not known) {
+            return SystemResult.Error(this.failure(node.attributes[j].offset, "Unknown component input"));
+          }
+        }
+        line.append(");");
+        this.emit(line, node.offset);
+        return SystemResult.Ok;
+      }
+      return SystemResult.Error(this.failure(node.offset, "Unknown view declaration"));
+    }
+
+    /** Generates an explicitly fallible resource dictionary constructor. */
+    method resources(index: i64, local: bool) SystemResult<void> {
+      var a = make_heap_allocator();
+      try this.attributes(index, "name");
+      var name = this.nodes[index].attr("name");
+      if (not local and not identifier(name)) {
+        return SystemResult.Error(this.failure(this.nodes[index].offset, "Resources requires a function name"));
+      }
+      if (not local) {
+        this.emit(String("/** Constructs typed theme and application resources with duplicate checking. */"), this.nodes[index].offset);
+        var header = `function ${name}() SystemResult<ui.Resources> {`;
+        this.emit(header, this.nodes[index].offset);
+        this.emit(String("var a = make_heap_allocator(); var result = ui.Resources(a);"), this.nodes[index].offset);
+      }
+      var line = String("");
+      for (var i = index + 1; i < this.nodes.size(); i += 1) {
+        var node = this.nodes[i];
+        if (node.parent != index) {
+          continue;
+        }
+        if (not (node.name.equals_literal("Color") or node.name.equals_literal("Font") or node.name.equals_literal("Spacing") or node.name.equals_literal("Style") or node.name.equals_literal("Template"))) {
+          return SystemResult.Error(this.failure(node.offset, "Unknown resource type"));
+        }
+        try this.attributes(i, "name value ref basedOn scope");
+        var key = node.attr("name");
+        var value = node.attr("value");
+        var alias = node.attr("ref");
+        var base = node.attr("basedOn");
+        var scope = node.attr("scope");
+        if ((not base.is_empty() and not node.name.equals_literal("Style")) or (node.name.equals_literal("Style") and not value.is_empty())) {
+          return SystemResult.Error(this.failure(node.offset, "Invalid property for resource type"));
+        }
+        if (not alias.is_empty() and (not value.is_empty() or not base.is_empty())) {
+          return SystemResult.Error(this.failure(node.offset, "Resource alias cannot also define a value or base"));
+        }
+        if (key.is_empty()) {
+          return SystemResult.Error(this.failure(node.offset, "Resource requires name"));
+        }
+        if (local and not scope.is_empty()) {
+          return SystemResult.Error(this.failure(node.offset, "Local resources inherit their component scope"));
+        }
+        if (scope.is_empty() or scope.equals_literal("application")) {
+          scope = String("1");
+        } else if (scope.equals_literal("theme")) {
+          scope = String("0");
+        } else {
+          return SystemResult.Error(this.failure(node.offset, "Resource scope must be theme or application"));
+        }
+        var variable = `resource_${i}`;
+        line = `var ${variable} = ui.Resource(`;
+        line.append(expression(key, true));
+        line.append(", ui.ResourceKind.");
+        line.append(node.name);
+        line.append(");");
+        this.emit(line, node.offset);
+        if (not alias.is_empty()) {
+          line = `${variable}.reference = `;
+          line.append(expression(alias, true));
+          line.append(";");
+          this.emit(line, node.offset);
+        }
+        if (not base.is_empty()) {
+          line = `${variable}.based_on = `;
+          line.append(expression(base, true));
+          line.append(";");
+          this.emit(line, node.offset);
+        }
+        if (not value.is_empty()) {
+          var field = String(node.name.equals_literal("Color") or node.name.equals_literal("Spacing") ? "number" : "text");
+          line = `${variable}.${field} = `;
+          line.append(expression(value, field.equals_literal("text")));
+          line.append(";");
+          this.emit(line, node.offset);
+        }
+        for (var state = i + 1; state < this.nodes.size(); state += 1) {
+          var appearance = this.nodes[state];
+          if (appearance.parent != i) {
+            continue;
+          }
+          if (not node.name.equals_literal("Style") or not alias.is_empty()) {
+            return SystemResult.Error(this.failure(appearance.offset, "Only non-alias styles have appearance children"));
+          }
+          for (var nested = state + 1; nested < this.nodes.size(); nested += 1) {
+            if (this.nodes[nested].parent == state) {
+              return SystemResult.Error(this.failure(this.nodes[nested].offset, "Appearance cannot contain children"));
+            }
+          }
+          for (var previous = i + 1; previous < state; previous += 1) {
+            if (this.nodes[previous].parent == i and this.nodes[previous].name.equals(appearance.name)) {
+              return SystemResult.Error(this.failure(appearance.offset, "Duplicate style interaction state"));
+            }
+          }
+          var field = String("");
+          if (appearance.name.equals_literal("Normal")) {
+            field = String("normal");
+          } else if (appearance.name.equals_literal("Hover")) {
+            field = String("hover");
+          } else if (appearance.name.equals_literal("Focus")) {
+            field = String("focus");
+          } else if (appearance.name.equals_literal("Disabled")) {
+            field = String("disabled");
+          } else {
+            return SystemResult.Error(this.failure(appearance.offset, "Unknown interaction state"));
+          }
+          try this.attributes(state, "foreground background font fontSize");
+          for (var attribute: ref Attribute in appearance.attributes) {
+            var property = attribute.name.clone(a);
+            if (property.equals_literal("fontSize")) {
+              property = String("font_size");
+            }
+            line = `${variable}.style.${field}.${property} = `;
+            line.append(expression(attribute.value, property.equals_literal("font")));
+            line.append(";");
+            this.emit(line, attribute.offset);
+          }
+        }
+        if (local) {
+          line = `result.define(${variable});`;
+        } else {
+          line = `try result.add(${scope}, ${variable});`;
+        }
+        this.emit(line, node.offset);
+      }
+      if (not local) {
+        this.emit(String("try result.validate();"), this.nodes[index].offset);
+        this.emit(String("return SystemResult.Ok(result);"), this.nodes[index].offset);
+        this.emit(String("}"), this.nodes[index].offset);
+      }
+      return SystemResult.Ok;
+    }
+
+    /** Produces deterministic Sun source only after complete XML parsing succeeds. */
+    public method compile() SystemResult<void> {
+      match this.parse() {
+        XmlResult.Ok => {},
+        XmlResult.Error(error) => {
+          var diagnostic = this.failure(error.offset(), "Malformed XML");
+          var message = diagnostic.message();
+          message.append(": ");
+          message.append(error.message());
+          return SystemResult.Error(Error(1, message));
+        }
+      };
+      if (this.nodes.size() == 0 or not this.nodes[0].name.equals_literal("Views")) {
+        return SystemResult.Error(this.failure(0, "Expected Views root"));
+      }
+      try this.attributes(0, "module");
+      var module_name = this.nodes[0].attr("module");
+      if (not identifier(module_name)) {
+        return SystemResult.Error(this.failure(0, "Expected a Sun module identifier"));
+      }
+      this.emit(String("using std;"), 0);
+      this.emit(String("/** Builds owned descriptions from declarative markup. */"), 0);
+      var line = `module ${module_name} {`;
+      this.emit(line, 0);
+      for (var r: i64 = 1; r < this.nodes.size(); r += 1) {
+        var parent = this.nodes[r].parent;
+        if (parent >= 0 and this.nodes[parent].name.equals_literal("Resources") and this.nodes[r].name.equals_literal("Template")) {
+          try this.template_factory(r);
+        }
+      }
+      for (var i: i64 = 1; i < this.nodes.size(); i += 1) {
+        if (this.nodes[i].parent != 0) {
+          continue;
+        }
+        if (this.nodes[i].name.equals_literal("Resources")) {
+          try this.resources(i, false);
+          continue;
+        }
+        if (this.nodes[i].name.equals_literal("Component") or this.nodes[i].name.equals_literal("Template")) {
+          try this.attributes(i, "name");
+          var name = this.nodes[i].attr("name");
+          if (not identifier(name)) {
+            return SystemResult.Error(this.failure(this.nodes[i].offset, "Expected component identifier"));
+          }
+          this.emit(String("/** Appends owned component content during the current construction call. */"), this.nodes[i].offset);
+          line = `public function ${name}(result: ref ui.View, parent: i64`;
+          for (var p = i + 1; p < this.nodes.size(); p += 1) {
+            if (this.nodes[p].parent != i or not this.nodes[p].name.equals_literal("Param")) {
+              continue;
+            }
+            try this.attributes(p, "name type");
+            var parameter = this.nodes[p].attr("name");
+            var type = this.nodes[p].attr("type");
+            if (not identifier(parameter) or type.is_empty()) {
+              return SystemResult.Error(this.failure(this.nodes[p].offset, "Expected typed component parameter"));
+            }
+            line.append(", ");
+            line.append(parameter);
+            line.append(": ");
+            line.append(type);
+          }
+          line.append(") void {");
+          this.emit(line, this.nodes[i].offset);
+          this.emit(String("var a = make_heap_allocator();"), this.nodes[i].offset);
+          this.emit(String("var enclosing_resources = result.push_resources();"), this.nodes[i].offset);
+          try this.children(i, String("parent"));
+          this.emit(String("result.resource_scope = enclosing_resources;"), this.nodes[i].offset);
+          this.emit(String("}"), this.nodes[i].offset);
+          continue;
+        }
+        if (this.nodes[i].name.equals_literal("Import")) {
+          try this.attributes(i, "name function source");
+          var imported_name = this.nodes[i].attr("name");
+          var function_name = this.nodes[i].attr("function");
+          if (not identifier(imported_name) or not qualified(function_name)) {
+            return SystemResult.Error(this.failure(this.nodes[i].offset, "Import requires name and function identifiers"));
+          }
+          var source = this.nodes[i].attr("source");
+          if (not source.is_empty()) {
+            if (not import_path(source)) {
+              return SystemResult.Error(this.failure(this.nodes[i].offset, "Import source must be a relative .view.xml path without parent traversal"));
+            }
+            this.imports.push(source);
+          }
+          continue;
+        }
+        if (not this.nodes[i].name.equals_literal("View")) {
+          return SystemResult.Error(this.failure(this.nodes[i].offset, "Expected View declaration"));
+        }
+        try this.attributes(i, "name state theme resources fallback");
+        var name = this.nodes[i].attr("name");
+        var state = this.nodes[i].attr("state");
+        if (not identifier(name) or not identifier(state)) {
+          return SystemResult.Error(this.failure(this.nodes[i].offset, "View requires name and state identifiers"));
+        }
+        try this.action_dispatch(i);
+        this.emit(String("/** Borrows application state only while building an owned view. */"), this.nodes[i].offset);
+        line = `function ${name}(state: const ref ${state}) ui.View {`;
+        this.emit(line, this.nodes[i].offset);
+        this.emit(String("var a = make_heap_allocator();"), this.nodes[i].offset);
+        this.emit(String("var result = ui.View(a);"), this.nodes[i].offset);
+        var dictionaries = this.nodes[i].attr("resources");
+        if (not dictionaries.is_empty()) {
+          line = String("result.set_resources(");
+          line.append(expression(dictionaries, false));
+          line.append(");");
+          this.emit(line, this.nodes[i].offset);
+        }
+        this.emit(String("var enclosing_resources = result.push_resources();"), this.nodes[i].offset);
+        var theme = this.nodes[i].attr("theme");
+        if (not theme.is_empty()) {
+          line = String("result.theme = ");
+          line.append(expression(theme, false));
+          line.append(";");
+          this.emit(line, this.nodes[i].offset);
+        }
+        try this.children(i, String("-1"));
+        this.emit(String("result.resource_scope = enclosing_resources;"), this.nodes[i].offset);
+        this.emit(String("return result;"), this.nodes[i].offset);
+        this.emit(String("}"), this.nodes[i].offset);
+      }
+      this.emit(String("}"), 0);
+      return SystemResult.Ok;
+    }
+  }
+}

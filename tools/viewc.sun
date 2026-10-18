@@ -1,0 +1,143 @@
+using std;
+
+/** Owns one import traversal and its combined source with original-file mappings. */
+class Generation {
+  var active: Vec<String>;
+  var seen: Vec<String>;
+  var source: String = String("");
+  var mapping: String = String("");
+  var line: i64 = 0;
+
+  /** Allocates explicit recursion and deduplication storage. */
+  init(a: const ref HeapAllocator) {
+    this.active = Vec<String>(a, 4);
+    this.seen = Vec<String>(a, 4);
+  }
+
+  /** Adds one module exactly once and adjusts its map to the combined source. */
+  method append(input: const ref String, compiler: const ref markup.Compiler) void {
+    var a = make_heap_allocator();
+    var fields = compiler.source_map.split_whitespace(a);
+    for (var i: i64 = 0; i + 1 < fields.size(); i += 2) {
+      var line = match fields[i].parse_i64() {
+        Option.Some(value) => value,
+        Option.None => 0
+      };
+      this.mapping.append(this.line + line);
+      this.mapping.append("\t");
+      this.mapping.append(fields[i + 1]);
+      this.mapping.append("\t");
+      this.mapping.append(input);
+      this.mapping.append("\n");
+    }
+    this.source.append(compiler.output);
+    for (var i: i64 = 0; i < compiler.output.length(); i += 1) {
+      match compiler.output.at(i) {
+        AccessResult.Ok(c) => {
+          if (c == 10) {
+            this.line += 1;
+          }
+        },
+        AccessResult.OutOfBounds(_) => {}
+      };
+    }
+  }
+}
+
+/** Copies a path's directory, retaining its trailing separator. */
+function directory(path: const ref String) String {
+  var a = make_heap_allocator();
+  var last: i64 = -1;
+  for (var i: i64 = 0; i < path.length(); i += 1) {
+    match path.at(i) {
+      AccessResult.Ok(c) => {
+        if (c == 47) {
+          last = i;
+        }
+      },
+      AccessResult.OutOfBounds(_) => {}
+    };
+  }
+  if (last < 0) {
+    return String("./");
+  }
+  return match path.substr(a, 0, last + 1) {
+    AccessResult.Ok(value) => value,
+    AccessResult.OutOfBounds(_) => String("./")
+  };
+}
+
+/** Writes one generated artifact after creating its containing directory. */
+function publish(output: ref String, source: ref String, mapping: ref String) SystemResult<void> {
+  var a = make_heap_allocator();
+  var mkdir = std.process.Command(a, "mkdir");
+  mkdir.add_arg("-p");
+  mkdir.add_arg(directory(output));
+  if (try mkdir.status() != 0) {
+    return SystemResult.Error(Error(1, "Cannot create generated view directory"));
+  }
+  var map = output.clone(a);
+  map.append(".map");
+  try std.io.write_string(map, mapping);
+  return std.io.write_string(output, source);
+}
+
+/** Traverses imported files, rejects cycles, and emits dependencies before their consumers. */
+function generate(input: ref String, output: ref String, generation: ref Generation) SystemResult<void> {
+  var a = make_heap_allocator();
+  for (var i: i64 = 0; i < generation.active.size(); i += 1) {
+    if (generation.active[i].equals(input)) {
+      return SystemResult.Error(Error(1, "Markup import cycle"));
+    }
+  }
+  for (var i: i64 = 0; i < generation.seen.size(); i += 1) {
+    if (generation.seen[i].equals(input)) {
+      return SystemResult.Ok;
+    }
+  }
+  generation.active.push(input.clone(a));
+  var compiler = markup.Compiler(input.clone(a), try std.io.read_to_string(a, input));
+  try compiler.compile();
+  for (var relative: ref String in compiler.imports) {
+    var imported_input = directory(input);
+    imported_input.append(relative);
+    var imported_output = directory(output);
+    imported_output.append(relative);
+    imported_output.replace(".view.xml", ".view.sun");
+    try generate(imported_input, imported_output, generation);
+  }
+  match generation.active.pop() {
+    Option.Some(_) => {},
+    Option.None => {}
+  };
+  generation.seen.push(input.clone(a));
+  generation.append(input, compiler);
+  return publish(output, compiler.output, compiler.source_map);
+}
+
+/** Compiles an import graph into ordinary Sun and a source map; errors stop consumer builds. */
+function run(input: ref String, output: ref String) SystemResult<void> {
+  var a = make_heap_allocator();
+  var generation = Generation(a);
+  try generate(input, output, generation);
+  return publish(output, generation.source, generation.mapping);
+}
+
+/** Generates view source and mapping from two explicit paths. */
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
+  var a = make_heap_allocator();
+  var env = std.env.Env(a);
+  var args = env.args(argc, argv);
+  if (args.size() != 3) {
+    eprintln("Usage: sun-viewc INPUT.view.xml OUTPUT.sun");
+    return 1;
+  }
+  return match run(args[1], args[2]) {
+    SystemResult.Ok => 0,
+    SystemResult.Error(error) => {
+      eprintln(error.message());
+      return 1;
+    }
+  };
+}
+manifest { libraries: ["stdlib.moon"], source_files: ["../src/markup/compiler.sun"] }

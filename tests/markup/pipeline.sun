@@ -1,0 +1,73 @@
+using std;
+
+/** Exercises the command-line import graph without GTK or a display. */
+module markup_pipeline_tests {
+
+  /** Combines filesystem, process, and assertion failures. */
+  enum TestResult<T> { Ok(T), Assertion(std.test.AssertionError), System(Error) }
+
+  /** Writes a fixture owned by this test under the workspace temporary directory. */
+  function write(path: static_ptr<u8>, text: static_ptr<u8>) SystemResult<void> {
+    var filename = String(path);
+    var source = String(text);
+    return std.io.write_string(filename, source);
+  }
+
+  /** Runs the already-built generator and captures structural diagnostics. */
+  function generate() SystemResult<std.process.Output> {
+    var a = make_heap_allocator();
+    var command = std.process.Command(a, "build/sun-viewc");
+    command.add_arg("tmp/markup-pipeline/main.view.xml");
+    command.add_arg("build/generated/tests/pipeline/main.view.sun");
+    return command.output();
+  }
+
+  /** Regenerates imported changes deterministically and rejects invalid dependency graphs. */
+  test_function import_regeneration_and_failures() TestResult<void> {
+    var a = make_heap_allocator();
+    var mkdir = std.process.Command(a, "mkdir");
+    mkdir.add_arg("-p");
+    mkdir.add_arg("tmp/markup-pipeline/parts");
+    try std.test.assert_eq(try mkdir.status(), 0);
+    try write("tmp/markup-pipeline/main.view.xml", "<Views module=\"pipeline\"><Import name=\"Footer\" function=\"parts.Footer\" source=\"parts/footer.view.xml\"/><View name=\"view\" state=\"i64\"><Footer/></View></Views>");
+    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"parts\"><Template name=\"Footer\"><Label text=\"Original\"/></Template></Views>");
+    var first = try generate();
+    try std.test.assert_eq(first.status(), 0);
+    var path = String("build/generated/tests/pipeline/main.view.sun");
+    var original = try std.io.read_to_string(a, path);
+    var map_path = String("build/generated/tests/pipeline/main.view.sun.map");
+    var original_map = try std.io.read_to_string(a, map_path);
+    try std.test.assert(original_map.contains("tmp/markup-pipeline/parts/footer.view.xml"), "import mappings retain their filenames");
+    var repeated = try generate();
+    try std.test.assert_eq(repeated.status(), 0);
+    var repeated_source = try std.io.read_to_string(a, path);
+    var repeated_map = try std.io.read_to_string(a, map_path);
+    try std.test.assert(original.equals(repeated_source), "source generation is deterministic");
+    try std.test.assert(original_map.equals(repeated_map), "mapping generation is deterministic");
+    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"parts\"><Template name=\"Footer\"><Label text=\"Changed\"/></Template></Views>");
+    var changed = try generate();
+    try std.test.assert_eq(changed.status(), 0);
+    var changed_source = try std.io.read_to_string(a, path);
+    try std.test.assert(changed_source.contains("Changed") and not changed_source.contains("Original"), "imported changes reach the consumer");
+    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"parts\"><Template name=\"Footer\"><Unknown/></Template></Views>");
+    var invalid = try generate();
+    try std.test.assert(invalid.status() != 0, "invalid imports stop the build");
+    try std.test.assert(invalid.stderr().contains("footer.view.xml:"), "dependency error names its source");
+    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"parts\"><Import name=\"Again\" function=\"parts.Footer\" source=\"footer.view.xml\"/><Template name=\"Footer\"><Label text=\"Cycle\"/></Template></Views>");
+    var cycle = try generate();
+    try std.test.assert(cycle.status() != 0, "import cycles stop generation");
+    try std.test.assert(cycle.stderr().contains("cycle"), "cycle diagnostic explains the failure");
+  }
+
+  /** Maps compiler diagnostics to imported XML, counting CRLF and Unicode correctly. */
+  test_function imported_diagnostic_locations() TestResult<void> {
+    try write("tmp/markup-map-source.view.xml", "<Views>\r\n  é<Label/>\r\n</Views>");
+    try write("tmp/markup-map.sun.map", "1\t0\ttmp/markup-map-source.view.xml\n5\t13\ttmp/markup-map-source.view.xml\n");
+    var generated = String("tmp/markup-map.sun");
+    var original = String("unused.view.xml");
+    var diagnostic = String("/workspace/tmp/markup-map.sun:6:3: error: expected String\n");
+    var messages = try build_diagnostics.mapped(diagnostic, generated, original);
+    try std.test.assert(messages.contains("tmp/markup-map-source.view.xml:2:4:"), "maps to original Unicode column across CRLF");
+    try std.test.assert(not messages.contains("unused.view.xml"), "uses imported source instead of root fallback");
+  }
+}

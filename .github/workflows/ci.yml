@@ -21,7 +21,7 @@ jobs:
           -v /etc/passwd:/etc/passwd:ro
           -v /etc/group:/etc/group:ro
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
-          bash -c './build.sh && sun fmt --check src/ui.sun src/drawing.sun src/plot src/adapters tools examples tests'
+          bash -c './build.sh && sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/adapters tools examples tests'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -29,6 +29,7 @@ jobs:
           path: |
             build/sun-version.txt
             build/test-results.log
+            build/markup-test-results.log
             build/scientific-plot.svg
   gtk:
     runs-on: ubuntu-latest
@@ -56,6 +57,7 @@ jobs:
             src/sun_gobject/build/test-results.log
             build/sun-version.txt
             build/test-results.log
+            build/markup-test-results.log
             build/gtk-test-results.log
       - name: Upload development bundles
         uses: actions/upload-artifact@v4

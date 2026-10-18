@@ -1,0 +1,5 @@
+<Views module="counter">
+  <View name="view" state="i64">
+    <Button key="{1}" text="{`Count: ${state}`}" action="1" />
+  </View>
+</Views>

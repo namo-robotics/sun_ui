@@ -1,0 +1,5 @@
+/** Produces the executable whose companion tests the XML view compiler. */
+function main() i32 {
+  return 0;
+}
+manifest { libraries: ["stdlib.moon"], source_files: ["../../src/markup/compiler.sun", "../../tools/diagnostics.sun"], test_files: ["compiler.sun", "pipeline.sun"] }

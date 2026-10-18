@@ -1,0 +1,136 @@
+using std;
+
+/** Checks generated descriptions without GTK or the binding dependency. */
+module counter {
+
+  /** Combines assertion outcomes for generated description checks. */
+  enum GeneratedResult { Ok, Assertion(std.test.AssertionError) }
+
+  /** Compares generated counter descriptions with the handwritten public API. */
+  test_function generated_counter_equivalence() GeneratedResult {
+    var a = make_heap_allocator();
+    var state: i64 = 7;
+    var generated = view(state);
+    var handwritten = ui.View(a);
+    handwritten.button(1, String("Count: 7"), 1, 0);
+    try std.test.assert_eq(generated.elements.size(), handwritten.elements.size());
+    try std.test.assert(generated.elements[0].key.equals(handwritten.elements[0].key), "keys match");
+    try std.test.assert(generated.elements[0].equals(handwritten.elements[0]), "native descriptions match");
+    try std.test.assert_eq(generated.elements[0].action, handwritten.elements[0].action);
+    try std.test.assert_eq(generated.elements[0].payload, handwritten.elements[0].payload);
+  }
+}
+
+/** Checks lexical templates and per-instance resource dictionaries in generated code. */
+module scoped {
+
+  /** Combines assertion failures with dictionary validation errors. */
+  enum ScopedResult { Ok, Assertion(std.test.AssertionError), System(Error) }
+
+  /** Resolves theme, application, view, and component scopes without leaking sibling overrides. */
+  test_function scoped_resources_and_typed_templates() ScopedResult {
+    var state: i64 = 4;
+    var result = view(state);
+    try std.test.assert(result.construction_error.is_empty(), "construction succeeds");
+    try result.resources.validate();
+    try std.test.assert_eq(result.elements.size(), 8);
+    try std.test.assert_eq(result.elements[0].style.normal.foreground, 3);
+    try std.test.assert_eq(result.elements[2].style.normal.foreground, 4);
+    try std.test.assert_eq(result.elements[4].style.normal.foreground, 5);
+    try std.test.assert_eq(result.elements[5].style.normal.foreground, 3);
+    try std.test.assert_eq(result.elements[2].margin, 6);
+    try std.test.assert_eq(result.resource_scope, 1);
+    try std.test.assert(result.elements[7].text.equals_literal("Root"), "theme aliases resolve within their defining dictionary");
+    try std.test.assert(result.elements[1].template_id.equals_literal("Card"), "local template overrides root");
+  }
+}
+
+/** Exercises generated function and method routing without a native backend. */
+module action_checks {
+
+  /** Reports assertion and action failures from generated dispatch. */
+  enum ActionResult { Ok, Assertion(std.test.AssertionError), System(Error) }
+
+  /** Owns state edited only after an action is delivered. */
+  class State {
+    var count: i64 = 0;
+    var text: String = String("");
+
+    /** Creates empty application state. */
+    init() {}
+
+    /** Handles a method action without exposing application state to native callbacks. */
+    public method advance(event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+      this.count += 10;
+      return SystemResult.Ok;
+    }
+
+    /** Accepts the text value captured when an editable control changed. */
+    public method edit(event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+      this.text = event.value.text.clone(make_heap_allocator());
+      return SystemResult.Ok;
+    }
+  }
+
+  /** Receives a named function action with its unchanged application payload. */
+  function increment(state: ref State, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+    state.count += event.payload;
+    return SystemResult.Ok;
+  }
+
+  /** Handles explicit numeric actions even when their IDs match generated IDs. */
+  function numeric(state: ref State, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+    state.count += 100;
+    return SystemResult.Ok;
+  }
+
+  /** Copies a description's route as the framework does when capturing a native signal. */
+  function event(element: const ref ui.Element) ui.Event {
+    var value = ui.Event(1, element.action, element.payload);
+    value.action_scope = element.action_scope.clone(make_heap_allocator());
+    return value;
+  }
+
+  /** Verifies typed calls, edit values, collision-free numeric fallback, and stable automatic keys. */
+  test_function named_actions_and_automatic_keys() ActionResult {
+    var a = make_heap_allocator();
+    var state = State();
+    var queue = ui.EventQueue(a);
+    var description = view(state);
+    try std.test.assert_eq(state.count, 0);
+    var first = event(description.elements[0]);
+    try view_handle(state, first, queue);
+    var second = event(description.elements[1]);
+    try view_handle(state, second, queue);
+    try std.test.assert_eq(state.count, 13);
+    var edit = event(description.elements[2]);
+    edit.value = ui.EventValue(String("captured"));
+    try view_handle(state, edit, queue);
+    try std.test.assert(state.text.equals_literal("captured"), "change action receives owned captured text");
+    var fallback = event(description.elements[3]);
+    try std.test.assert_eq(fallback.action, first.action);
+    try view_handle(state, fallback, queue);
+    try std.test.assert_eq(state.count, 113);
+    var next = view(state);
+    for (var i: i64 = 0; i < description.elements.size(); i += 1) {
+      try std.test.assert(description.elements[i].key.equals(next.elements[i].key), "automatic static keys survive state updates");
+      for (var j: i64 = 0; j < i; j += 1) {
+        try std.test.assert(not description.elements[i].key.equals(description.elements[j].key), "automatic sibling keys are unique");
+      }
+    }
+    first.action_scope = String("another-view");
+    match view_handle(state, first, queue) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "foreign generated action must not enter numeric fallback");
+      }
+    };
+    try std.test.assert_eq(state.count, 113);
+  }
+}
+
+/** Provides an entrypoint for generated-view compilation tests. */
+function main() i32 {
+  return 0;
+}
+manifest { libraries: ["stdlib.moon", "sun_ui.moon"], source_files: ["../../build/generated/examples/counter-xml/counter.view.sun", "../../build/generated/tests/markup/scoped.view.sun", "../../build/generated/tests/markup/actions.view.sun"] }

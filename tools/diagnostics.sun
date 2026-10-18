@@ -1,0 +1,113 @@
+using std;
+
+/** Adds original XML locations to generated Sun compiler diagnostics. */
+module build_diagnostics {
+
+  /** Copies a validated substring or returns an empty value. */
+  function slice(text: const ref String, start: i64, length: i64) String {
+    var a = make_heap_allocator();
+    return match text.substr(a, start, length) {
+      AccessResult.Ok(value) => value,
+      AccessResult.OutOfBounds(_) => String("")
+    };
+  }
+
+  /** Converts an original byte offset to a filename, Unicode column, and line. */
+  function location(path: const ref String, input: const ref String, offset: i64) String {
+    var line: i64 = 1;
+    var column: i64 = 1;
+    var previous: u8 = 0;
+    for (var i: i64 = 0; i < offset and i < input.length(); i += 1) {
+      var c = match input.at(i) {
+        AccessResult.Ok(c) => c,
+        AccessResult.OutOfBounds(_) => 0
+      };
+      if (c == 13) {
+        line += 1;
+        column = 1;
+      } else if (c == 10) {
+        if (previous != 13) {
+          line += 1;
+        }
+        column = 1;
+      } else if (c < 128 or c >= 192) {
+        column += 1;
+      }
+      previous = c;
+    }
+    return `${path}:${line}:${column}`;
+  }
+
+  /** Resolves generated diagnostics into additional original XML location messages. */
+  public function mapped(diagnostic: const ref String, generated: ref String, original: ref String) SystemResult<String> {
+    var a = make_heap_allocator();
+    var result = String("");
+    var map_path = generated.clone(a);
+    map_path.append(".map");
+    var mapping = try std.io.read_to_string(a, map_path);
+    var records = mapping.split(a, b'\n');
+    var lines = diagnostic.split(a, b'\n');
+    var needle = generated.clone(a);
+    needle.append(":");
+    for (var line: ref String in lines) {
+      var begin = match line.find(needle) {
+        Option.Some(index) => index + needle.length(),
+        Option.None => -1
+      };
+      if (begin < 0) {
+        continue;
+      }
+      var end = begin;
+      while (end < line.length()) {
+        var c = match line.at(end) {
+          AccessResult.Ok(c) => c,
+          AccessResult.OutOfBounds(_) => 0
+        };
+        if (c < 48 or c > 57) {
+          break;
+        }
+        end += 1;
+      }
+      var digits = slice(line, begin, end - begin);
+      var generated_line = match digits.parse_i64() {
+        Option.Some(value) => value,
+        Option.None => 0
+      };
+      var offset: i64 = -1;
+      var mapped_file = original.clone(a);
+      for (var record: ref String in records) {
+        var fields = record.split(a, b'\t');
+        if (fields.size() < 2) {
+          continue;
+        }
+        var source_line = match fields[0].parse_i64() {
+          Option.Some(value) => value,
+          Option.None => 0
+        };
+        if (source_line > generated_line) {
+          break;
+        }
+        offset = match fields[1].parse_i64() {
+          Option.Some(value) => value,
+          Option.None => -1
+        };
+        if (fields.size() >= 3) {
+          mapped_file = fields[2].clone(a);
+        }
+      }
+      if (offset >= 0) {
+        var input = try std.io.read_to_string(a, mapped_file);
+        var source = location(mapped_file, input, offset);
+        result.append(`${source}: generated Sun diagnostic above refers to this declaration\n`);
+      }
+    }
+    return SystemResult.Ok(result);
+  }
+
+  /** Prints additional XML locations without replacing the original compiler diagnostic. */
+  public function annotate(diagnostic: const ref String, generated: ref String, original: ref String) SystemResult<void> {
+    var messages = try mapped(diagnostic, generated, original);
+    eprint(messages);
+    return SystemResult.Ok;
+  }
+}

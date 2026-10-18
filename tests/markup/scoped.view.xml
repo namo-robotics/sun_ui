@@ -1,0 +1,31 @@
+<Views module="scoped">
+  <Resources name="application_resources">
+    <Style name="accent" scope="theme"><Normal foreground="1" /></Style>
+    <Style name="accent"><Normal foreground="2" /></Style>
+    <Template name="card" value="RootCard" />
+    <Template name="themed" scope="theme" value="RootCard" />
+    <Template name="themed" value="Card" />
+    <Template name="themeAlias" scope="theme" ref="themed" />
+  </Resources>
+  <Template name="RootCard"><Label text="Root" /></Template>
+  <Template name="Card">
+    <Param name="color" type="i64" />
+    <Resources>
+      <Style name="accent"><Normal foreground="{color}" /></Style>
+      <Spacing name="padding" value="6" />
+    </Resources>
+    <Label key="label" text="Local" styleResource="accent" marginResource="padding" />
+  </Template>
+  <View name="view" state="i64" resources="{application_resources()}">
+    <Resources>
+      <Style name="accent"><Normal foreground="3" /></Style>
+      <Template name="card" value="Card" />
+      <Template name="alias" ref="card" />
+    </Resources>
+    <Label key="before" text="Before" styleResource="accent" />
+    <Use template="alias" key="first" color="{state}" />
+    <Use template="card" key="second" color="5" />
+    <Label key="after" text="After" styleResource="accent" />
+    <Use template="themeAlias" key="themeAlias" />
+  </View>
+</Views>

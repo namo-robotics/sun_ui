@@ -69,4 +69,4 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
     }
   };
 }
-manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_plot.moon", "sun_gobject.moon", "sun_gtk.moon", "sun_ui_gtk_drawing.moon"], source_files: ["data.sun"] }
+manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_plot.moon", "sun_gobject.moon", "sun_gtk.moon", "sun_ui_gtk_drawing.moon"], source_files: ["../plot-export/data.sun"] }

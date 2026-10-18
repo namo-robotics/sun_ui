@@ -1,0 +1,163 @@
+using std;
+
+/** Demonstrates controlled forms, weighted grid layout, themes, and named template slots. */
+module forms {
+
+  /** Owns form values and resolved themes independently of GTK widgets. */
+  class State {
+    var name: String = String("");
+    var enabled: bool = false;
+    var selected: i64 = 0;
+    var dark: bool = false;
+    var light_style: ui.Style;
+    var dark_style: ui.Style;
+    var seen_alpha: bool = false;
+    var seen_beta_after_alpha: bool = false;
+    var edits: i64 = 0;
+
+    /** Validates and resolves generated resources before opening the application. */
+    init() SystemResult<void> {
+      var dictionary = try resources();
+      var light = String("light");
+      var dark = String("dark");
+      this.light_style = try dictionary.style(1, light);
+      this.dark_style = try dictionary.style(1, dark);
+    }
+  }
+
+  /** Explicitly copies the selected theme into one owned control description. */
+  function theme(state: const ref State) ui.Style {
+    var result = ui.Style();
+    if (state.dark) {
+      result.overlay(state.dark_style);
+    } else {
+      result.overlay(state.light_style);
+    }
+    return result;
+  }
+
+  /** Appends a handwritten child through a generated template's named slot. */
+  function footer(view: ref ui.View, parent: i64) void {
+    var label = ui.Element(ui.Key(String("help")), ui.Kind.Label);
+    label.text = String("State and event handlers are ordinary Sun functions.");
+    view.append(parent, label);
+  }
+
+  /** Accepts edits through named actions and deliberately rejects one test value. */
+  function handle(state: ref State, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+    var a = make_heap_allocator();
+    if (event.action == 1 and event.value.kind == ui.ValueKind.Text) {
+      state.edits += 1;
+      if (event.value.text.equals_literal("alpha")) {
+        state.seen_alpha = true;
+      }
+      if (event.value.text.equals_literal("beta") and state.seen_alpha) {
+        state.seen_beta_after_alpha = true;
+      }
+      if (not event.value.text.equals_literal("reject")) {
+        state.name = event.value.text.clone(a);
+      }
+    } else if (event.action == 2 and event.value.kind == ui.ValueKind.Boolean) {
+      state.enabled = event.value.boolean;
+    } else if (event.action == 3 and event.value.kind == ui.ValueKind.Selection) {
+      var high = ui.Key(String("high"));
+      state.selected = event.value.selection.equals(high) ? 1 : 0;
+    } else if (event.action == 4) {
+      state.dark = not state.dark;
+    }
+    return SystemResult.Ok;
+  }
+
+  /** Resolves one editable control within its stable nested layout. */
+  function control(tree: const ref ui.Tree, name: static_ptr<u8>) u64 {
+    var a = make_heap_allocator();
+    var path = Vec<ui.Key>(a, 4);
+    path.push(ui.Key(String("page")));
+    path.push(ui.Key(String("form")));
+    path.push(ui.Key(String("fields")));
+    path.push(ui.Key(String(name)));
+    return tree.identity_path(path);
+  }
+
+  /** Verifies native FIFO edits, controlled restoration, themes, and cleanup. */
+  function acceptance(renderer: ref ui_gtk.Renderer, session: ref ui.Session<State>) SystemResult<void> {
+    var name = control(session.tree, "name");
+    var enabled = control(session.tree, "enabled");
+    var choice = control(session.tree, "choice");
+    var text = String("alpha");
+    try renderer.edit(name, text, 0);
+    text = String("beta");
+    try renderer.edit(name, text, 0);
+    renderer.poll(session.tree, session.queue, false);
+    try session.dispatch(renderer);
+    if (not session.state.name.equals_literal("beta") or not session.state.seen_beta_after_alpha) {
+      return SystemResult.Error(Error(1, "Text edits lost their captured FIFO values"));
+    }
+    text = String("reject");
+    try renderer.edit(name, text, 0);
+    renderer.poll(session.tree, session.queue, false);
+    try session.dispatch(renderer);
+    if (not session.state.name.equals_literal("beta")) {
+      return SystemResult.Error(Error(1, "Rejected edit changed state"));
+    }
+    var edits = session.state.edits;
+    renderer.poll(session.tree, session.queue, false);
+    try session.dispatch(renderer);
+    if (session.state.edits != edits) {
+      return SystemResult.Error(Error(1, "Programmatic text update emitted an edit"));
+    }
+    text = String("");
+    try renderer.edit(enabled, text, 1);
+    try renderer.edit(choice, text, 1);
+    renderer.poll(session.tree, session.queue, false);
+    try session.dispatch(renderer);
+    if (not session.state.enabled or session.state.selected != 1) {
+      return SystemResult.Error(Error(1, "Typed checkbox or selection event was lost"));
+    }
+    var creates = renderer.creates;
+    session.state.dark = true;
+    try session.render(renderer);
+    if (control(session.tree, "name") != name or renderer.creates != creates) {
+      return SystemResult.Error(Error(1, "Theme update remounted controls"));
+    }
+    session.tree.shutdown(renderer);
+    if (renderer.creates != renderer.removals) {
+      return SystemResult.Error(Error(1, "Form subscriptions survived shutdown"));
+    }
+    println("XML forms acceptance passed");
+    return SystemResult.Ok;
+  }
+
+  /** Runs the generated form using the normal state/session/event pipeline. */
+  public function run(automated: bool) SystemResult<void> {
+    var state = try State();
+    var title = String("Sun XML forms");
+    var renderer = try ui_gtk.Renderer(title);
+    var session = ui.Session<State>(state, view, handle);
+    try session.render(renderer);
+    if (automated) {
+      return acceptance(renderer, session);
+    }
+    while (renderer.running()) {
+      renderer.poll(session.tree, session.queue, true);
+      try session.dispatch(renderer);
+    }
+    session.tree.shutdown(renderer);
+    return SystemResult.Ok;
+  }
+}
+
+/** Runs the interactive form or its native acceptance scenario. */
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
+  var a = make_heap_allocator();
+  var env = std.env.Env(a);
+  var args = env.args(argc, argv);
+  return match forms.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
+    SystemResult.Ok => 0,
+    SystemResult.Error(error) => {
+      eprintln(error.message());
+      return 1;
+    }
+  };
+}
+manifest { source_files: ["../../build/generated/examples/forms/forms.view.sun"], libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon", "sun_ui_gtk.moon"] }

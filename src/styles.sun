@@ -1,0 +1,252 @@
+using std;
+
+/** Resolves typed presentation resources without native handles or state borrows. */
+public module ui {
+
+  /** Stores optional appearance properties for one interaction state. */
+  public class Appearance {
+    public var foreground: i64 = -1;
+    public var background: i64 = -1;
+    public var font: String = String("");
+    public var font_size: i32 = -1;
+
+    /** Creates an empty override; colors use packed RGB values. */
+    init() {}
+
+    /** Copies only explicitly supplied properties from a higher-precedence appearance. */
+    public method overlay(other: const ref Appearance) void {
+      var a = make_heap_allocator();
+      if (other.foreground >= 0) {
+        this.foreground = other.foreground;
+      }
+      if (other.background >= 0) {
+        this.background = other.background;
+      }
+      if (not other.font.is_empty()) {
+        this.font = other.font.clone(a);
+      }
+      if (other.font_size >= 0) {
+        this.font_size = other.font_size;
+      }
+    }
+
+    /** Compares resolved properties without allocating. */
+    public const method equals(other: const ref Appearance) bool {
+      return this.foreground == other.foreground and this.background == other.background and this.font.equals(other.font) and this.font_size == other.font_size;
+    }
+
+    /** Rejects invalid colors, sizes, or font text before rendering. */
+    public const method valid() bool {
+      if (this.foreground < -1 or this.foreground > 16777215 or this.background < -1 or this.background > 16777215 or this.font_size < -1 or this.font_size == 0) {
+        return false;
+      }
+      for (var i: i64 = 0; i < this.font.length(); i += 1) {
+        var c = match this.font.at(i) {
+          AccessResult.Ok(c) => c,
+          AccessResult.OutOfBounds(_) => 0
+        };
+        if (c < 32 or c == 34 or c == 42 or c == 92) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+
+  /** Owns normal and interaction-state overrides for one control. */
+  public class Style {
+    public var normal: Appearance = Appearance();
+    public var hover: Appearance = Appearance();
+    public var focus: Appearance = Appearance();
+    public var disabled: Appearance = Appearance();
+
+    /** Creates an empty style that inherits native defaults. */
+    init() {}
+
+    /** Applies a higher-precedence style without retaining references. */
+    public method overlay(other: const ref Style) void {
+      this.normal.overlay(other.normal);
+      this.hover.overlay(other.hover);
+      this.focus.overlay(other.focus);
+      this.disabled.overlay(other.disabled);
+    }
+
+    /** Compares all interaction states. */
+    public const method equals(other: const ref Style) bool {
+      return this.normal.equals(other.normal) and this.hover.equals(other.hover) and this.focus.equals(other.focus) and this.disabled.equals(other.disabled);
+    }
+
+    /** Validates every appearance before renderer mutation. */
+    public const method valid() bool {
+      return this.normal.valid() and this.hover.valid() and this.focus.valid() and this.disabled.valid();
+    }
+  }
+
+  /** Distinguishes resource types so references cannot silently change meaning. */
+  public enum ResourceKind { Color, Font, Spacing, Style, Template }
+
+  /** Owns one typed resource, optional alias, or inherited style. */
+  public class Resource {
+    public var name: String;
+    public var kind: ResourceKind;
+    public var number: i64 = 0;
+    public var text: String = String("");
+    public var style: Style = Style();
+    public var reference: String = String("");
+    public var based_on: String = String("");
+    var scope: i64 = 0;
+
+    /** Transfers the resource name into a typed definition. */
+    init(name: String, kind: ResourceKind) {
+      this.name = name;
+      this.kind = kind;
+    }
+  }
+
+  /** Owns nested dictionaries with theme then application fallback scopes. */
+  public class Resources {
+    var entries: Vec<Resource>;
+    var parents: Vec<i64>;
+
+    /** Creates theme scope zero and application scope one. */
+    init(a: const ref HeapAllocator) {
+      this.entries = Vec<Resource>(a, 8);
+      this.parents = Vec<i64>(a, 4);
+      this.parents.push(-1);
+      this.parents.push(0);
+    }
+
+    /** Creates a component dictionary with an explicitly selected enclosing scope. */
+    public method scope(parent: i64) SystemResult<i64> {
+      if (parent < 0 or parent >= this.parents.size()) {
+        return SystemResult.Error(Error(1, "Invalid resource parent scope"));
+      }
+      var index = this.parents.size();
+      this.parents.push(parent);
+      return SystemResult.Ok(index);
+    }
+
+    /** Adds an owned definition after rejecting duplicates within the dictionary. */
+    public method add(scope: i64, resource: Resource) SystemResult<void> {
+      if (scope < 0 or scope >= this.parents.size() or resource.name.is_empty()) {
+        return SystemResult.Error(Error(1, "Invalid resource declaration"));
+      }
+      for (var i: i64 = 0; i < this.entries.size(); i += 1) {
+        if (this.entries[i].scope == scope and this.entries[i].name.equals(resource.name)) {
+          return SystemResult.Error(Error(1, "Duplicate resource name"));
+        }
+      }
+      resource.scope = scope;
+      this.entries.push(resource);
+      return SystemResult.Ok;
+    }
+
+    /** Finds the nearest visible definition without following references. */
+    const method find(scope: i64, name: const ref String) i64 {
+      var current = scope;
+      while (current >= 0 and current < this.parents.size()) {
+        for (var i: i64 = 0; i < this.entries.size(); i += 1) {
+          if (this.entries[i].scope == current and this.entries[i].name.equals(name)) {
+            return i;
+          }
+        }
+        current = this.parents[current];
+      }
+      return -1;
+    }
+
+    /** Resolves aliases with bounded traversal and strict resource type checking. */
+    const method resolve(scope: i64, name: const ref String, kind: ResourceKind) SystemResult<i64> {
+      var index = this.find(scope, name);
+      for (var count: i64 = 0; count <= this.entries.size(); count += 1) {
+        if (index < 0) {
+          return SystemResult.Error(Error(1, "Missing resource"));
+        }
+        if (this.entries[index].kind != kind) {
+          return SystemResult.Error(Error(1, "Resource type mismatch"));
+        }
+        if (this.entries[index].reference.is_empty()) {
+          return SystemResult.Ok(index);
+        }
+        index = this.find(this.entries[index].scope, this.entries[index].reference);
+      }
+      return SystemResult.Error(Error(1, "Resource reference cycle"));
+    }
+
+    /** Validates every definition, including unused aliases and inherited styles. */
+    public const method validate() SystemResult<void> {
+      var a = make_heap_allocator();
+      for (var i: i64 = 0; i < this.entries.size(); i += 1) {
+        var resource = this.entries[i];
+        var index = try this.resolve(resource.scope, resource.name, resource.kind);
+        if (resource.kind == ResourceKind.Style) {
+          var value = try this.style(resource.scope, resource.name);
+        } else if (resource.kind == ResourceKind.Color or resource.kind == ResourceKind.Spacing) {
+          var value = try this.number(resource.scope, resource.name, resource.kind);
+        } else {
+          if (this.entries[index].text.is_empty()) {
+            return SystemResult.Error(Error(1, "Empty text resource"));
+          }
+          if (resource.kind == ResourceKind.Font) {
+            var appearance = Appearance();
+            appearance.font = this.entries[index].text.clone(a);
+            if (not appearance.valid()) {
+              return SystemResult.Error(Error(1, "Invalid font resource"));
+            }
+          }
+        }
+      }
+      return SystemResult.Ok;
+    }
+
+    /** Resolves a color or spacing value without implicit conversion. */
+    public const method number(scope: i64, name: const ref String, kind: ResourceKind) SystemResult<i64> {
+      if (kind != ResourceKind.Color and kind != ResourceKind.Spacing) {
+        return SystemResult.Error(Error(1, "Resource is not numeric"));
+      }
+      var i = try this.resolve(scope, name, kind);
+      var value = this.entries[i].number;
+      if (value < 0 or (kind == ResourceKind.Color and value > 16777215)) {
+        return SystemResult.Error(Error(1, "Invalid numeric resource"));
+      }
+      return SystemResult.Ok(value);
+    }
+
+    /** Explicitly copies a font or template name from a resolved resource. */
+    public const method text(scope: i64, name: const ref String, kind: ResourceKind) SystemResult<String> {
+      if (kind != ResourceKind.Font and kind != ResourceKind.Template) {
+        return SystemResult.Error(Error(1, "Resource is not text"));
+      }
+      var a = make_heap_allocator();
+      var i = try this.resolve(scope, name, kind);
+      return SystemResult.Ok(this.entries[i].text.clone(a));
+    }
+
+    /** Resolves a style's inheritance chain from base to derived. */
+    public const method style(scope: i64, name: const ref String) SystemResult<Style> {
+      var a = make_heap_allocator();
+      var chain = Vec<i64>(a, 4);
+      var i = try this.resolve(scope, name, ResourceKind.Style);
+      while (true) {
+        for (var j: i64 = 0; j < chain.size(); j += 1) {
+          if (chain[j] == i) {
+            return SystemResult.Error(Error(1, "Style inheritance cycle"));
+          }
+        }
+        chain.push(i);
+        if (this.entries[i].based_on.is_empty()) {
+          break;
+        }
+        i = try this.resolve(this.entries[i].scope, this.entries[i].based_on, ResourceKind.Style);
+      }
+      var result = Style();
+      for (var j = chain.size() - 1; j >= 0; j -= 1) {
+        result.overlay(this.entries[chain[j]].style);
+      }
+      if (not result.valid()) {
+        return SystemResult.Error(Error(1, "Invalid style resource"));
+      }
+      return SystemResult.Ok(result);
+    }
+  }
+}

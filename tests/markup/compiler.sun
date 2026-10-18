@@ -1,0 +1,184 @@
+using std;
+
+/** Checks generation and diagnostics through the compiler's owned-input interface. */
+module markup_tests {
+
+  /** Combines compiler and assertion errors for test reporting. */
+  enum TestResult<T> { Ok(T), Assertion(std.test.AssertionError), System(Error) }
+
+  /** Compiles a minimal view and retains a deterministic original source mapping. */
+  test_function generates_owned_view() TestResult<void> {
+    var compiler = markup.Compiler(String("counter.view.xml"), String("<Views module=\"counter\"><View name=\"view\" state=\"i64\"><Button key=\"{1}\" text=\"A &amp; B\" action=\"1\"/></View></Views>"));
+    try compiler.compile();
+    try std.test.assert(compiler.output.contains("ui.Key(1)"), "numeric key stays numeric");
+    try std.test.assert(compiler.output.contains("String(\"A & B\")"), "XML entities are decoded once");
+    try std.test.assert(compiler.output.contains("state: const ref i64"), "state is borrowed only during construction");
+    try std.test.assert(compiler.source_map.contains("\t"), "generated lines map to source bytes");
+  }
+
+  /** Preserves explicit ownership expressions without inserting copies. */
+  test_function expressions_and_conditions() TestResult<void> {
+    var compiler = markup.Compiler(String("conditional.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"State\"><If test=\"{state.visible}\"><Label text=\"{state.name.clone(a)}\"/><Else><Label text=\"Hidden\"/></Else></If></View></Views>"));
+    try compiler.compile();
+    try std.test.assert(compiler.output.contains("state.name.clone(a)"), "explicit copy is retained");
+    try std.test.assert(compiler.output.contains("} else {"), "condition compiles to Sun");
+  }
+
+  /** Emits one collection evaluation and a stable per-item scope. */
+  test_function keyed_repetition() TestResult<void> {
+    var compiler = markup.Compiler(String("loop.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"State\"><For each=\"id\" in=\"{state.ids}\" key=\"{id}\"><Button text=\"Item\"/></For></View></Views>"));
+    try compiler.compile();
+    try std.test.assert(compiler.output.contains(" = state.ids;"), "collection is captured once");
+    try std.test.assert(compiler.output.contains("ui.Key(id), ui.Kind.Group"), "stable keys scope repeated children");
+  }
+
+  /** Rejects a bad document with its original filename and location. */
+  function rejects(source: static_ptr<u8>, expected: static_ptr<u8>) TestResult<void> {
+    var compiler = markup.Compiler(String("invalid.view.xml"), String(source));
+    match compiler.compile() {
+      SystemResult.Error(error) => {
+        var message = error.message();
+        try std.test.assert(message.contains("invalid.view.xml:"), "diagnostic contains source filename");
+        try std.test.assert(message.contains(expected), "diagnostic explains the invalid declaration");
+      },
+      SystemResult.Ok => {
+        try std.test.assert(false, "invalid input was accepted");
+      }
+    };
+    return TestResult.Ok;
+  }
+
+  /** Rejects malformed XML without a project-specific fallback parser. */
+  test_function malformed_xml() TestResult<void> {
+    return rejects("<Views>", "Malformed XML");
+  }
+
+  /** Rejects unknown vocabulary and misspelled properties. */
+  test_function unknown_declarations() TestResult<void> {
+    try rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><Unknown/></View></Views>", "Unknown view declaration");
+    return rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><Label typo=\"x\"/></View></Views>", "Unknown attribute");
+  }
+
+  /** Requires durable repetition keys instead of silently using item indexes. */
+  test_function missing_loop_key() TestResult<void> {
+    return rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><For each=\"id\" in=\"{state.ids}\"/></View></Views>", "stable key");
+  }
+
+  /** Rejects unstructured text so formatting whitespace cannot become UI content. */
+  test_function unexpected_text() TestResult<void> {
+    return rejects("<Views module=\"app\"><View name=\"view\" state=\"State\">oops</View></Views>", "Unknown view declaration");
+  }
+
+  /** Keeps imported template declarations explicit and source-relative. */
+  test_function imports_and_templates() TestResult<void> {
+    var compiler = markup.Compiler(String("app.view.xml"), String("<Views module=\"app\"><Import name=\"Card\" function=\"parts.Card\" source=\"parts/card.view.xml\"><Param name=\"title\" type=\"String\"/></Import><View name=\"view\" state=\"State\"><Card title=\"Hello\"/></View></Views>"));
+    try compiler.compile();
+    try std.test.assert_eq(compiler.imports.size(), 1);
+    try std.test.assert(compiler.output.contains("parts.Card(result,"), "import calls the qualified function");
+    try std.test.assert(compiler.output.contains("template_id"), "template identity participates in reconciliation");
+  }
+
+  /** Rejects child controls and property declarations in invalid locations. */
+  test_function invalid_children() TestResult<void> {
+    try rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><Button><Label/></Button></View></Views>", "cannot contain");
+    return rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><Column><Param name=\"bad\"/></Column></View></Views>", "Unknown view declaration");
+  }
+
+  /** Compiles generated Sun to prove invalid property expressions fail real type checking. */
+  test_function generated_type_error() TestResult<void> {
+    var a = make_heap_allocator();
+    var compiler = markup.Compiler(String("invalid-type.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"i64\"><Label text=\"{42}\"/></View></Views>"));
+    try compiler.compile();
+    compiler.output.append("\n/** Drives type checking of a deliberately invalid generated view. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n");
+    var path = String("tmp/markup-invalid-type.sun");
+    try std.io.write_string(path, compiler.output);
+    var env = std.env.Env(a);
+    var executable = match env.get("SUN_EXECUTABLE") {
+      Option.Some(value) => value.clone(a),
+      Option.None => String("sun")
+    };
+    var command = std.process.Command(a, executable);
+    command.add_arg("--dynamic");
+    command.add_arg("--lib-path");
+    command.add_arg("build");
+    command.add_arg("-c");
+    command.add_arg("-o");
+    command.add_arg("tmp/markup-invalid-type");
+    command.add_arg(path);
+    var output = try command.output();
+    try std.test.assert(output.status() != 0, "Sun must reject integer text without an explicit conversion");
+    try std.test.assert(output.stderr().contains("String"), "diagnostic identifies the required type");
+  }
+
+  /** Ensures generated descriptions cannot silently move strings out of borrowed state. */
+  test_function generated_ownership_error() TestResult<void> {
+    var a = make_heap_allocator();
+    var compiler = markup.Compiler(String("invalid-ownership.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"String\"><Label text=\"{state}\"/></View></Views>"));
+    try compiler.compile();
+    compiler.output.append("\n/** Forces generated ownership checking. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n");
+    var path = String("tmp/markup-invalid-ownership.sun");
+    try std.io.write_string(path, compiler.output);
+    var env = std.env.Env(a);
+    var executable = match env.get("SUN_EXECUTABLE") {
+      Option.Some(value) => value.clone(a),
+      Option.None => String("sun")
+    };
+    var command = std.process.Command(a, executable);
+    command.add_arg("--dynamic");
+    command.add_arg("--lib-path");
+    command.add_arg("build");
+    command.add_arg("-c");
+    command.add_arg("-o");
+    command.add_arg("tmp/markup-invalid-ownership");
+    command.add_arg(path);
+    var output = try command.output();
+    try std.test.assert(output.status() != 0, "owned properties require an explicit clone of borrowed state");
+    try std.test.assert(output.stderr().contains("const ref String"), "failure concerns ownership");
+  }
+
+  /** Rejects contradictory or nested resource declarations rather than ignoring them. */
+  test_function invalid_resources() TestResult<void> {
+    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Color name=\"x\" basedOn=\"base\"/></Resources></Views>", "Invalid property");
+    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Color name=\"x\" ref=\"base\" value=\"12\"/></Resources></Views>", "alias cannot");
+    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Style name=\"x\"><Normal/><Normal/></Style></Resources></Views>", "Duplicate style");
+    return rejects("<Views module=\"app\"><Resources name=\"resources\"><Style name=\"x\"><Normal><Label/></Normal></Style></Resources></Views>", "Appearance cannot");
+  }
+
+  /** Rejects invalid template resources even when no Use declaration instantiates them. */
+  test_function invalid_template_resources() TestResult<void> {
+    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Template name=\"x\" value=\"Missing\"/></Resources></Views>", "declared component function");
+    return rejects("<Views module=\"app\"><Resources name=\"resources\"><Template name=\"a\" ref=\"b\"/><Template name=\"b\" ref=\"a\"/></Resources></Views>", "cycle");
+  }
+
+  /** Ensures even unused template imports are checked against their declared parameter types. */
+  test_function unused_template_signature() TestResult<void> {
+    var a = make_heap_allocator();
+    var compiler = markup.Compiler(String("template-type.view.xml"), String("<Views module=\"app\"><Import name=\"Card\" function=\"foreign.Card\"><Param name=\"value\" type=\"i64\"/></Import><Resources name=\"resources\"><Template name=\"card\" value=\"Card\"/></Resources></Views>"));
+    try compiler.compile();
+    compiler.output.append("\n/** Provides a deliberately incompatible imported component. */\nmodule foreign { /** Takes owned text rather than the declared integer. */ public function Card(view: ref ui.View, parent: i64, value: String) void {} }\n/** Runs signature checking without invoking the resource. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n");
+    var path = String("tmp/markup-template-type.sun");
+    try std.io.write_string(path, compiler.output);
+    var env = std.env.Env(a);
+    var executable = match env.get("SUN_EXECUTABLE") {
+      Option.Some(value) => value.clone(a),
+      Option.None => String("sun")
+    };
+    var command = std.process.Command(a, executable);
+    command.add_arg("--dynamic");
+    command.add_arg("--lib-path");
+    command.add_arg("build");
+    command.add_arg("-c");
+    command.add_arg("-o");
+    command.add_arg("tmp/markup-template-type");
+    command.add_arg(path);
+    var output = try command.output();
+    try std.test.assert(output.status() != 0, "typed template accessor rejects the incompatible import");
+    try std.test.assert(output.stderr().contains("No overload") and output.stderr().contains("function"), "diagnostic identifies incompatible function signatures");
+  }
+
+  /** Rejects ambiguous routing and state-dependent handlers in untyped reusable components. */
+  test_function invalid_named_actions() TestResult<void> {
+    try rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><Button action=\"click\" changeAction=\"edit\"/></View></Views>", "not both");
+    return rejects("<Views module=\"app\"><Component name=\"Card\"><Button action=\"click\"/></Component></Views>", "Named actions require a View");
+  }
+}

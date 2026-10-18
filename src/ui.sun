@@ -1,47 +1,320 @@
 using std;
 
-/** Describes keyed semantic buttons and reconciles them without platform dependencies. */
+/** Describes owned, keyed UI trees independently of native widgets. */
 public module ui {
 
-  /** Owns one button description and an integer message payload, never a borrowed callback. */
-  public class Element {
-    public var key: i64;
-    public var text: String;
-    public var action: i64;
-    public var payload: i64;
+  /** Distinguishes integer keys from symbolic keys without hashing collisions. */
+  public class Key {
+    var symbolic: bool = false;
+    var number: i64 = 0;
+    var name: String = String("");
 
-    /** Transfers the label into this render description. */
-    init(key: i64, text: String, action: i64, payload: i64) {
+    /** Creates an integer key. */
+    init(value: i64) {
+      this.number = value;
+    }
+
+    /** Creates an owned symbolic key. */
+    init(value: String) {
+      this.symbolic = true;
+      this.name = value;
+    }
+
+    /** Compares keys within one parent scope. */
+    public const method equals(other: const ref Key) bool {
+      return this.symbolic == other.symbolic and (this.symbolic ? this.name.equals(other.name) : this.number == other.number);
+    }
+
+    /** Encodes a key for a native event snapshot without losing its type. */
+    public const method encoded() String {
+      var result = String(this.symbolic ? "s:" : "n:");
+      if (this.symbolic) {
+        result.append(this.name);
+      } else {
+        result.append(this.number);
+      }
+      return result;
+    }
+
+    /** Explicitly copies a key for a path or retained description. */
+    public const method clone(a: const ref HeapAllocator) Key {
+      if (this.symbolic) {
+        return Key(this.name.clone(a));
+      }
+      return Key(this.number);
+    }
+  }
+
+  /** Identifies layout containers, logical scopes, and native controls. */
+  public enum Kind { Group, Row, Column, Grid, Scroll, Label, Button, TextInput, Checkbox, Select }
+
+  /** Specifies placement within the space offered by a parent. */
+  public enum Align { Fill, Start, Center, End }
+
+  /** Describes a grid track's sizing rule. */
+  public enum TrackKind { Auto, Fixed, Weight }
+
+  /** Owns a grid sizing rule; fixed pixels and weights must be positive. */
+  public class Track {
+    public var kind: TrackKind;
+    public var value: i32;
+
+    /** Creates a track without hidden allocations. */
+    init(kind: TrackKind, value: i32) {
+      this.kind = kind;
+      this.value = value;
+    }
+  }
+
+  /** Owns a select option with a durable application key. */
+  public class Choice {
+    public var key: Key;
+    public var text: String;
+
+    /** Transfers an option key and label into a description. */
+    init(key: Key, text: String) {
       this.key = key;
       this.text = text;
-      this.action = action;
-      this.payload = payload;
     }
   }
 
-  /** Owns a flat sibling list; ordinary functions compose views by appending elements. */
+  /** Owns one node's properties and its parent index; never retains state borrows. */
+  public class Element {
+    public var key: Key;
+    public var kind: Kind;
+    public var template_id: String = String("");
+    public var parent: i64 = -1;
+    public var text: String = String("");
+    public var action: i64 = 0;
+    public var action_scope: String = String("");
+    public var payload: i64 = 0;
+    public var enabled: bool = true;
+    public var visible: bool = true;
+    public var checked: bool = false;
+    public var selected: i64 = -1;
+    public var spacing: i32 = 0;
+    public var margin: i32 = 0;
+    public var min_width: i32 = 0;
+    public var min_height: i32 = 0;
+    public var width: i32 = -1;
+    public var height: i32 = -1;
+    public var horizontal: Align = Align.Fill;
+    public var vertical: Align = Align.Fill;
+    public var expand_x: bool = false;
+    public var expand_y: bool = false;
+    public var row: i32 = 0;
+    public var column: i32 = 0;
+    public var row_span: i32 = 1;
+    public var column_span: i32 = 1;
+    public var style: Style = Style();
+    public var overrides: Style = Style();
+    public var choices: Vec<Choice>;
+    public var rows: Vec<Track>;
+    public var columns: Vec<Track>;
+
+    /** Allocates property collections explicitly for a typed node. */
+    init(key: Key, kind: Kind) {
+      var a = make_heap_allocator();
+      this.key = key;
+      this.kind = kind;
+      this.choices = Vec<Choice>(a, 4);
+      this.rows = Vec<Track>(a, 4);
+      this.columns = Vec<Track>(a, 4);
+    }
+
+    /** Reports whether a node can own children. */
+    public const method container() bool {
+      return this.kind == Kind.Group or this.kind == Kind.Row or this.kind == Kind.Column or this.kind == Kind.Grid or this.kind == Kind.Scroll;
+    }
+
+    /** Compares native properties, excluding keys and semantic event routing. */
+    public const method equals(other: const ref Element) bool {
+      if (not this.style.equals(other.style) or this.text.equals(other.text) == false or this.enabled != other.enabled or this.visible != other.visible or this.checked != other.checked or this.selected != other.selected or this.spacing != other.spacing or this.margin != other.margin or this.min_width != other.min_width or this.min_height != other.min_height or this.width != other.width or this.height != other.height or this.horizontal != other.horizontal or this.vertical != other.vertical or this.expand_x != other.expand_x or this.expand_y != other.expand_y or this.row != other.row or this.column != other.column or this.row_span != other.row_span or this.column_span != other.column_span) {
+        return false;
+      }
+      if (this.choices.size() != other.choices.size() or this.rows.size() != other.rows.size() or this.columns.size() != other.columns.size()) {
+        return false;
+      }
+      for (var i: i64 = 0; i < this.choices.size(); i += 1) {
+        if (not this.choices[i].key.equals(other.choices[i].key) or not this.choices[i].text.equals(other.choices[i].text)) {
+          return false;
+        }
+      }
+      for (var i: i64 = 0; i < this.rows.size(); i += 1) {
+        if (this.rows[i].kind != other.rows[i].kind or this.rows[i].value != other.rows[i].value) {
+          return false;
+        }
+      }
+      for (var i: i64 = 0; i < this.columns.size(); i += 1) {
+        if (this.columns[i].kind != other.columns[i].kind or this.columns[i].value != other.columns[i].value) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+
+  /** Owns parent-before-child descriptions and optional post-commit focus effects. */
   public class View {
     public var elements: Vec<Element>;
+    public var theme: Style = Style();
+    public var resources: Resources;
+    public var resource_scope: i64 = 1;
+    public var construction_error: String = String("");
     public var focus_key: Option<i64> = Option.None;
+    public var focus_path: Vec<Key>;
 
-    /** Allocates description storage explicitly for this render. */
+    /** Allocates this render's descriptions and focus path. */
     init(a: const ref HeapAllocator) {
+      this.resources = Resources(a);
       this.elements = Vec<Element>(a, 8);
+      this.focus_path = Vec<Key>(a, 4);
     }
 
-    /** Appends an owned semantic button. Keys must be unique in this view. */
+    /** Retains the first construction failure for atomic rejection before rendering. */
+    public method reject(error: Error) void {
+      if (this.construction_error.is_empty()) {
+        this.construction_error = error.message().clone(make_heap_allocator());
+      }
+    }
+
+    /** Installs an owned application dictionary or retains its construction error. */
+    public method set_resources(resources: SystemResult<Resources>) void {
+      match resources {
+        SystemResult.Ok(value) => {
+          this.resources = value;
+        },
+        SystemResult.Error(error) => {
+          this.reject(error);
+        }
+      };
+    }
+
+    /** Opens a component dictionary and returns the enclosing scope for restoration. */
+    public method push_resources() i64 {
+      var previous = this.resource_scope;
+      match this.resources.scope(previous) {
+        SystemResult.Ok(scope) => {
+          this.resource_scope = scope;
+        },
+        SystemResult.Error(error) => {
+          this.reject(error);
+        }
+      };
+      return previous;
+    }
+
+    /** Adds an owned local definition while retaining duplicate errors for preflight. */
+    public method define(resource: Resource) void {
+      match this.resources.add(this.resource_scope, resource) {
+        SystemResult.Ok => {},
+        SystemResult.Error(error) => {
+          this.reject(error);
+        }
+      };
+    }
+
+    /** Resolves a named style in the active component scope without retaining borrows. */
+    public method style_resource(name: String) Style {
+      match this.resources.style(this.resource_scope, name) {
+        SystemResult.Ok(value) => {
+          return value;
+        },
+        SystemResult.Error(error) => {
+          this.reject(error);
+        }
+      };
+      return Style();
+    }
+
+    /** Resolves a typed color or spacing and retains lookup failures for preflight. */
+    public method number_resource(name: String, kind: ResourceKind) i32 {
+      match this.resources.number(this.resource_scope, name, kind) {
+        SystemResult.Ok(value) => {
+          if (value <= 2147483647) {
+            return _convert<i32>(value);
+          }
+          this.reject(Error(1, "Resource exceeds layout integer range"));
+        },
+        SystemResult.Error(error) => {
+          this.reject(error);
+        }
+      };
+      return 0;
+    }
+
+    /** Copies a named font from the nearest dictionary and retains lookup failures. */
+    public method font_resource(name: String) String {
+      match this.resources.text(this.resource_scope, name, ResourceKind.Font) {
+        SystemResult.Ok(value) => {
+          return value;
+        },
+        SystemResult.Error(error) => {
+          this.reject(error);
+        }
+      };
+      return String("");
+    }
+
+    /** Appends a node under an earlier parent, or at the root for parent -1. */
+    public method append(parent: i64, element: Element) i64 {
+      element.parent = parent;
+      var index = this.elements.size();
+      this.elements.push(element);
+      return index;
+    }
+
+    /** Appends a root button for existing handwritten views. */
     public method button(key: i64, text: String, action: i64, payload: i64) void {
-      this.elements.push(Element(key, text, action, payload));
+      var node = Element(Key(key), Kind.Button);
+      node.text = text;
+      node.action = action;
+      node.payload = payload;
+      this.append(-1, node);
     }
   }
 
-  /** Owns a message captured at enqueue time and the mounted identity that produced it. */
+  /** Owns the value captured when a user edits a control. */
+  public enum ValueKind { None, Text, Boolean, Selection }
+
+  /** Owns a tagged edit value without retaining a widget or application borrow. */
+  public class EventValue {
+    public var kind: ValueKind = ValueKind.None;
+    public var text: String = String("");
+    public var boolean: bool = false;
+    public var selection: Key = Key(0);
+
+    /** Creates a valueless activation event. */
+    init() {}
+
+    /** Takes ownership of captured editable text. */
+    init(value: String) {
+      this.kind = ValueKind.Text;
+      this.text = value;
+    }
+
+    /** Captures a checkbox state. */
+    init(value: bool) {
+      this.kind = ValueKind.Boolean;
+      this.boolean = value;
+    }
+
+    /** Takes ownership of a selected application key. */
+    init(value: Key) {
+      this.kind = ValueKind.Selection;
+      this.selection = value;
+    }
+  }
+
+  /** Owns captured semantic routing, value, and the mounted source identity. */
   public class Event {
     public var identity: u64;
     public var action: i64;
+    public var action_scope: String = String("");
     public var payload: i64;
+    public var value: EventValue = EventValue();
 
-    /** Captures scalar message data without retaining application or stack references. */
+    /** Captures routing without retaining application or widget references. */
     init(identity: u64, action: i64, payload: i64) {
       this.identity = identity;
       this.action = action;
@@ -49,106 +322,211 @@ public module ui {
     }
   }
 
-  /** Collects events for a later dispatch boundary, including events emitted by handlers. */
+  /** Collects owned events for the next bounded dispatch. */
   public class EventQueue {
     var pending: Vec<Event>;
 
-    /** Allocates owned FIFO storage. */
+    /** Allocates FIFO event storage. */
     init(a: const ref HeapAllocator) {
       this.pending = Vec<Event>(a, 8);
     }
 
-    /** Transfers a message to the next dispatch; never executes user code. */
+    /** Transfers a captured event without running application code. */
     public method post(event: Event) void {
       this.pending.push(event);
     }
 
-    /** Reports pending work so a platform loop can avoid blocking. */
+    /** Reports pending work to a platform loop. */
     public const method size() i64 {
       return this.pending.size();
     }
   }
 
-  /** Supplies platform operations; create/remove own the lifetime of event subscriptions. */
+  /** Receives typed descriptions while owning platform resources and subscriptions. */
   public interface Renderer {
-    /** Creates an unparented native control and its event subscription. */
-    public method create(identity: u64, text: const ref String) SystemResult<void>;
+    /** Creates an unparented control or logical scope. */
+    public method create(identity: u64, element: const ref Element) SystemResult<void>;
 
-    /** Changes only the label of an existing control. */
-    public method update(identity: u64, text: const ref String) SystemResult<void>;
+    /** Applies changed native properties without emitting user-edit events. */
+    public method update(identity: u64, element: const ref Element) SystemResult<void>;
 
-    /** Places a control after its sibling; zero denotes the first position. */
-    public method place(identity: u64, previous: u64) SystemResult<void>;
+    /** Places a node under its parent; zero denotes root or first sibling. */
+    public method place(identity: u64, parent: u64, previous: u64) SystemResult<void>;
 
-    /** Disconnects subscriptions and releases the removed control. */
+    /** Finishes deferred placement after every node's parent and sibling are known. */
+    public method finish() SystemResult<void>;
+
+    /** Disconnects and releases a node after its descendants have been removed. */
     public method remove(identity: u64) void;
 
-    /** Applies an explicit focus effect after a successful commit. */
+    /** Applies an explicit post-commit focus request. */
     public method focus(identity: u64) void;
 
-    /** Releases every control and subscription after shutdown or a failed commit. */
+    /** Releases all resources after shutdown or a failed commit. */
     public method clear() void;
   }
 
-  /** Retains a mounted identity and its last committed description. */
+  /** Retains a committed node and the identity of its mounted parent. */
   class Mounted {
     var identity: u64;
+    var parent: u64;
+    var dirty: bool = false;
     var element: Element;
 
-    /** Takes ownership of a committed element description. */
-    init(identity: u64, element: Element) {
+    /** Transfers a committed description into retained storage. */
+    init(identity: u64, parent: u64, element: Element) {
       this.identity = identity;
+      this.parent = parent;
       this.element = element;
     }
   }
 
-  /** Reconciles stable sibling keys; renderer failures terminate this tree until recreated. */
+  /** Reconciles parent-scoped keys and stops on platform failures. */
   public class Tree {
     var mounted: Vec<Mounted>;
     var next_identity: u64 = 1;
     var stopped: bool = false;
 
-    /** Allocates the retained mounted list. */
+    /** Allocates retained descriptions. */
     init(a: const ref HeapAllocator) {
       this.mounted = Vec<Mounted>(a, 8);
     }
 
-    /** Finds a mounted key without allocating. */
-    const method index(key: i64) i64 {
+    /** Finds a key within one mounted parent scope. */
+    const method index(parent: u64, key: const ref Key) i64 {
       for (var i: i64 = 0; i < this.mounted.size(); i += 1) {
-        if (this.mounted[i].element.key == key) {
+        if (this.mounted[i].parent == parent and this.mounted[i].element.key.equals(key)) {
           return i;
         }
       }
       return -1;
     }
 
-    /** Returns zero for an unmounted key; identities are never reused by this tree. */
+    /** Looks up an integer key at the root, returning zero when absent. */
     public const method identity(key: i64) u64 {
-      var index = this.index(key);
-      if (index < 0) {
-        return 0;
-      }
-      return this.mounted[index].identity;
+      var value = Key(key);
+      var i = this.index(0, value);
+      return i < 0 ? 0 : this.mounted[i].identity;
     }
 
-    /** Rejects duplicate keys before touching the mounted tree or renderer. */
+    /** Resolves a path through parent scopes, returning zero when absent. */
+    public const method identity_path(path: const ref Vec<Key>) u64 {
+      var parent: u64 = 0;
+      for (var n: i64 = 0; n < path.size(); n += 1) {
+        var i = this.index(parent, path[n]);
+        if (i < 0) {
+          return 0;
+        }
+        parent = this.mounted[i].identity;
+      }
+      return parent;
+    }
+
+    /** Finds the physical parent after skipping logical component scopes. */
+    const method physical_parent(view: const ref View, index: i64) i64 {
+      var parent = view.elements[index].parent;
+      while (parent >= 0 and view.elements[parent].kind == Kind.Group) {
+        parent = view.elements[parent].parent;
+      }
+      return parent;
+    }
+
+    /** Validates the full tree before making any platform changes. */
     method validate(view: const ref View) SystemResult<void> {
+      if (not view.construction_error.is_empty()) {
+        return SystemResult.Error(Error(1, view.construction_error));
+      }
+      try view.resources.validate();
       for (var i: i64 = 0; i < view.elements.size(); i += 1) {
+        var node = view.elements[i];
+        if (node.parent < -1 or node.parent >= i) {
+          return SystemResult.Error(Error(1, "Parent must precede its child"));
+        }
+        if (node.parent >= 0 and not view.elements[node.parent].container()) {
+          return SystemResult.Error(Error(1, "Control cannot contain children"));
+        }
+        if (not node.style.valid()) {
+          return SystemResult.Error(Error(1, "Invalid control style"));
+        }
+        if (node.spacing < 0 or node.margin < 0 or node.min_width < 0 or node.min_height < 0 or node.width < -1 or node.height < -1 or node.row < 0 or node.column < 0 or node.row_span < 1 or node.column_span < 1) {
+          return SystemResult.Error(Error(1, "Invalid layout property"));
+        }
+        for (var t: i64 = 0; t < node.rows.size(); t += 1) {
+          if (node.rows[t].kind != TrackKind.Auto and node.rows[t].value <= 0) {
+            return SystemResult.Error(Error(1, "Invalid grid row track"));
+          }
+        }
+        for (var t: i64 = 0; t < node.columns.size(); t += 1) {
+          if (node.columns[t].kind != TrackKind.Auto and node.columns[t].value <= 0) {
+            return SystemResult.Error(Error(1, "Invalid grid column track"));
+          }
+        }
+        var physical = this.physical_parent(view, i);
+        if (node.kind != Kind.Group and physical >= 0 and view.elements[physical].kind == Kind.Grid) {
+          var grid = view.elements[physical];
+          var rows = grid.rows.size() == 0 ? 1 : grid.rows.size();
+          var columns = grid.columns.size() == 0 ? 1 : grid.columns.size();
+          if (_convert<i64>(node.row) + node.row_span > rows or _convert<i64>(node.column) + node.column_span > columns) {
+            return SystemResult.Error(Error(1, "Grid child exceeds declared tracks"));
+          }
+        }
+        if (node.selected < -1 or (node.kind == Kind.Select and node.selected >= node.choices.size())) {
+          return SystemResult.Error(Error(1, "Invalid selected option"));
+        }
+        for (var c: i64 = 0; c < node.choices.size(); c += 1) {
+          for (var previous: i64 = 0; previous < c; previous += 1) {
+            if (node.choices[c].key.equals(node.choices[previous].key)) {
+              return SystemResult.Error(Error(1, "Duplicate select option key"));
+            }
+          }
+        }
         for (var j: i64 = 0; j < i; j += 1) {
-          if (view.elements[i].key == view.elements[j].key) {
-            return SystemResult.Error(Error(1, "Duplicate sibling key"));
+          if (node.kind != Kind.Group and view.elements[j].kind != Kind.Group and physical >= 0 and view.elements[physical].kind == Kind.Scroll and this.physical_parent(view, j) == physical) {
+            return SystemResult.Error(Error(1, "Scroll requires a single physical child"));
+          }
+          if (view.elements[j].parent == node.parent) {
+            if (view.elements[j].key.equals(node.key)) {
+              return SystemResult.Error(Error(1, "Duplicate sibling key"));
+            }
           }
         }
       }
       return SystemResult.Ok;
     }
 
-    /** Applies changes while moving surviving descriptions into the next mounted list. */
+    /** Removes unmatched subtrees before placement, including single-child replacements. */
+    method prune(renderer: ref Renderer, view: const ref View) void {
+      var a = make_heap_allocator();
+      var identities = Vec<u64>(a, view.elements.size());
+      for (var i: i64 = 0; i < view.elements.size(); i += 1) {
+        var node = view.elements[i];
+        var parent: u64 = node.parent < 0 ? 0 : identities[node.parent];
+        var index = node.parent >= 0 and parent == 0 ? -1 : this.index(parent, node.key);
+        identities.push(index >= 0 and this.mounted[index].element.kind == node.kind and this.mounted[index].element.template_id.equals(node.template_id) ? this.mounted[index].identity : 0);
+      }
+      for (var i = this.mounted.size() - 1; i >= 0; i -= 1) {
+        var keep = false;
+        for (var j: i64 = 0; j < identities.size(); j += 1) {
+          if (identities[j] == this.mounted[i].identity) {
+            keep = true;
+            break;
+          }
+        }
+        if (not keep) {
+          renderer.remove(this.mounted[i].identity);
+          match this.mounted.remove(i) {
+            AccessResult.Ok(_) => {},
+            AccessResult.OutOfBounds(_) => {}
+          };
+        }
+      }
+    }
+
+    /** Builds the next mounted order and releases unmatched descendants before parents. */
     method commit(renderer: ref Renderer, view: ref View) SystemResult<void> {
       var a = make_heap_allocator();
-      var next = Vec<Mounted>(a, 8);
-      var previous: u64 = 0;
+      var next = Vec<Mounted>(a, view.elements.size());
+      this.prune(renderer, view);
       while (view.elements.size() > 0) {
         var element = match view.elements.remove(0) {
           AccessResult.Ok(value) => value,
@@ -156,9 +534,17 @@ public module ui {
             return SystemResult.Error(Error(1, "Internal index error"));
           }
         };
-        var index = this.index(element.key);
+        var parent: u64 = element.parent < 0 ? 0 : next[element.parent].identity;
+        var previous: u64 = 0;
+        for (var i = next.size() - 1; i >= 0; i -= 1) {
+          if (next[i].parent == parent) {
+            previous = next[i].identity;
+            break;
+          }
+        }
+        var index = this.index(parent, element.key);
         var id: u64 = 0;
-        if (index >= 0) {
+        if (index >= 0 and this.mounted[index].element.kind == element.kind and this.mounted[index].element.template_id.equals(element.template_id)) {
           var old = match this.mounted.remove(index) {
             AccessResult.Ok(value) => value,
             AccessResult.OutOfBounds(_) => {
@@ -166,8 +552,8 @@ public module ui {
             }
           };
           id = old.identity;
-          if (old.element.text.equals(element.text) == false) {
-            try renderer.update(id, element.text);
+          if (old.dirty or not old.element.equals(element)) {
+            try renderer.update(id, element);
           }
         } else {
           if (this.next_identity == 0) {
@@ -175,32 +561,46 @@ public module ui {
           }
           id = this.next_identity;
           this.next_identity += 1;
-          try renderer.create(id, element.text);
+          try renderer.create(id, element);
         }
-        try renderer.place(id, previous);
-        previous = id;
-        next.push(Mounted(id, element));
+        try renderer.place(id, parent, previous);
+        next.push(Mounted(id, parent, element));
       }
-      for (var old: ref Mounted in this.mounted) {
-        renderer.remove(old.identity);
+      for (var i = this.mounted.size() - 1; i >= 0; i -= 1) {
+        renderer.remove(this.mounted[i].identity);
       }
+      try renderer.finish();
       this.mounted = next;
-      match view.focus_key {
-        Option.Some(key) => {
-          var id = this.identity(key);
-          if (id != 0) {
-            renderer.focus(id);
-          }
-        },
-        Option.None => {}
-      };
+      if (view.focus_path.size() > 0) {
+        var id = this.identity_path(view.focus_path);
+        if (id != 0) {
+          renderer.focus(id);
+        }
+      } else {
+        match view.focus_key {
+          Option.Some(key) => {
+            var id = this.identity(key);
+            if (id != 0) {
+              renderer.focus(id);
+            }
+          },
+          Option.None => {}
+        };
+      }
       return SystemResult.Ok;
     }
 
-    /** Commits a view, or clears all native resources if a platform operation fails. */
+    /** Commits a valid description or clears resources after a renderer failure. */
     public method render(renderer: ref Renderer, view: View) SystemResult<void> {
       if (this.stopped) {
         return SystemResult.Error(Error(1, "Tree is stopped"));
+      }
+      for (var element: ref Element in view.elements) {
+        var resolved = Style();
+        resolved.overlay(view.theme);
+        resolved.overlay(element.style);
+        resolved.overlay(element.overrides);
+        element.style = resolved;
       }
       try this.validate(view);
       match this.commit(renderer, view) {
@@ -214,32 +614,43 @@ public module ui {
       };
     }
 
-    /** Captures the current message for a native event, ignoring removed identities. */
+    /** Captures a button action from a live identity. */
     public method enqueue(identity: u64, queue: ref EventQueue) void {
+      this.enqueue_value(identity, EventValue(), queue);
+    }
+
+    /** Transfers an owned native edit value and captures current routing. */
+    public method enqueue_value(identity: u64, value: EventValue, queue: ref EventQueue) void {
       for (var item: ref Mounted in this.mounted) {
         if (item.identity == identity) {
-          queue.post(Event(identity, item.element.action, item.element.payload));
+          if (value.kind != ValueKind.None) {
+            item.dirty = true;
+          }
+          var event = Event(identity, item.element.action, item.element.payload);
+          event.action_scope = item.element.action_scope.clone(make_heap_allocator());
+          event.value = value;
+          queue.post(event);
           return;
         }
       }
     }
 
-    /** Checks whether a queued event's owner is still mounted. */
+    /** Checks whether an event's mounted source still exists. */
     public const method alive(identity: u64) bool {
-      for (var item: ref Mounted in this.mounted) {
-        if (item.identity == identity) {
+      for (var i: i64 = 0; i < this.mounted.size(); i += 1) {
+        if (this.mounted[i].identity == identity) {
           return true;
         }
       }
       return false;
     }
 
-    /** Reports whether this tree can accept further rendering and event dispatch. */
+    /** Reports whether the tree accepts renders and event dispatch. */
     public const method active() bool {
-      return this.stopped == false;
+      return not this.stopped;
     }
 
-    /** Idempotently releases mounted subscriptions and permanently stops this tree. */
+    /** Idempotently releases resources and permanently stops this tree. */
     public method shutdown(renderer: ref Renderer) void {
       renderer.clear();
       this.mounted.clear();
@@ -323,4 +734,4 @@ public module ui {
     }
   }
 }
-manifest { libraries: ["stdlib.moon"], source_files: ["drawing.sun"] }
+manifest { libraries: ["stdlib.moon"], source_files: ["drawing.sun", "styles.sun"] }

@@ -24,7 +24,7 @@ module core_tests {
     }
 
     /** Records a newly allocated subscription, or simulates platform failure. */
-    public method create(identity: u64, text: const ref String) SystemResult<void> {
+    public method create(identity: u64, element: const ref ui.Element) SystemResult<void> {
       if (this.fail) {
         return SystemResult.Error(Error(1, "Injected create failure"));
       }
@@ -34,7 +34,7 @@ module core_tests {
     }
 
     /** Counts targeted text updates, or simulates a failed platform update. */
-    public method update(identity: u64, text: const ref String) SystemResult<void> {
+    public method update(identity: u64, element: const ref ui.Element) SystemResult<void> {
       if (this.fail_update) {
         return SystemResult.Error(Error(1, "Injected update failure"));
       }
@@ -43,11 +43,16 @@ module core_tests {
     }
 
     /** Records each desired sibling sequence. */
-    public method place(identity: u64, previous: u64) SystemResult<void> {
+    public method place(identity: u64, parent: u64, previous: u64) SystemResult<void> {
       if (previous == 0) {
         this.order.clear();
       }
       this.order.push(identity);
+      return SystemResult.Ok;
+    }
+
+    /** Completes the recording renderer's immediate placement operations. */
+    public method finish() SystemResult<void> {
       return SystemResult.Ok;
     }
 
@@ -301,5 +306,305 @@ module core_tests {
     };
     try std.test.assert_eq(renderer.focused, focused);
     try std.test.assert_eq(renderer.live, 0);
+  }
+
+  /** Builds independent component scopes with repeated local child keys. */
+  function nested(reverse: bool, changed: bool) ui.View {
+    var a = make_heap_allocator();
+    var view = ui.View(a);
+    for (var i: i64 = 0; i < 2; i += 1) {
+      var key: i64 = reverse ? 2 - i : i + 1;
+      var parent = view.append(-1, ui.Element(ui.Key(key), ui.Kind.Column));
+      var child = ui.Element(ui.Key(String("local")), changed and key == 1 ? ui.Kind.Label : ui.Kind.Button);
+      child.text = String("Child");
+      child.action = 7;
+      child.payload = key;
+      view.append(parent, child);
+    }
+    return view;
+  }
+
+  /** Resolves a symbolic child in an integer component scope. */
+  function child_identity(tree: const ref ui.Tree, parent: i64) u64 {
+    var a = make_heap_allocator();
+    var path = Vec<ui.Key>(a, 2);
+    path.push(ui.Key(parent));
+    path.push(ui.Key(String("local")));
+    return tree.identity_path(path);
+  }
+
+  /** Reorders whole components while preserving their children, and remounts changed kinds. */
+  test_function nested_identity_and_kind() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    try tree.render(renderer, nested(false, false));
+    var first = child_identity(tree, 1);
+    var second = child_identity(tree, 2);
+    try std.test.assert(first != second, "local keys are scoped by parent");
+    try tree.render(renderer, nested(true, false));
+    try std.test.assert_eq(child_identity(tree, 1), first);
+    try std.test.assert_eq(child_identity(tree, 2), second);
+    try std.test.assert_eq(renderer.created, 4);
+    try tree.render(renderer, nested(false, true));
+    try std.test.assert(child_identity(tree, 1) != first, "kind changes remount");
+    try std.test.assert_eq(child_identity(tree, 2), second);
+    try std.test.assert_eq(renderer.removed, 1);
+    var queue = ui.EventQueue(a);
+    tree.enqueue(first, queue);
+    try std.test.assert_eq(queue.size(), 0);
+  }
+
+  /** Rejects malformed parent relationships before changing native state. */
+  test_function nested_validation_is_atomic() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    try tree.render(renderer, nested(false, false));
+    var invalid = nested(false, false);
+    invalid.elements[1].parent = 1;
+    match tree.render(renderer, invalid) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "self parenting must fail");
+      }
+    };
+    try std.test.assert_eq(renderer.created, 4);
+    try std.test.assert_eq(renderer.removed, 0);
+    try std.test.assert(tree.active(), "validation failure leaves tree usable");
+  }
+
+  /** Keeps numeric and symbolic keys distinct even when their spelling matches. */
+  test_function key_types_are_distinct() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    var view = ui.View(a);
+    view.append(-1, ui.Element(ui.Key(1), ui.Kind.Label));
+    view.append(-1, ui.Element(ui.Key(String("1")), ui.Kind.Label));
+    try tree.render(renderer, view);
+    var path = Vec<ui.Key>(a, 1);
+    path.push(ui.Key(String("1")));
+    try std.test.assert(tree.identity(1) != tree.identity_path(path), "key types must not collide");
+  }
+
+  /** Resolves nearest resources and applies derived style overrides without changing bases. */
+  test_function resources_and_style_precedence() TestResult<void> {
+    var a = make_heap_allocator();
+    var resources = ui.Resources(a);
+    var base = ui.Resource(String("base"), ui.ResourceKind.Style);
+    base.style.normal.foreground = 255;
+    base.style.normal.font_size = 12;
+    try resources.add(0, base);
+    var derived = ui.Resource(String("primary"), ui.ResourceKind.Style);
+    derived.based_on = String("base");
+    derived.style.normal.font_size = 16;
+    try resources.add(1, derived);
+    var scope = try resources.scope(1);
+    var color = ui.Resource(String("accent"), ui.ResourceKind.Color);
+    color.number = 42;
+    try resources.add(0, color);
+    var local = ui.Resource(String("accent"), ui.ResourceKind.Color);
+    local.number = 99;
+    try resources.add(scope, local);
+    var name = String("accent");
+    try std.test.assert_eq(try resources.number(scope, name, ui.ResourceKind.Color), 99);
+    var style_name = String("primary");
+    var style = try resources.style(scope, style_name);
+    try std.test.assert_eq(style.normal.foreground, 255);
+    try std.test.assert_eq(style.normal.font_size, 16);
+    var direct = ui.Style();
+    direct.normal.font_size = 20;
+    style.overlay(direct);
+    try std.test.assert_eq(style.normal.font_size, 20);
+  }
+
+  /** Rejects resource cycles and type mismatches rather than selecting arbitrary fallbacks. */
+  test_function resource_errors() TestResult<void> {
+    var a = make_heap_allocator();
+    var resources = ui.Resources(a);
+    var first = ui.Resource(String("a"), ui.ResourceKind.Color);
+    first.reference = String("b");
+    try resources.add(1, first);
+    var second = ui.Resource(String("b"), ui.ResourceKind.Color);
+    second.reference = String("a");
+    try resources.add(1, second);
+    var name = String("a");
+    match resources.number(1, name, ui.ResourceKind.Color) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok(_) => {
+        try std.test.assert(false, "alias cycle must fail");
+      }
+    };
+    match resources.text(1, name, ui.ResourceKind.Font) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok(_) => {
+        try std.test.assert(false, "type mismatch must fail");
+      }
+    };
+    var duplicate = ui.Resource(String("a"), ui.ResourceKind.Color);
+    match resources.add(1, duplicate) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "duplicate name must fail");
+      }
+    };
+  }
+
+  /** Rejects invalid grid spans before changing an existing tree. */
+  test_function grid_validation() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    var view = ui.View(a);
+    var grid = ui.Element(ui.Key(1), ui.Kind.Grid);
+    grid.columns.push(ui.Track(ui.TrackKind.Weight, 1));
+    grid.columns.push(ui.Track(ui.TrackKind.Fixed, 80));
+    var parent = view.append(-1, grid);
+    var label = ui.Element(ui.Key(2), ui.Kind.Label);
+    label.column_span = 3;
+    view.append(parent, label);
+    match tree.render(renderer, view) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "out-of-range span must fail");
+      }
+    };
+    try std.test.assert_eq(renderer.created, 0);
+  }
+
+  /** Builds a grid containing a controlled selection for update regression checks. */
+  function selection_view(label: static_ptr<u8>, weight: i32) ui.View {
+    var a = make_heap_allocator();
+    var view = ui.View(a);
+    var grid = ui.Element(ui.Key(1), ui.Kind.Grid);
+    grid.columns.push(ui.Track(ui.TrackKind.Weight, weight));
+    var parent = view.append(-1, grid);
+    var select = ui.Element(ui.Key(2), ui.Kind.Select);
+    select.choices.push(ui.Choice(ui.Key(String("first")), String(label)));
+    select.selected = 0;
+    view.append(parent, select);
+    return view;
+  }
+
+  /** Leaves unchanged collection properties mounted and updates only changed controls. */
+  test_function collection_updates() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    try tree.render(renderer, selection_view("First", 1));
+    try tree.render(renderer, selection_view("First", 1));
+    try std.test.assert_eq(renderer.updated, 0);
+    try tree.render(renderer, selection_view("Renamed", 1));
+    try std.test.assert_eq(renderer.updated, 1);
+    try tree.render(renderer, selection_view("Renamed", 2));
+    try std.test.assert_eq(renderer.updated, 2);
+    try std.test.assert_eq(renderer.created, 2);
+  }
+
+  /** Remounts template implementations and cross-parent moves, preserving unrelated scopes. */
+  test_function template_and_parent_changes() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    try tree.render(renderer, nested(false, false));
+    var first = child_identity(tree, 1);
+    var second = child_identity(tree, 2);
+    var changed = nested(false, false);
+    changed.elements[0].template_id = String("replacement");
+    changed.focus_path.push(ui.Key(1));
+    changed.focus_path.push(ui.Key(String("local")));
+    try tree.render(renderer, changed);
+    try std.test.assert(child_identity(tree, 1) != first, "template replacement remounts descendants");
+    try std.test.assert_eq(child_identity(tree, 2), second);
+    try std.test.assert_eq(renderer.focused, child_identity(tree, 1));
+    var moved = nested(false, false);
+    moved.elements[0].template_id = String("replacement");
+    moved.elements[1].parent = -1;
+    try tree.render(renderer, moved);
+    try std.test.assert_eq(child_identity(tree, 1), 0);
+    try std.test.assert_eq(child_identity(tree, 2), second);
+    var path = Vec<ui.Key>(a, 1);
+    path.push(ui.Key(String("local")));
+    try std.test.assert(tree.identity_path(path) != renderer.focused, "moving between parents remounts");
+  }
+
+  /** Applies Scroll's child limit through transparent component groups before mutation. */
+  test_function scroll_component_validation() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    var view = ui.View(a);
+    var scroll = view.append(-1, ui.Element(ui.Key(1), ui.Kind.Scroll));
+    var group = view.append(scroll, ui.Element(ui.Key(2), ui.Kind.Group));
+    view.append(group, ui.Element(ui.Key(3), ui.Kind.Label));
+    view.append(group, ui.Element(ui.Key(4), ui.Kind.Label));
+    match tree.render(renderer, view) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "scroll cannot contain two physical children");
+      }
+    };
+    try std.test.assert_eq(renderer.created, 0);
+  }
+
+  /** Rejects local resource lookup errors before changing a previously mounted description. */
+  test_function construction_resources_are_atomic() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    try tree.render(renderer, pair(1, 2));
+    var identity = tree.identity(1);
+    var view = ui.View(a);
+    var parent = view.push_resources();
+    var node = ui.Element(ui.Key(3), ui.Kind.Label);
+    node.style = view.style_resource(String("missing"));
+    view.append(-1, node);
+    view.resource_scope = parent;
+    match tree.render(renderer, view) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "missing local resource must fail");
+      }
+    };
+    try std.test.assert_eq(renderer.created, 2);
+    try std.test.assert_eq(renderer.removed, 0);
+    try std.test.assert_eq(tree.identity(1), identity);
+    try std.test.assert(tree.active(), "construction failure preserves the mounted tree");
+  }
+
+  /** Supplies a generated route without retaining a function or state reference in the description. */
+  function routed_view(state: const ref i64) ui.View {
+    var a = make_heap_allocator();
+    var result = ui.View(a);
+    var button = ui.Element(ui.Key(1), ui.Kind.Button);
+    button.action_scope = String("original-view");
+    button.action = 4;
+    result.append(-1, button);
+    return result;
+  }
+
+  /** Checks that queued routing remains the snapshot captured before a later render. */
+  function routed_handler(state: ref i64, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+    if (not event.action_scope.equals_literal("original-view") or event.action != 4) {
+      return SystemResult.Error(Error(1, "Queued generated routing changed"));
+    }
+    state += 1;
+    return SystemResult.Ok;
+  }
+
+  /** Keeps generated route namespaces owned and captured alongside numeric IDs. */
+  test_function generated_route_is_captured() TestResult<void> {
+    var a = make_heap_allocator();
+    var renderer = Recording();
+    var session = ui.Session<i64>(0, routed_view, routed_handler);
+    try session.render(renderer);
+    session.tree.enqueue(session.tree.identity(1), session.queue);
+    var changed = routed_view(session.state);
+    changed.elements[0].action_scope = String("replacement-view");
+    changed.elements[0].action = 9;
+    try session.tree.render(renderer, changed);
+    try session.dispatch(renderer);
+    try std.test.assert_eq(session.state, 1);
   }
 }

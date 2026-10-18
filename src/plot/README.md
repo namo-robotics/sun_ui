@@ -73,9 +73,9 @@ The window owns a parsed copy, so the original drawing can be released after
 creation or update. Polling and all window operations must occur on the GTK
 thread. Window destruction releases the drawing and native resources.
 
-See [the export example](../../examples/plot/export.sun) and
-[the viewer](../../examples/plot/viewer.sun), which share a four-panel damped
-oscillator study in [data.sun](../../examples/plot/data.sun): transient response,
+See [the export example](../../examples/plot-export/main.sun) and
+[the viewer](../../examples/plot-viewer/main.sun), which share a four-panel damped
+oscillator study in [data.sun](../../examples/plot-export/data.sun): transient response,
 phase portrait, energy dissipation, and resonance spectrum. Teal and orange
 identify light and strong damping throughout. The time-domain curves use a
 small-step symplectic Euler simulation; the spectrum uses the analytical power

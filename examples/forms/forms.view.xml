@@ -1,0 +1,37 @@
+<Views module="forms">
+  <Resources name="resources">
+    <Template name="footerTemplate" value="Footer" />
+    <Color name="accent" scope="theme" value="0x285ac8" />
+    <Style name="base" scope="theme"><Normal font="Sans" fontSize="14" /></Style>
+    <Style name="light" basedOn="base"><Normal foreground="0x202735" background="0xf4f6fa" /><Focus background="0xe0eaff" /></Style>
+    <Style name="dark" basedOn="base"><Normal foreground="0xf4f6fa" background="0x202735" /><Focus background="0x304565" /></Style>
+  </Resources>
+  <Import name="Footer" function="form_parts.Footer" source="parts/footer.view.xml">
+    <Param name="content" type="function (ref ui.View, i64) void" />
+  </Import>
+  <View name="view" state="State" theme="{theme(state)}" resources="{resources()}">
+    <Resources>
+      <Style name="heading" basedOn="base"><Normal fontSize="20" /></Style>
+    </Resources>
+    <Scroll key="page" expandX="true" expandY="true">
+      <Column key="form" spacing="12" margin="16">
+        <Label key="title" text="Sun XML forms" styleResource="heading" />
+        <Grid key="fields" spacing="8" expandX="true">
+          <Grid.Rows><Track kind="Auto" /><Track kind="Auto" /><Track kind="Auto" /></Grid.Rows>
+          <Grid.Columns><Track kind="Fixed" value="140" /><Track kind="Weight" value="1" /><Track kind="Weight" value="2" /></Grid.Columns>
+          <Label key="nameLabel" text="Name" horizontal="Start" />
+          <TextInput key="name" column="1" columnSpan="2" value="{state.name.clone(a)}" changeAction="1" expandX="true" />
+          <Label key="enabledLabel" row="1" text="Notifications" horizontal="Start" />
+          <Checkbox key="enabled" row="1" column="1" checked="{state.enabled}" text="Enabled" changeAction="2" />
+          <Label key="choiceLabel" row="2" text="Priority" horizontal="Start" />
+          <Select key="choice" row="2" column="1" columnSpan="2" selected="{state.selected}" changeAction="3">
+            <Select.Options><Option key="normal" text="Normal" /><Option key="high" text="High" /></Select.Options>
+          </Select>
+        </Grid>
+        <Button key="theme" text="Switch theme" action="4" />
+        <If test="{state.enabled}"><Label key="status" text="Notifications are enabled" /></If>
+        <Use template="footerTemplate" key="footer" content="{footer}" />
+      </Column>
+    </Scroll>
+  </View>
+</Views>

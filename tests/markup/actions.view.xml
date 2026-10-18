@@ -1,0 +1,8 @@
+<Views module="action_checks">
+  <View name="view" state="State" fallback="numeric">
+    <Button text="Increment" action="increment" payload="3" />
+    <Button text="Method" action="state.advance" />
+    <TextInput value="{state.text.clone(a)}" changeAction="state.edit" />
+    <Button text="Numeric" action="4" />
+  </View>
+</Views>
