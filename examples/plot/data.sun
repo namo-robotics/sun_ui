@@ -1,6 +1,8 @@
 using std;
+
 /** Shares a deterministic four-panel dynamics study between SVG export and the GTK viewer. */
 module plot_example {
+
   /** Integrates a unit-frequency damped oscillator with a small symplectic Euler step. */
   function oscillator(displacement: ref plot.Series, phase: ref plot.Series, energy: ref plot.Series, damping: f64) void {
     var x: f64 = 1.0;

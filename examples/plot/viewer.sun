@@ -1,4 +1,5 @@
 using std;
+
 /** Waits briefly between acceptance polls so GTK's frame clock can advance. */
 extern "C" function g_usleep(microseconds: u64) void;
 

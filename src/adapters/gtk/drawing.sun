@@ -1,6 +1,8 @@
 using std;
+
 /** Composes checked GTK widgets into a vector viewer with application-owned export policy. */
 public module ui_gtk_drawing {
+
   /** Owns a plot window, toolbar, and document content without retaining platform handles. */
   public class Window {
     var app: gtk.Application;
@@ -12,6 +14,7 @@ public module ui_gtk_drawing {
     var area: gtk.DrawingArea;
     var chooser: gtk.SaveDialog;
     var svg: String = String("");
+
     /** Creates checked widgets and installs the initial figure; GTK owns native lifetimes. */
     init(title: ref String, drawing: const ref ui_drawing.Drawing) SystemResult<void> {
       try validate(drawing);

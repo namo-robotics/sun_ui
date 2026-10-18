@@ -1,11 +1,14 @@
 using std;
+
 /** Adapts semantic buttons to GTK using sun_gobject's owned widgets and event queues. */
 public module ui_gtk {
+
   /** Owns a button and its independently managed click subscription. */
   class Control {
     var identity: u64;
     var button: gtk.Button;
     var click_id: gtk.RegistrationId;
+
     /** Creates a native button using the checked sun_gobject API. */
     init(identity: u64, text: const ref String, events: ref gtk.EventQueue) SystemResult<void> {
       var a = make_heap_allocator();
@@ -26,6 +29,7 @@ public module ui_gtk {
     public var updates: i64 = 0;
     public var creates: i64 = 0;
     public var removals: i64 = 0;
+
     /** Opens checked native widgets and acquires a state-independent GTK event queue. */
     init(title: ref String) SystemResult<void> {
       var a = make_heap_allocator();

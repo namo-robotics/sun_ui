@@ -1,6 +1,8 @@
 using std;
+
 /** Provides owned vector drawings shared by export and platform drawing surfaces. */
 public module ui_drawing {
+
   /** Escapes user text for XML content and quoted attributes. */
   public function escape(value: const ref String) String {
     var a = make_heap_allocator();
@@ -18,6 +20,7 @@ public module ui_drawing {
     public var width: f64;
     public var height: f64;
     var body: String;
+
     /** Starts an explicitly sized white drawing. */
     init(width: f64, height: f64) {
       this.width = width;

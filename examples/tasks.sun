@@ -1,12 +1,15 @@
 using std;
+
 /** Demonstrates keyed component composition and owned task-ID event payloads. */
 module tasks {
+
   /** Owns task IDs and selection independently of any renderer or widget handle. */
   class State {
     var ids: Vec<i64>;
     var next_id: i64 = 3;
     var selected: i64 = 0;
     var reversed: bool = false;
+
     /** Seeds two tasks with stable keys. */
     init() {
       var a = make_heap_allocator();
@@ -15,6 +18,7 @@ module tasks {
       this.ids.push(2);
     }
   }
+
   /** Composes a task button using its durable ID as both key and event payload. */
   function task(view: ref ui.View, id: i64, selected: bool) void {
     var label = `Task ${id}`;
@@ -137,6 +141,7 @@ module tasks {
     return SystemResult.Ok;
   }
 }
+
 /** Runs the interactive demo or its display-backed acceptance scenario. */
 function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   var a = make_heap_allocator();

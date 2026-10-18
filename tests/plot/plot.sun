@@ -1,6 +1,8 @@
 using std;
+
 /** Verifies numerical layout and safe vector output without GTK. */
 module plot_tests {
+
   /** Places four independent figures in distinct viewports without losing their labels. */
   test_function subplot_grid_composes_panels() TestResult<void> {
     var grid = plot.Grid(2, 2, String("Study & results"), String("Four panels"));
@@ -50,6 +52,7 @@ module plot_tests {
 
   /** Propagates assertion and plotting failures through the test runner. */
   enum TestResult<T> { Ok(T), Assertion(std.test.AssertionError), System(Error) }
+
   /** Checks ordinary and reversed output transforms at interval boundaries. */
   test_function coordinate_mapping() TestResult<void> {
     var limits = plot.Limits(-2.0, 2.0);

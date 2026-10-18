@@ -1,8 +1,11 @@
 using std;
+
 /** Tests core behavior without loading GTK, native libraries, or a display. */
 module core_tests {
+
   /** Combines assertion and framework errors for readable test failures. */
   enum TestResult<T> { Ok(T), Assertion(std.test.AssertionError), System(Error) }
+
   /** Records renderer operations and models live native subscriptions. */
   class Recording implements ui.Renderer {
     public var created: i64 = 0;
@@ -13,6 +16,7 @@ module core_tests {
     public var fail: bool = false;
     public var fail_update: bool = false;
     public var order: Vec<u64>;
+
     /** Allocates the recorded order buffer. */
     init() {
       var a = make_heap_allocator();
@@ -64,6 +68,7 @@ module core_tests {
       this.live = 0;
     }
   }
+
   /** Builds a two-button description in the supplied key order. */
   function pair(first: i64, second: i64) ui.View {
     var a = make_heap_allocator();

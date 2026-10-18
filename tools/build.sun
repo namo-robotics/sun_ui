@@ -1,6 +1,8 @@
 using std;
+
 /** Builds the platform-independent package and optional GTK prototypes. */
 module build_tasks {
+
   /** Runs a child command and preserves its failure as a build error. */
   function run(command: ref std.process.Command) SystemResult<void> {
     var status = try command.status();
@@ -140,6 +142,7 @@ module build_tasks {
     return test_plot_gtk();
   }
 }
+
 /** Dispatches build and test tasks from the repository root. */
 function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   var a = make_heap_allocator();

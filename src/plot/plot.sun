@@ -1,6 +1,8 @@
 using std;
+
 /** Builds scientific line and scatter figures using sun_ui's vector drawing API. */
 public module plot {
+
   /** Returns the magnitude of a floating-point coordinate. */
   function absolute(value: f64) f64 {
     return value < 0.0 ? 0.0 - value : value;
@@ -15,6 +17,7 @@ public module plot {
   public class Point {
     public var x: f64;
     public var y: f64;
+
     /** Captures a pair of scalar coordinates. */
     init(x: f64, y: f64) {
       this.x = x;
@@ -30,6 +33,7 @@ public module plot {
     public var scatter: bool;
     public var line_width: f64 = 2.0;
     public var marker_radius: f64 = 3.5;
+
     /** Takes ownership of labels and allocates sample storage explicitly. */
     init(label: String, color: String, scatter: bool) {
       var a = make_heap_allocator();
@@ -49,6 +53,7 @@ public module plot {
   public class Limits {
     public var min: f64;
     public var max: f64;
+
     /** Records requested limits; rendering validates them before use. */
     init(min: f64, max: f64) {
       this.min = min;
@@ -144,6 +149,7 @@ public module plot {
     public var x_limits: Option<Limits> = Option.None;
     public var y_limits: Option<Limits> = Option.None;
     public var grid: bool = true;
+
     /** Allocates figure storage and takes ownership of the figure labels. */
     init(title: String, x_label: String, y_label: String) {
       var a = make_heap_allocator();
@@ -300,6 +306,7 @@ public module plot {
       return SystemResult.Ok(drawing);
     }
   }
+
   /** Owns rendered panels in a rectangular grid, ordered left to right and then top to bottom. */
   public class Grid {
     public var title: String;
@@ -307,6 +314,7 @@ public module plot {
     public var panels: Vec<ui_drawing.Drawing>;
     var rows: i64;
     var columns: i64;
+
     /** Takes heading ownership; drawing validates grid dimensions and panel count. */
     init(rows: i64, columns: i64, title: String, subtitle: String) {
       var a = make_heap_allocator();

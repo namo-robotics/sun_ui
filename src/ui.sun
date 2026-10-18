@@ -1,12 +1,15 @@
 using std;
+
 /** Describes keyed semantic buttons and reconciles them without platform dependencies. */
 public module ui {
+
   /** Owns one button description and an integer message payload, never a borrowed callback. */
   public class Element {
     public var key: i64;
     public var text: String;
     public var action: i64;
     public var payload: i64;
+
     /** Transfers the label into this render description. */
     init(key: i64, text: String, action: i64, payload: i64) {
       this.key = key;
@@ -20,6 +23,7 @@ public module ui {
   public class View {
     public var elements: Vec<Element>;
     public var focus_key: Option<i64> = Option.None;
+
     /** Allocates description storage explicitly for this render. */
     init(a: const ref HeapAllocator) {
       this.elements = Vec<Element>(a, 8);
@@ -36,6 +40,7 @@ public module ui {
     public var identity: u64;
     public var action: i64;
     public var payload: i64;
+
     /** Captures scalar message data without retaining application or stack references. */
     init(identity: u64, action: i64, payload: i64) {
       this.identity = identity;
@@ -47,6 +52,7 @@ public module ui {
   /** Collects events for a later dispatch boundary, including events emitted by handlers. */
   public class EventQueue {
     var pending: Vec<Event>;
+
     /** Allocates owned FIFO storage. */
     init(a: const ref HeapAllocator) {
       this.pending = Vec<Event>(a, 8);
@@ -88,6 +94,7 @@ public module ui {
   class Mounted {
     var identity: u64;
     var element: Element;
+
     /** Takes ownership of a committed element description. */
     init(identity: u64, element: Element) {
       this.identity = identity;
@@ -100,6 +107,7 @@ public module ui {
     var mounted: Vec<Mounted>;
     var next_identity: u64 = 1;
     var stopped: bool = false;
+
     /** Allocates the retained mounted list. */
     init(a: const ref HeapAllocator) {
       this.mounted = Vec<Mounted>(a, 8);
@@ -247,6 +255,7 @@ public module ui {
     var dispatching: bool = false;
     var view: function (const ref State) View;
     var handle: function (ref State, const ref Event, ref EventQueue) SystemResult<void>;
+
     /** Takes state ownership; named functions borrow it only for the duration of a call. */
     init(state: State, view: function (const ref State) View, handle: function (ref State, const ref Event, ref EventQueue) SystemResult<void>) {
       var a = make_heap_allocator();

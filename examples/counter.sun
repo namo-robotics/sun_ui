@@ -1,6 +1,8 @@
 using std;
+
 /** Provides a pure counter view and a named state update handler. */
 module counter {
+
   /** Creates a button whose label is derived only from application state. */
   function view(state: const ref i64) ui.View {
     var a = make_heap_allocator();
@@ -58,6 +60,7 @@ module counter {
     return SystemResult.Ok;
   }
 }
+
 /** Selects interactive execution or the bounded automated scenario. */
 function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   var a = make_heap_allocator();
