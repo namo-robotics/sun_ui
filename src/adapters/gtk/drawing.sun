@@ -144,4 +144,7 @@ public module ui_gtk_drawing {
     return SystemResult.Error(Error(1, "Drawing dimensions must be between 1 and 16384"));
   }
 }
-manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon"] }
+manifest {
+  library_id: "namo-robotics/sun_ui_gtk_drawing"
+  libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon"]
+}

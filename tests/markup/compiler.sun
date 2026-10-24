@@ -16,6 +16,28 @@ module markup_tests {
     try std.test.assert(compiler.source_map.contains("\t"), "generated lines map to source bytes");
   }
 
+  /** Generates typed media fields and a captured edit action from XML. */
+  test_function video_range_properties() TestResult<void> {
+    var compiler = markup.Compiler(String("video.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"State\"><Video key=\"preview\" text=\"{state.path.clone(a)}\" duration=\"4000000\" trimStart=\"500000\" trimEnd=\"2000000\" position=\"1000000\" changeAction=\"15\"/></View></Views>"));
+    try compiler.compile();
+    try std.test.assert(compiler.output.contains("ui.Kind.Video"));
+    try std.test.assert(compiler.output.contains(".trim_start = 500000"));
+    try std.test.assert(compiler.output.contains(".trim_end = 2000000"));
+    try std.test.assert(compiler.output.contains(".position = 1000000"));
+    try std.test.assert(compiler.output.contains(".action = 15"));
+    return TestResult.Ok;
+  }
+
+  /** Preserves borderless panel styling in both resources and inline XML properties. */
+  test_function flat_panel_styles() TestResult<void> {
+    var compiler = markup.Compiler(String("panel.view.xml"), String("<Views module=\"app\"><Resources name=\"resources\"><Style name=\"panel\"><Normal borderWidth=\"0\" radius=\"16\" padding=\"18\"/></Style></Resources><View name=\"view\" state=\"State\"><Column borderWidth=\"0\" radius=\"8\" padding=\"12\"/></View></Views>"));
+    try compiler.compile();
+    try std.test.assert(compiler.output.contains(".normal.border_width = 0"));
+    try std.test.assert(compiler.output.contains(".normal.radius = 16"));
+    try std.test.assert(compiler.output.contains(".overrides.normal.padding = 12"));
+    return TestResult.Ok;
+  }
+
   /** Preserves explicit ownership expressions without inserting copies. */
   test_function expressions_and_conditions() TestResult<void> {
     var compiler = markup.Compiler(String("conditional.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"State\"><If test=\"{state.visible}\"><Label text=\"{state.name.clone(a)}\"/><Else><Label text=\"Hidden\"/></Else></If></View></Views>"));

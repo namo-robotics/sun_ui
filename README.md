@@ -40,6 +40,17 @@ Installation requires network access and package-install privileges; the package
 supports amd64. Use the development compiler rather than an older system version.
 Set `SUN_EXECUTABLE=/absolute/path/to/sun` to use a specific compiler.
 
+The current baseline is Sun `0.dev (fc9a5b23cc63)`. Recreating the devcontainer
+updates the rolling development package; rebuild all bundles together after a
+compiler update.
+
+The bundle manifests declare stable library IDs: `namo-robotics/sun_ui`,
+`namo-robotics/sun_plot`, `namo-robotics/sun_ui_gtk`, and
+`namo-robotics/sun_ui_gtk_drawing`.
+Keep these IDs unchanged when moving source files or renaming output bundles.
+They identify the libraries independently of build paths; they do not guarantee
+ABI compatibility across compiler or library changes.
+
 ### Development releases
 
 After both CI jobs pass on a push to `main`, CI updates the rolling
@@ -73,6 +84,24 @@ name and handles build order, XML generation, GTK linker flags, and acceptance
 tests. Use `./build.sh` for core builds or `./build.sh --gtk` for the full build;
 `sun -c sun-config.json` selects every entry and does not perform those preparation
 steps or supply GTK's native linker flags.
+
+### Video converter example
+
+The [video converter](examples/video-converter/README.md) converts MOV and MP4,
+compresses with quality and resolution presets, and trims by start/end time.
+Its XML view includes video playback, draggable trim handles, native file
+choosers, progress, cancellation, and output protection.
+After building the GTK dependency described below, run:
+
+```sh
+./build.sh --video
+./build/video-converter
+```
+
+The development image includes FFmpeg. Existing containers need
+`sudo apt-get install ffmpeg`; the example requires FFmpeg 8 or newer with
+H.264/AAC support. `--video` runs generated-media tests and headless GTK acceptance
+checks; ordinary core builds retain no dependency on FFmpeg.
 
 ### Build the GTK backend
 

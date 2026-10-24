@@ -15,7 +15,8 @@ public module ui_gtk {
       ui.Kind.Button => 6,
       ui.Kind.TextInput => 7,
       ui.Kind.Checkbox => 8,
-      ui.Kind.Select => 9
+      ui.Kind.Select => 9,
+      ui.Kind.Video => 10
     };
   }
 
@@ -58,6 +59,24 @@ public module ui_gtk {
       output.append(value.font_size);
       output.append("px;");
     }
+    if (value.border_width >= 0) {
+      output.append("border-width:");
+      output.append(value.border_width);
+      output.append("px;box-shadow:none;");
+      if (value.border_width == 0) {
+        output.append("outline:none;transition:none;");
+      }
+    }
+    if (value.radius >= 0) {
+      output.append("border-radius:");
+      output.append(value.radius);
+      output.append("px;");
+    }
+    if (value.padding >= 0) {
+      output.append("padding:");
+      output.append(value.padding);
+      output.append("px;");
+    }
     output.append("}\n");
   }
 
@@ -66,8 +85,14 @@ public module ui_gtk {
     var css = String("");
     appearance(css, "*", style.normal);
     appearance(css, "*:hover", style.hover);
-    appearance(css, "*:focus", style.focus);
+    appearance(css, "*:focus, *:focus-within", style.focus);
     appearance(css, "*:disabled", style.disabled);
+    if (style.normal.border_width == 0) {
+      css.append("* button, * entry, * text {border:none;outline:none;box-shadow:none;transition:none;background-image:none;background-color:inherit;color:inherit;}\n");
+    }
+    if (style.normal.radius == 0) {
+      css.append("* button, * entry, * text, * check, * trough, * slider, * popover contents {border-radius:0;}\n");
+    }
     return css;
   }
 
@@ -84,6 +109,8 @@ public module ui_gtk {
     var row_span: i32 = 1;
     var column_span: i32 = 1;
     var choices: Vec<ui.Choice>;
+    var applied_style: ui.Style = ui.Style();
+    var styled: bool = false;
 
     /** Constructs a native control before registering user events. */
     init(identity: u64, element: const ref ui.Element, events: ref gtk.EventQueue) SystemResult<void> {
@@ -94,7 +121,7 @@ public module ui_gtk {
       this.choices = Vec<ui.Choice>(a, 4);
       this.subscriptions = Vec<gtk.RegistrationId>(a, 4);
       try this.apply(element);
-      if (element.kind == ui.Kind.Button or element.kind == ui.Kind.TextInput or element.kind == ui.Kind.Checkbox or element.kind == ui.Kind.Select) {
+      if (element.kind == ui.Kind.Button or element.kind == ui.Kind.TextInput or element.kind == ui.Kind.Checkbox or element.kind == ui.Kind.Select or element.kind == ui.Kind.Video) {
         this.subscriptions.push(try events.on_widget(this.widget));
       }
     }
@@ -105,6 +132,10 @@ public module ui_gtk {
       if (element.kind == ui.Kind.Button or element.kind == ui.Kind.Label or element.kind == ui.Kind.TextInput or element.kind == ui.Kind.Checkbox) {
         var text = element.text.clone(a);
         try this.widget.set_text(text);
+      }
+      if (element.kind == ui.Kind.Video) {
+        var path = element.text.clone(a);
+        try this.widget.media(path, element.duration, element.trim_start, element.trim_end, element.position);
       }
       if (element.kind == ui.Kind.Checkbox) {
         try this.widget.set_value(element.checked ? 1 : 0);
@@ -148,8 +179,13 @@ public module ui_gtk {
           try this.widget.track(true, track.kind == ui.TrackKind.Auto ? 0 : (track.kind == ui.TrackKind.Fixed ? 1 : 2), track.value, false);
         }
       }
-      var css = stylesheet(element.style);
-      try this.widget.style(css);
+      if (not this.styled or not this.applied_style.equals(element.style)) {
+        var css = stylesheet(element.style);
+        try this.widget.style(css);
+        this.applied_style = ui.Style();
+        this.applied_style.overlay(element.style);
+        this.styled = true;
+      }
       this.row = element.row;
       this.column = element.column;
       this.row_span = element.row_span;
@@ -162,6 +198,8 @@ public module ui_gtk {
   public class Renderer implements ui.Renderer {
     var app: gtk.Application;
     var window: gtk.Window;
+    var open_dialog: gtk.OpenDialog = gtk.OpenDialog();
+    var save_dialog: gtk.SaveDialog = gtk.SaveDialog();
     var root: gtk.Widget;
     var events: gtk.EventQueue;
     var controls: Vec<Control>;
@@ -187,6 +225,8 @@ public module ui_gtk {
 
     /** Disconnects subscriptions before closing the window. */
     deinit() {
+      this.open_dialog.cancel();
+      this.save_dialog.cancel();
       this.clear();
       this.window.close();
     }
@@ -328,7 +368,28 @@ public module ui_gtk {
               }
               if (matches) {
                 if (event.kind() == gtk.EventKind.TextChanged) {
-                  tree.enqueue_value(control.identity, ui.EventValue(event.text.clone(a)), queue);
+                  if (control.kind == ui.Kind.Video) {
+                    var fields = event.text.split(a, b':');
+                    if (fields.size() == 3) {
+                      var start = match fields[0].parse_i64() {
+                        Option.Some(value) => value,
+                        Option.None => -1
+                      };
+                      var end = match fields[1].parse_i64() {
+                        Option.Some(value) => value,
+                        Option.None => -1
+                      };
+                      var position = match fields[2].parse_i64() {
+                        Option.Some(value) => value,
+                        Option.None => -1
+                      };
+                      if (start >= 0 and end > start and position >= 0) {
+                        tree.enqueue_value(control.identity, ui.EventValue(start, end, position), queue);
+                      }
+                    }
+                  } else {
+                    tree.enqueue_value(control.identity, ui.EventValue(event.text.clone(a)), queue);
+                  }
                 } else if (event.kind() == gtk.EventKind.Toggled) {
                   tree.enqueue_value(control.identity, ui.EventValue(event.value != 0), queue);
                 } else if (event.kind() == gtk.EventKind.Selected) {
@@ -369,6 +430,79 @@ public module ui_gtk {
       if (block and queue.size() == 0 and this.running()) {
         this.events.iterate(true);
         this.collect(tree, queue);
+      }
+    }
+
+    /** Waits on GTK's event loop, with a bounded wakeup only for external work polling. */
+    public method wait_events(tree: ref ui.Tree, queue: ref ui.EventQueue, timeout_ms: u32) SystemResult<void> {
+      if (queue.size() != 0 or not this.running()) {
+        return SystemResult.Ok;
+      }
+      if (timeout_ms == 0) {
+        this.events.iterate(true);
+        this.collect(tree, queue);
+      } else {
+        var wakeup = try this.events.after(timeout_ms);
+        this.events.iterate(true);
+        this.collect(tree, queue);
+        try this.events.disconnect(wakeup);
+      }
+      return SystemResult.Ok;
+    }
+
+    /** Sets a preferred window size through the checked GTK binding. */
+    public method set_default_size(width: i32, height: i32) SystemResult<void> {
+      return this.window.set_default_size(width, height);
+    }
+
+    /** Opens a local input chooser parented to this renderer's window. */
+    public method choose_input() SystemResult<void> {
+      var title = String("Open file");
+      return this.open_dialog.show(this.window, title);
+    }
+
+    /** Opens a save chooser using a suggested output filename. */
+    public method choose_output(filename: ref String) SystemResult<void> {
+      var title = String("Save file");
+      return this.save_dialog.show(this.window, title, filename);
+    }
+
+    /** Consumes a chosen input path once without exposing platform handles. */
+    public method take_input_path() SystemResult<Option<String>> {
+      return this.open_dialog.take_path();
+    }
+
+    /** Consumes a chosen output path once without exposing platform handles. */
+    public method take_output_path() SystemResult<Option<String>> {
+      return this.save_dialog.take_path();
+    }
+
+    /** Exercises native timeline gestures through a mounted video control. */
+    public method drag_media(identity: u64, start: f64, end: f64) SystemResult<void> {
+      var index = this.index(identity);
+      if (index < 0) {
+        return SystemResult.Error(Error(1, "Unknown media control"));
+      }
+      return this.controls[index].widget.drag_media(start, end);
+    }
+
+    /** Reports preview preparation or playback for acceptance checks. */
+    public method media_status(identity: u64) i32 {
+      var index = this.index(identity);
+      return index < 0 ? -1 : this.controls[index].widget.media_status();
+    }
+
+    /** Reads the actual preview timestamp for acceptance checks. */
+    public method media_timestamp(identity: u64) i64 {
+      var index = this.index(identity);
+      return index < 0 ? 0 : this.controls[index].widget.media_timestamp();
+    }
+
+    /** Exercises the native play/pause transport without platform handles. */
+    public method toggle_media(identity: u64) void {
+      var index = this.index(identity);
+      if (index >= 0) {
+        this.controls[index].widget.toggle_media();
       }
     }
 
@@ -420,4 +554,7 @@ public module ui_gtk {
     }
   }
 }
-manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon"] }
+manifest {
+  library_id: "namo-robotics/sun_ui_gtk"
+  libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon"]
+}

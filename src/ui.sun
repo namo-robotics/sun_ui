@@ -46,7 +46,7 @@ public module ui {
   }
 
   /** Identifies layout containers, logical scopes, and native controls. */
-  public enum Kind { Group, Row, Column, Grid, Scroll, Label, Button, TextInput, Checkbox, Select }
+  public enum Kind { Group, Row, Column, Grid, Scroll, Label, Button, TextInput, Checkbox, Select, Video }
 
   /** Specifies placement within the space offered by a parent. */
   public enum Align { Fill, Start, Center, End }
@@ -92,6 +92,10 @@ public module ui {
     public var visible: bool = true;
     public var checked: bool = false;
     public var selected: i64 = -1;
+    public var duration: i64 = 0;
+    public var trim_start: i64 = 0;
+    public var trim_end: i64 = 0;
+    public var position: i64 = 0;
     public var spacing: i32 = 0;
     public var margin: i32 = 0;
     public var min_width: i32 = 0;
@@ -129,7 +133,7 @@ public module ui {
 
     /** Compares native properties, excluding keys and semantic event routing. */
     public const method equals(other: const ref Element) bool {
-      if (not this.style.equals(other.style) or this.text.equals(other.text) == false or this.enabled != other.enabled or this.visible != other.visible or this.checked != other.checked or this.selected != other.selected or this.spacing != other.spacing or this.margin != other.margin or this.min_width != other.min_width or this.min_height != other.min_height or this.width != other.width or this.height != other.height or this.horizontal != other.horizontal or this.vertical != other.vertical or this.expand_x != other.expand_x or this.expand_y != other.expand_y or this.row != other.row or this.column != other.column or this.row_span != other.row_span or this.column_span != other.column_span) {
+      if (this.duration != other.duration or this.trim_start != other.trim_start or this.trim_end != other.trim_end or this.position != other.position or not this.style.equals(other.style) or this.text.equals(other.text) == false or this.enabled != other.enabled or this.visible != other.visible or this.checked != other.checked or this.selected != other.selected or this.spacing != other.spacing or this.margin != other.margin or this.min_width != other.min_width or this.min_height != other.min_height or this.width != other.width or this.height != other.height or this.horizontal != other.horizontal or this.vertical != other.vertical or this.expand_x != other.expand_x or this.expand_y != other.expand_y or this.row != other.row or this.column != other.column or this.row_span != other.row_span or this.column_span != other.column_span) {
         return false;
       }
       if (this.choices.size() != other.choices.size() or this.rows.size() != other.rows.size() or this.columns.size() != other.columns.size()) {
@@ -275,13 +279,16 @@ public module ui {
   }
 
   /** Owns the value captured when a user edits a control. */
-  public enum ValueKind { None, Text, Boolean, Selection }
+  public enum ValueKind { None, Text, Boolean, Selection, Range }
 
   /** Owns a tagged edit value without retaining a widget or application borrow. */
   public class EventValue {
     public var kind: ValueKind = ValueKind.None;
     public var text: String = String("");
     public var boolean: bool = false;
+    public var range_start: i64 = 0;
+    public var range_end: i64 = 0;
+    public var position: i64 = 0;
     public var selection: Key = Key(0);
 
     /** Creates a valueless activation event. */
@@ -297,6 +304,14 @@ public module ui {
     init(value: bool) {
       this.kind = ValueKind.Boolean;
       this.boolean = value;
+    }
+
+    /** Captures a media range and playhead in microseconds without platform references. */
+    init(start: i64, end: i64, position: i64) {
+      this.kind = ValueKind.Range;
+      this.range_start = start;
+      this.range_end = end;
+      this.position = position;
     }
 
     /** Takes ownership of a selected application key. */
@@ -469,6 +484,9 @@ public module ui {
           if (_convert<i64>(node.row) + node.row_span > rows or _convert<i64>(node.column) + node.column_span > columns) {
             return SystemResult.Error(Error(1, "Grid child exceeds declared tracks"));
           }
+        }
+        if (node.kind == Kind.Video and (node.duration < 0 or node.duration > 1000000000000000 or node.trim_start < 0 or node.trim_end < node.trim_start or node.trim_end > node.duration or node.position < 0 or node.position > node.duration or (node.duration > 0 and node.trim_start == node.trim_end))) {
+          return SystemResult.Error(Error(1, "Invalid video range"));
         }
         if (node.selected < -1 or (node.kind == Kind.Select and node.selected >= node.choices.size())) {
           return SystemResult.Error(Error(1, "Invalid selected option"));
@@ -734,4 +752,8 @@ public module ui {
     }
   }
 }
-manifest { libraries: ["stdlib.moon"], source_files: ["drawing.sun", "styles.sun"] }
+manifest {
+  library_id: "namo-robotics/sun_ui"
+  libraries: ["stdlib.moon"]
+  source_files: ["drawing.sun", "styles.sun"]
+}

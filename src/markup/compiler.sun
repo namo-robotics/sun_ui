@@ -138,7 +138,7 @@ public module markup {
 
   /** Tests whether a tag names a built-in UI node. */
   function builtin(name: const ref String) bool {
-    return name.equals_literal("Group") or name.equals_literal("Row") or name.equals_literal("Column") or name.equals_literal("Grid") or name.equals_literal("Scroll") or name.equals_literal("Label") or name.equals_literal("Button") or name.equals_literal("TextInput") or name.equals_literal("Checkbox") or name.equals_literal("Select");
+    return name.equals_literal("Group") or name.equals_literal("Row") or name.equals_literal("Column") or name.equals_literal("Grid") or name.equals_literal("Scroll") or name.equals_literal("Label") or name.equals_literal("Button") or name.equals_literal("TextInput") or name.equals_literal("Checkbox") or name.equals_literal("Select") or name.equals_literal("Video");
   }
 
   /** Owns parsing, validation, generated source, and its source map for one file. */
@@ -581,7 +581,7 @@ public module markup {
         return SystemResult.Ok;
       }
       if (builtin(node.name)) {
-        try this.attributes(index, "key text value action changeAction payload enabled visible checked selected spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize styleResource foregroundResource backgroundResource fontResource spacingResource marginResource");
+        try this.attributes(index, "key text value action changeAction payload enabled visible checked selected duration trimStart trimEnd position spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize borderWidth radius padding styleResource foregroundResource backgroundResource fontResource spacingResource marginResource");
         var activation = node.attr("action");
         var change = node.attr("changeAction");
         if (not activation.is_empty() and not change.is_empty()) {
@@ -657,6 +657,12 @@ public module markup {
           if (field.equals_literal("changeAction")) {
             field = String("action");
           }
+          if (field.equals_literal("trimStart")) {
+            field = String("trim_start");
+          }
+          if (field.equals_literal("trimEnd")) {
+            field = String("trim_end");
+          }
           if (field.equals_literal("expandX")) {
             field = String("expand_x");
           }
@@ -676,6 +682,14 @@ public module markup {
             field = String("column_span");
           }
           if (field.equals_literal("foreground") or field.equals_literal("background") or field.equals_literal("font")) {
+            var prefix = String("overrides.normal.");
+            prefix.append(field);
+            field = prefix;
+          }
+          if (field.equals_literal("borderWidth")) {
+            field = String("overrides.normal.border_width");
+          }
+          if (field.equals_literal("radius") or field.equals_literal("padding")) {
             var prefix = String("overrides.normal.");
             prefix.append(field);
             field = prefix;
@@ -947,9 +961,12 @@ public module markup {
           } else {
             return SystemResult.Error(this.failure(appearance.offset, "Unknown interaction state"));
           }
-          try this.attributes(state, "foreground background font fontSize");
+          try this.attributes(state, "foreground background font fontSize borderWidth radius padding");
           for (var attribute: ref Attribute in appearance.attributes) {
             var property = attribute.name.clone(a);
+            if (property.equals_literal("borderWidth")) {
+              property = String("border_width");
+            }
             if (property.equals_literal("fontSize")) {
               property = String("font_size");
             }

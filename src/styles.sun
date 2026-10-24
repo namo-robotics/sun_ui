@@ -9,6 +9,9 @@ public module ui {
     public var background: i64 = -1;
     public var font: String = String("");
     public var font_size: i32 = -1;
+    public var border_width: i32 = -1;
+    public var radius: i32 = -1;
+    public var padding: i32 = -1;
 
     /** Creates an empty override; colors use packed RGB values. */
     init() {}
@@ -25,6 +28,15 @@ public module ui {
       if (not other.font.is_empty()) {
         this.font = other.font.clone(a);
       }
+      if (other.border_width >= 0) {
+        this.border_width = other.border_width;
+      }
+      if (other.radius >= 0) {
+        this.radius = other.radius;
+      }
+      if (other.padding >= 0) {
+        this.padding = other.padding;
+      }
       if (other.font_size >= 0) {
         this.font_size = other.font_size;
       }
@@ -32,12 +44,12 @@ public module ui {
 
     /** Compares resolved properties without allocating. */
     public const method equals(other: const ref Appearance) bool {
-      return this.foreground == other.foreground and this.background == other.background and this.font.equals(other.font) and this.font_size == other.font_size;
+      return this.foreground == other.foreground and this.background == other.background and this.font.equals(other.font) and this.font_size == other.font_size and this.border_width == other.border_width and this.radius == other.radius and this.padding == other.padding;
     }
 
     /** Rejects invalid colors, sizes, or font text before rendering. */
     public const method valid() bool {
-      if (this.foreground < -1 or this.foreground > 16777215 or this.background < -1 or this.background > 16777215 or this.font_size < -1 or this.font_size == 0) {
+      if (this.border_width < -1 or this.radius < -1 or this.padding < -1 or this.foreground < -1 or this.foreground > 16777215 or this.background < -1 or this.background > 16777215 or this.font_size < -1 or this.font_size == 0) {
         return false;
       }
       for (var i: i64 = 0; i < this.font.length(); i += 1) {

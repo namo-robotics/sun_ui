@@ -118,6 +118,19 @@
       "path": "src/tools/build.sun",
       "type": "binary",
       "output_name": "build/sun-ui-build"
+    },
+    {
+      "name": "video-converter",
+      "path": "examples/video-converter/main.sun",
+      "type": "binary",
+      "output_name": "build/video-converter"
+    },
+    {
+      "name": "video-tests",
+      "path": "tests/video-converter/main.sun",
+      "type": "binary",
+      "output_name": "build/video-tests",
+      "test_binary_name": "build/video-tests_test"
     }
   ]
 }

@@ -1,0 +1,9 @@
+/** Provides a standalone entry point for media workflow tests without GTK. */
+function main() i32 {
+  return 0;
+}
+manifest {
+  test_files: ["media.sun"]
+  libraries: ["stdlib.moon"]
+  source_files: ["../../examples/video-converter/process.sun", "../../examples/video-converter/media.sun", "../../examples/video-converter/job.sun", "fixtures.sun"]
+}

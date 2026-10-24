@@ -48,7 +48,7 @@ jobs:
           -e GIT_CONFIG_KEY_0=url.https://github.com/namo-robotics/sun_gobject.git.insteadOf
           -e GIT_CONFIG_VALUE_0=git@github.com:namo-robotics/sun_gobject.git
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
-          bash -c 'vcs import --input deps.repos . && bash scripts/build-ci-dependency.sh && ./build.sh --gtk'
+          bash -o pipefail -c 'vcs import --input deps.repos . && bash scripts/build-ci-dependency.sh && ./build.sh --gtk && sun src/tools/build.sun -- video && sun src/tools/build.sun -- test-video 2>&1 | tee build/video-test-results.log'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -59,6 +59,7 @@ jobs:
             build/test-results.log
             build/markup-test-results.log
             build/gtk-test-results.log
+            build/video-test-results.log
       - name: Upload development bundles
         uses: actions/upload-artifact@v4
         with:

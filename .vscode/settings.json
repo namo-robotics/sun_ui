@@ -23,5 +23,6 @@
   "[sun]": {
     "editor.defaultFormatter": "namo-robotics.sun-language",
     "editor.formatOnSave": true
-  }
+  },
+  "cmake.sourceDirectory": "/home/david/code/namo/sun_ui/src/sun_gobject/native"
 }

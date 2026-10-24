@@ -388,6 +388,42 @@ module core_tests {
     try std.test.assert(tree.identity(1) != tree.identity_path(path), "key types must not collide");
   }
 
+  /** Checks flat style inheritance and media validation before any renderer changes. */
+  test_function media_range_and_flat_styles() TestResult<void> {
+    var base = ui.Style();
+    base.normal.border_width = 2;
+    base.normal.radius = 8;
+    var flat = ui.Style();
+    flat.normal.border_width = 0;
+    flat.normal.padding = 12;
+    base.overlay(flat);
+    try std.test.assert_eq(base.normal.border_width, 0);
+    try std.test.assert_eq(base.normal.radius, 8);
+    try std.test.assert_eq(base.normal.padding, 12);
+    flat.normal.padding = -2;
+    try std.test.assert(not flat.valid());
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    var view = ui.View(a);
+    var node = ui.Element(ui.Key(1), ui.Kind.Video);
+    node.duration = 4000000;
+    node.trim_start = 3000000;
+    node.trim_end = 1000000;
+    view.append(-1, node);
+    match tree.render(renderer, view) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "crossed range was accepted");
+      }
+    };
+    try std.test.assert_eq(renderer.created, 0);
+    var event = ui.EventValue(500000, 2000000, 1000000);
+    try std.test.assert(event.kind == ui.ValueKind.Range);
+    try std.test.assert_eq(event.range_start, 500000);
+    return TestResult.Ok;
+  }
+
   /** Resolves nearest resources and applies derived style overrides without changing bases. */
   test_function resources_and_style_precedence() TestResult<void> {
     var a = make_heap_allocator();

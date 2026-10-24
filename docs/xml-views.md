@@ -279,3 +279,24 @@ then `finish()` completes deferred placement before focus effects.
 This is a bounded Sun-native toolkit, not a XAML compatibility implementation.
 Native control-template replacement, editable multiline text, arbitrary selectors,
 animations, runtime XML interpretation, and a scripting engine are not included.
+
+## Media preview and flat panels
+
+`Video` displays a local file with native playback and a draggable trim timeline.
+Its `text` property is the local filename; `duration`, `trimStart`, `trimEnd`, and
+`position` use integer microseconds. `changeAction` receives a `ui.ValueKind.Range`
+event with `range_start`, `range_end`, and `position`. Keep the range in owned
+application state and pass it back to the next view. An empty preview uses zero
+for all times. Loaded previews require a positive, ordered range within duration.
+
+```xml
+<Video key="preview" text="{state.path.clone(a)}"
+       duration="{state.duration}" trimStart="{state.start}" trimEnd="{state.end}"
+       position="{state.position}" changeAction="15" expandX="true" />
+```
+
+Appearance resources and inline controls accept `borderWidth`, `radius`, and
+`padding` in pixels. Values inherit when omitted; `borderWidth="0"` explicitly
+removes the native border, shadow, and transition delay. Use background fills to
+separate panels and retain a deliberate keyboard-focus appearance for controls.
+See `examples/video-converter/video-converter.view.xml` for the complete example.
