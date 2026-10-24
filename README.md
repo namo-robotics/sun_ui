@@ -87,8 +87,9 @@ steps or supply GTK's native linker flags.
 
 ### Video converter example
 
-The [video converter](examples/video-converter/README.md) converts MOV and MP4,
-compresses with quality and resolution presets, and trims by start/end time.
+The [video converter](examples/video-converter/README.md) exports MP4, MOV, WebM,
+MKV, and AVI, compresses with five quality levels and resolution limits, and trims
+by start/end time.
 Its XML view includes video playback, draggable trim handles, native file
 choosers, progress, cancellation, and output protection.
 After building the GTK dependency described below, run:

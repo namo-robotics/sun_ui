@@ -50,6 +50,29 @@ module video_app {
     if (not session.state.job.ready) {
       return SystemResult.Error(Error(1, "UI probe failed"));
     }
+    var empty = String("");
+    for (var format: i32 = 4; format >= 0; format -= 1) {
+      session.state.settings.overwrite = true;
+      try renderer.edit(control(session, 5, false), empty, format);
+      try turn(renderer, session);
+      if (session.state.settings.format != format or not session.state.settings.output.ends_with(video.extension(format)) or session.state.settings.overwrite) {
+        return SystemResult.Error(Error(1, "Format selection did not update the destination safely"));
+      }
+    }
+    for (var quality: i32 = 4; quality >= 0; quality -= 1) {
+      try renderer.edit(control(session, 6, false), empty, quality);
+      try turn(renderer, session);
+      if (session.state.settings.quality != quality) {
+        return SystemResult.Error(Error(1, "Quality selection did not update settings"));
+      }
+    }
+    for (var resolution: i32 = 4; resolution >= 0; resolution -= 1) {
+      try renderer.edit(control(session, 7, false), empty, resolution);
+      try turn(renderer, session);
+      if (session.state.settings.resolution != resolution) {
+        return SystemResult.Error(Error(1, "Resolution selection did not update settings"));
+      }
+    }
     var preview = control(session, 15, false);
     var deadline = std.time.now();
     var delay = std.time.create_duration_millis(10);

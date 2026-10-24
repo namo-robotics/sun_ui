@@ -1,17 +1,19 @@
 # Video converter
 
 A native Sun UI example for converting, compressing, and trimming local videos.
-MOV and MP4 are the primary inputs; exports use H.264 video with optional AAC
-audio in an MP4 or MOV container.
+MOV and MP4 are the primary inputs. Export to MP4, MOV, WebM, MKV, or AVI;
+the app chooses compatible video and audio codecs automatically.
 
 ## Build and run
 
 Use the repository root. The development image includes FFmpeg; an existing
 container can install it with `sudo apt-get install ffmpeg`. Use FFmpeg 8 or newer
-with the `libx264` and AAC encoders and the scale filter's `reset_sar` option.
+with the scale filter's `reset_sar` option. MP4, MOV, and MKV use `libx264`
+and AAC; WebM uses `libvpx-vp9` and `libopus`; AVI uses `mpeg4` and `libmp3lame`.
 Preview playback uses GTK's GStreamer backend with `gstreamer1.0-libav` and
 `gstreamer1.0-plugins-good`; both are included in the development image.
-The application checks these capabilities at startup. Linux coreutils provide
+The application checks FFmpeg, ffprobe, H.264/AAC, and scaling at startup.
+If an optional format encoder is missing, its export reports the FFmpeg error. Linux coreutils provide
 `realpath`, `mktemp`, `test`, and `ln` for path resolution and exclusive publication.
 
 Build the checked GTK dependency, including its media widget and file-dialog bindings, then the
@@ -40,8 +42,13 @@ there before a fresh dependency checkout can build this example.
 1. Choose **Open video…**. Selecting a file loads its preview automatically; the
    source panel shows the selected filename. You can also
    launch `./build/video-converter /path/to/video.mov`.
-2. Choose an output filename ending in `.mp4` or `.mov` and the matching container.
-3. Select a quality preset and optional maximum dimension. Resize presets fit
+2. Choose MP4 (widely compatible), MOV (QuickTime), WebM (web video),
+   MKV (flexible container), or AVI (legacy devices). Changing the format updates
+   the output extension and clears any previous overwrite confirmation.
+3. Choose **Best quality**, **High quality**, **Balanced** (recommended),
+   **Smaller file**, or **Smallest file**. Keep the original resolution or limit
+   it to 2160, 1080, 720, or 480 pixels. Lower quality or resolution usually
+   reduces file size, at the cost of detail. Resize presets fit
    within a square, preserve display proportions, and avoid upscaling ordinary
    square-pixel input. FFmpeg applies display rotation automatically.
 4. Drag the mint handles on the timeline to choose the section to keep. Click
@@ -66,8 +73,9 @@ GTK drives scrolling and playback directly; the application has no fixed sleep
 between UI events. Timed wakeups are used only to poll active external jobs.
 Styles are cached rather than reinstalled for every control-value update.
 
-High quality, balanced, and smaller-file presets use H.264 CRF values of 18, 23,
-and 28. Every export re-encodes; quality presets do not guarantee a particular
+From best quality to smallest file, H.264 uses CRF 18/21/23/26/30, VP9 uses
+CRF 24/28/32/36/40, and AVI MPEG-4 uses quality 2/3/5/8/12. Audio stays at
+128 kbps when enabled. WebM may take longer to encode than H.264 formats. Every export re-encodes; quality presets do not guarantee a particular
 file size. Completion reports the actual output size and savings, including
 when the output is larger. Only the first video and first optional audio stream
 are exported. Subtitles, additional tracks, chapters, and metadata preservation

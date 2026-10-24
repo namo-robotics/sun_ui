@@ -89,8 +89,8 @@ module video {
       }
       this.duration = try trim_length(settings, this.media);
       this.destination = try absolute(settings.output);
-      if ((settings.format == 0 and not this.destination.ends_with(".mp4")) or (settings.format == 1 and not this.destination.ends_with(".mov"))) {
-        return SystemResult.Error(Error(1, "Output extension must match the selected MP4 or MOV format"));
+      if (not this.destination.ends_with(extension(settings.format))) {
+        return SystemResult.Error(Error(1, "Output extension must match the selected format"));
       }
       this.overwrite = settings.overwrite;
       try this.check_destination();

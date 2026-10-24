@@ -12,7 +12,8 @@ module video_app {
     }
     if (state.save_requested) {
       state.save_requested = false;
-      var filename = String(state.settings.format == 0 ? "converted.mp4" : "converted.mov");
+      var filename = String("converted");
+      filename.append(video.extension(state.settings.format));
       try renderer.choose_output(filename);
     }
     match try renderer.take_input_path() {
@@ -104,7 +105,8 @@ module video_app {
       session.state.position = 0;
       if (session.state.settings.output.is_empty()) {
         session.state.settings.output = session.state.job.loaded.clone(make_heap_allocator());
-        session.state.settings.output.append(".converted.mp4");
+        session.state.settings.output.append(".converted");
+        session.state.settings.output.append(video.extension(session.state.settings.format));
       }
     }
     if (changed or percent != session.state.job.percent or mode != session.state.job.mode) {

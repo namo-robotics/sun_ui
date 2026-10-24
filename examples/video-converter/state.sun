@@ -59,15 +59,20 @@ module video_app {
         state.settings.end = event.value.text.clone(a);
       }
     } else if (event.value.kind == ui.ValueKind.Selection) {
-      var value: i64 = 0;
-      for (var i: i64 = 0; i < 3; i += 1) {
+      var value: i64 = -1;
+      for (var i: i64 = 0; i < 5; i += 1) {
         var key = ui.Key(i);
         if (event.value.selection.equals(key)) {
           value = i;
         }
       }
+      if (value < 0) {
+        return SystemResult.Ok;
+      }
       if (event.action == 5) {
         state.settings.format = value;
+        state.settings.output = video.output_path(state.settings.output, value);
+        state.settings.overwrite = false;
       }
       if (event.action == 6) {
         state.settings.quality = value;

@@ -134,7 +134,7 @@ module video_app {
     if (state.job.percent == 100) {
       return String("Export complete");
     }
-    return String("H.264 video · AAC audio");
+    return video.encoding_label(state.settings.format, state.settings.audio);
   }
 
   /** Keeps status text readable while preserving full errors in the terminal. */
