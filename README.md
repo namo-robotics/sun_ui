@@ -243,11 +243,12 @@ checkout; additional rendering backends remain future work.
 
 ## Apple Silicon macOS releases
 
-The macOS workflow builds and tests native bundles with the Homebrew Sun compiler
+The macOS job in the CI workflow builds and tests native bundles with the Homebrew Sun compiler
 and GTK, then publishes `sun_ui-arm64-apple-darwin.tar.gz` to the
 [dev release](https://github.com/namo-robotics/sun_ui/releases/tag/dev)
-on successful main builds. Run `./scripts/build-macos.sh` on an Apple Silicon Mac
-with the dependencies listed in `.github/workflows/macos.yml`.
+alongside the Linux bundles after all CI jobs pass on main.
+Run `./scripts/build-macos.sh` on an Apple Silicon Mac
+with the dependencies listed in `.github/workflows/ci.yml`.
 
 Archives include the compiler version used to build the bundles. Consumers must
 use a compatible compiler and matching native dependencies; Linux bundles cannot

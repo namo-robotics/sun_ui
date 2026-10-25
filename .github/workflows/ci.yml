@@ -2,6 +2,7 @@ name: CI
 on:
   push:
   pull_request:
+  workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -76,9 +77,32 @@ jobs:
             build/sun_ui_gtk.moon
             build/sun_ui_gtk_drawing.moon
             build/sun-version.txt
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain and GTK dependencies
+        run: brew install namo-robotics/sun/sun gtk4 librsvg gstreamer coreutils cmake ninja pkgconf gobject-introspection
+      - name: Import and build GTK dependency
+        env:
+          GIT_CONFIG_COUNT: 1
+          GIT_CONFIG_KEY_0: url.https://github.com/.insteadOf
+          GIT_CONFIG_VALUE_0: 'git@github.com:'
+        run: |
+          python3 -m venv .toolchain/vcs
+          .toolchain/vcs/bin/pip install vcs2l==1.1.7
+          PATH="$PWD/.toolchain/vcs/bin:$PATH" bash scripts/import-ci-dependencies.sh
+          ./src/sun_gobject/scripts/build-macos.sh
+      - name: Build and test native bundles
+        run: ./scripts/build-macos.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sun_ui-macos-arm64
+          if-no-files-found: error
+          path: build/sun_ui-arm64-apple-darwin.tar.gz
   publish-dev:
-    needs: [core, gtk]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [core, gtk, macos]
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -87,6 +111,11 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dev-bundles
+          path: build/release
+      - name: Download tested macOS bundles
+        uses: actions/download-artifact@v4
+        with:
+          name: sun_ui-macos-arm64
           path: build/release
       - name: Update dev release
         uses: softprops/action-gh-release@v2
@@ -99,14 +128,17 @@ jobs:
           files: |
             build/release/*.moon
             build/release/sun-version.txt
+            build/release/sun_ui-arm64-apple-darwin.tar.gz
           body: |
             Latest development build from main branch.
 
             Commit: ${{ github.sha }}
 
-            Sun bundles for x86_64 Linux, built and tested on Ubuntu 26.04.
-            Use the compiler version recorded in sun-version.txt and place the
-            bundles in a directory passed to Sun with --lib-path.
+            Sun bundles for x86_64 Linux (Ubuntu 26.04) and Apple Silicon macOS.
+            The .moon assets and sun-version.txt are the Linux build.
+            The macOS archive contains its own bundles, tools, and compiler version.
+            Use the matching compiler and native dependencies for each platform,
+            and place the bundles in a directory passed to Sun with --lib-path.
 
             sun_ui.moon and sun_plot.moon do not require GTK.
             The optional GTK bundles also require compatible sun_gobject.moon,
