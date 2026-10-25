@@ -3,3 +3,7 @@ repositories:
     type: git
     url: git@github.com:namo-robotics/sun_gobject.git
     version: main
+  src/sun_video_editor:
+    type: git
+    url: git@github.com:namo-robotics/sun_video_editor.git
+    version: main

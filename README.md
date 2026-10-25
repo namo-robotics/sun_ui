@@ -85,24 +85,24 @@ tests. Use `./build.sh` for core builds or `./build.sh --gtk` for the full build
 `sun -c sun-config.json` selects every entry and does not perform those preparation
 steps or supply GTK's native linker flags.
 
-### Video converter example
+### Sun Video Editor
 
-The [video converter](examples/video-converter/README.md) exports MP4, MOV, WebM,
-MKV, and AVI, compresses with five quality levels and resolution limits, and trims
-by start/end time.
-Its XML view includes video playback, draggable trim handles, native file
-choosers, progress, cancellation, and output protection.
-After building the GTK dependency described below, run:
+The video application now lives in the independent
+[sun_video_editor repository](https://github.com/namo-robotics/sun_video_editor).
+`deps.repos` checks it out at `src/sun_video_editor`, alongside sun_gobject.
+It has its own dev container, agent guidance, build, tests, and release packaging.
+
+After importing dependencies and building sun_ui's GTK bundles, run it from this
+workspace with the existing dependency builds:
 
 ```sh
-./build.sh --video
-./build/video-converter
+SUN_UI_BUILD="$PWD/build" SUN_GOBJECT_BUILD="$PWD/src/sun_gobject/build" ./src/sun_video_editor/build.sh
+./src/sun_video_editor/build/sun_video_editor
 ```
 
-The development image includes FFmpeg. Existing containers need
-`sudo apt-get install ffmpeg`; the example requires FFmpeg 8 or newer with
-H.264/AAC support. `--video` runs generated-media tests and headless GTK acceptance
-checks; ordinary core builds retain no dependency on FFmpeg.
+The editor requires FFmpeg and ffprobe 8+. Toolkit builds and CI do not depend on
+the application checkout; CI imports only the GTK dependency from `deps.repos`.
+See the editor's README for standalone setup and Debian/Snap packaging.
 
 ### Build the GTK backend
 

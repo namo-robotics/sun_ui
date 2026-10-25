@@ -230,28 +230,6 @@ module build_tasks {
     return acceptance("plot-viewer");
   }
 
-  /** Builds the optional video converter and its platform-independent media tests. */
-  public function video() SystemResult<void> {
-    try compile("viewc", false);
-    var tool = try build_targets.load("viewc");
-    var generate = std.process.Command(make_heap_allocator(), tool.output);
-    generate.add_arg("examples/video-converter/video-converter.view.xml");
-    generate.add_arg("build/generated/examples/video-converter/video-converter.view.sun");
-    try run(generate);
-    try compile("sun_ui_gtk", true);
-    try compile("video-tests", false);
-    return compile("video-converter", true);
-  }
-
-  /** Runs real media integration tests followed by native converter acceptance. */
-  public function test_video() SystemResult<void> {
-    var target = try build_targets.load("video-tests");
-    var tests = std.process.Command(make_heap_allocator(), target.tests);
-    tests.add_arg("--test-sequential");
-    try run(tests);
-    return acceptance("video-converter");
-  }
-
   /** Runs the core tests or bounded GTK acceptance scenarios on a virtual display. */
   public function test(gtk: bool) SystemResult<void> {
     var a = make_heap_allocator();
@@ -280,10 +258,6 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   var result: SystemResult<void> = SystemResult.Ok;
   if (args.size() == 2 and args[1].equals_literal("build")) {
     result = build_tasks.build();
-  } else if (args.size() == 2 and args[1].equals_literal("video")) {
-    result = build_tasks.video();
-  } else if (args.size() == 2 and args[1].equals_literal("test-video")) {
-    result = build_tasks.test_video();
   } else if (args.size() == 2 and args[1].equals_literal("gtk")) {
     result = build_tasks.gtk();
   } else if (args.size() == 2 and args[1].equals_literal("test")) {
@@ -299,7 +273,7 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   } else if (args.size() == 2 and args[1].equals_literal("markup-gtk")) {
     result = build_tasks.markup_gtk();
   } else {
-    eprintln("Usage: sun src/tools/build.sun -- [build|test|gtk|test-gtk|plot-gtk|test-plot-gtk|markup|markup-gtk|video|test-video]");
+    eprintln("Usage: sun src/tools/build.sun -- [build|test|gtk|test-gtk|plot-gtk|test-plot-gtk|markup|markup-gtk]");
     return 1;
   }
   return match result {

@@ -427,4 +427,4 @@ Appearance resources and inline controls accept `borderWidth`, `radius`, and
 `padding` in pixels. Values inherit when omitted; `borderWidth="0"` explicitly
 removes the native border, shadow, and transition delay. Use background fills to
 separate panels and retain a deliberate keyboard-focus appearance for controls.
-See `examples/video-converter/video-converter.view.xml` for the complete example.
+See [sun_video_editor/src/sun_video_editor.view.xml](https://github.com/namo-robotics/sun_video_editor/blob/main/src/sun_video_editor.view.xml) for the complete example.

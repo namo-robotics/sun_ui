@@ -4,3 +4,4 @@ build*
 tmp
 dist
 src/sun_gobject
+src/sun_video_editor

@@ -2,7 +2,8 @@
   "git.autoRepositoryDetection": true,
   "git.repositoryScanMaxDepth": 3,
   "git.scanRepositories": [
-    "src/sun_gobject"
+    "src/sun_gobject",
+    "src/sun_video_editor"
   ],
   "sun.sun_path": [
     "/usr/lib/sun",
@@ -24,5 +25,5 @@
     "editor.defaultFormatter": "namo-robotics.sun-language",
     "editor.formatOnSave": true
   },
-  "cmake.sourceDirectory": "/home/david/code/namo/sun_ui/src/sun_gobject/native"
+  "cmake.sourceDirectory": "${workspaceFolder}/src/sun_gobject/native"
 }
