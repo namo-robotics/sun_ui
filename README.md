@@ -240,3 +240,15 @@ the current published compiler with XML source spans; the build checks this API.
 The [upstream notes](upstream/README.md) record the migration history.
 GTK applications require the corresponding changes in the separate sun_gobject
 checkout; additional rendering backends remain future work.
+
+## Apple Silicon macOS releases
+
+The macOS workflow builds and tests native bundles with the Homebrew Sun compiler
+and GTK, then publishes `sun_ui-arm64-apple-darwin.tar.gz` to the
+[dev release](https://github.com/namo-robotics/sun_ui/releases/tag/dev)
+on successful main builds. Run `./scripts/build-macos.sh` on an Apple Silicon Mac
+with the dependencies listed in `.github/workflows/macos.yml`.
+
+Archives include the compiler version used to build the bundles. Consumers must
+use a compatible compiler and matching native dependencies; Linux bundles cannot
+be reused on macOS. Intel macOS is not covered by these releases.

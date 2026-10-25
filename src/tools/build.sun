@@ -36,10 +36,17 @@ module build_tasks {
       native.append(dependency);
       native.append("/native");
       command.add_arg(native);
-      command.add_arg("-l:libsun_gobject_native.a");
+      command.add_arg("-lsun_gobject_native");
       var pkg = std.process.Command(a, "pkg-config");
       pkg.add_arg("--libs");
       pkg.add_arg("gtk4");
+      var platform = std.process.Command(a, "uname");
+      platform.add_arg("-s");
+      var platform_output = try platform.output();
+      var darwin = platform_output.stdout().starts_with("Darwin");
+      if (darwin) {
+        pkg.add_arg("librsvg-2.0");
+      }
       var output = try pkg.output();
       if (output.status() != 0) {
         eprintln(output.stderr());
@@ -49,7 +56,9 @@ module build_tasks {
       for (var flag: ref String in flags) {
         command.add_arg(flag);
       }
-      command.add_arg("-l:librsvg-2.so.2");
+      if (not darwin) {
+        command.add_arg("-l:librsvg-2.so.2");
+      }
       // External native archives are outside the compiler's source cache.
       command.add_arg("--force-rebuild");
     }
@@ -112,7 +121,14 @@ module build_tasks {
     var command = std.process.Command(a, "sh");
     command.add_arg("-eu");
     command.add_arg("-c");
-    command.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test");
+    var platform = std.process.Command(a, "uname");
+    platform.add_arg("-s");
+    var platform_output = try platform.output();
+    if (platform_output.stdout().starts_with("Darwin")) {
+      command.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; gtimeout 30s \"$1\" --self-test");
+    } else {
+      command.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test");
+    }
     command.add_arg("sun-ui-acceptance");
     command.add_arg(target.output);
     return run(command);
