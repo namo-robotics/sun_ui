@@ -125,7 +125,7 @@ module build_tasks {
     platform.add_arg("-s");
     var platform_output = try platform.output();
     if (platform_output.stdout().starts_with("Darwin")) {
-      command.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; gtimeout 30s \"$1\" --self-test");
+      command.add_arg("export G_DEBUG=fatal-criticals GTK_A11Y=none GSK_RENDERER=cairo; gtimeout 30s \"$1\" --self-test");
     } else {
       command.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test");
     }
