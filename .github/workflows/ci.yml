@@ -20,8 +20,11 @@ jobs:
           docker run --rm --user "$(id -u):$(id -g)"
           -v /etc/passwd:/etc/passwd:ro
           -v /etc/group:/etc/group:ro
+          -e XDG_DATA_HOME=/workspaces/sun_ui/tmp/ci/data
+          -e XDG_CACHE_HOME=/workspaces/sun_ui/tmp/ci/cache
+          -e XDG_CONFIG_HOME=/workspaces/sun_ui/tmp/ci/config
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
-          bash -c './build.sh && sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/adapters src/tools examples tests'
+          bash -c 'mkdir -p "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && ./build.sh && sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/adapters src/tools examples tests'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -44,11 +47,14 @@ jobs:
           docker run --rm --user "$(id -u):$(id -g)"
           -v /etc/passwd:/etc/passwd:ro
           -v /etc/group:/etc/group:ro
+          -e XDG_DATA_HOME=/workspaces/sun_ui/tmp/ci/data
+          -e XDG_CACHE_HOME=/workspaces/sun_ui/tmp/ci/cache
+          -e XDG_CONFIG_HOME=/workspaces/sun_ui/tmp/ci/config
           -e GIT_CONFIG_COUNT=1
           -e GIT_CONFIG_KEY_0=url.https://github.com/namo-robotics/sun_gobject.git.insteadOf
           -e GIT_CONFIG_VALUE_0=git@github.com:namo-robotics/sun_gobject.git
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
-          bash -o pipefail -c 'bash scripts/import-ci-dependencies.sh && bash scripts/build-ci-dependency.sh && ./build.sh --gtk'
+          bash -o pipefail -c 'mkdir -p "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && bash scripts/import-ci-dependencies.sh && bash scripts/build-ci-dependency.sh && ./build.sh --gtk'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
