@@ -18,7 +18,8 @@
   "sun.lsp_path": "/usr/bin/sun-lsp",
   "sun.compiler_path": "/usr/bin/sun",
   "sun.sun_configs": [
-    "sun-config.json"
+    "sun-config.json",
+    "src/sun_video_editor/sun-config.json"
   ],
   "sun.syntaxOnly": false,
   "[sun]": {

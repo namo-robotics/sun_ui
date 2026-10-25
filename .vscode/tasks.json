@@ -46,6 +46,19 @@
       "type": "shell",
       "command": "./build/tasks",
       "problemMatcher": []
+    },
+    {
+      "label": "Build video editor",
+      "type": "shell",
+      "command": "./src/sun_video_editor/build.sh --build",
+      "options": {
+        "cwd": "${workspaceFolder}",
+        "env": {
+          "SUN_UI_BUILD": "${workspaceFolder}/build",
+          "SUN_GOBJECT_BUILD": "${workspaceFolder}/src/sun_gobject/build"
+        }
+      },
+      "problemMatcher": []
     }
   ]
 }
