@@ -1,0 +1,10 @@
+<Views module="reusable_palette">
+  <Resources name="resources">
+    <Theme name="theme" basedOn="base"><Default kind="Button" styleResource="button" /></Theme>
+    <Style name="base"><Normal fontResource="font" fontSizeResource="size" /></Style>
+    <Style name="button"><Normal foregroundResource="accent" /><Hover backgroundResource="accent" /></Style>
+    <Color name="accent" value="7" />
+    <Spacing name="size" value="14" />
+    <Font name="font" value="Sans" />
+  </Resources>
+</Views>

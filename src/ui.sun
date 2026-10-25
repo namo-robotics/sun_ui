@@ -158,10 +158,19 @@ public module ui {
     }
   }
 
+  /** Records a nonvisual insertion point used only during view construction. */
+  public class ContentSlot {
+    public var parent: i64 = -1;
+
+    /** Creates an unbound insertion point. */
+    init() {}
+  }
+
   /** Owns parent-before-child descriptions and optional post-commit focus effects. */
   public class View {
     public var elements: Vec<Element>;
     public var theme: Style = Style();
+    public var control_defaults: Vec<ThemeDefault> = Vec<ThemeDefault>(make_heap_allocator(), 4);
     public var resources: Resources;
     public var resource_scope: i64 = 1;
     public var construction_error: String = String("");
@@ -187,6 +196,30 @@ public module ui {
       match resources {
         SystemResult.Ok(value) => {
           this.resources = value;
+        },
+        SystemResult.Error(error) => {
+          this.reject(error);
+        }
+      };
+    }
+
+    /** Applies an owned theme, retaining validation failures for atomic preflight. */
+    public method set_theme(value: Theme) void {
+      match value.validate() {
+        SystemResult.Ok => {},
+        SystemResult.Error(error) => {
+          this.reject(error);
+        }
+      };
+      this.theme = value.base;
+      this.control_defaults = value.defaults;
+    }
+
+    /** Resolves a theme from the active resource scope. */
+    public method theme_resource(name: String) void {
+      match this.resources.theme(this.resource_scope, name) {
+        SystemResult.Ok(value) => {
+          this.set_theme(value);
         },
         SystemResult.Error(error) => {
           this.reject(error);
@@ -613,9 +646,18 @@ public module ui {
       if (this.stopped) {
         return SystemResult.Error(Error(1, "Tree is stopped"));
       }
+      if (not view.theme.valid()) {
+        return SystemResult.Error(Error(1, "Invalid theme base"));
+      }
+      try validate_theme_defaults(view.control_defaults);
       for (var element: ref Element in view.elements) {
         var resolved = Style();
         resolved.overlay(view.theme);
+        for (var entry: ref ThemeDefault in view.control_defaults) {
+          if (entry.kind == element.kind) {
+            resolved.overlay(entry.style);
+          }
+        }
         resolved.overlay(element.style);
         resolved.overlay(element.overrides);
         element.style = resolved;

@@ -11,7 +11,13 @@ module video_app {
       if (description.elements[i].action != action) {
         continue;
       }
-      var index = panel ? description.elements[i].parent : i;
+      var index = i;
+      if (panel) {
+        index = description.elements[i].parent;
+        while (index >= 0 and description.elements[index].kind != ui.Kind.Column) {
+          index = description.elements[index].parent;
+        }
+      }
       var reversed = Vec<ui.Key>(a, 8);
       while (index >= 0) {
         reversed.push(description.elements[index].key.clone(a));

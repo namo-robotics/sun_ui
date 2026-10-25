@@ -1,9 +1,26 @@
 using std;
 
-/** Owns one import traversal and its combined source with original-file mappings. */
+/** Owns one parsed source and its generated artifact destination. */
+class SourceUnit {
+  var input: String;
+  var output: String;
+  var compiler: markup.Compiler;
+  var registered: bool;
+
+  /** Transfers a parsed file into the generation graph. */
+  init(input: String, output: String, compiler: markup.Compiler, registered: bool) {
+    this.input = input;
+    this.output = output;
+    this.compiler = compiler;
+    this.registered = registered;
+  }
+}
+
+/** Owns one dependency traversal and its combined source with original-file mappings. */
 class Generation {
   var active: Vec<String>;
   var seen: Vec<String>;
+  var units: Vec<SourceUnit>;
   var source: String = String("");
   var mapping: String = String("");
   var line: i64 = 0;
@@ -12,6 +29,7 @@ class Generation {
   init(a: const ref HeapAllocator) {
     this.active = Vec<String>(a, 4);
     this.seen = Vec<String>(a, 4);
+    this.units = Vec<SourceUnit>(a, 4);
   }
 
   /** Adds one module exactly once and adjusts its map to the combined source. */
@@ -82,8 +100,8 @@ function publish(output: ref String, source: ref String, mapping: ref String) Sy
   return std.io.write_string(output, source);
 }
 
-/** Traverses imported files, rejects cycles, and emits dependencies before their consumers. */
-function generate(input: ref String, output: ref String, generation: ref Generation) SystemResult<void> {
+/** Parses the dependency graph before resolving registered component names. */
+function collect(input: ref String, output: ref String, generation: ref Generation, registered: bool) SystemResult<void> {
   var a = make_heap_allocator();
   for (var i: i64 = 0; i < generation.active.size(); i += 1) {
     if (generation.active[i].equals(input)) {
@@ -97,42 +115,87 @@ function generate(input: ref String, output: ref String, generation: ref Generat
   }
   generation.active.push(input.clone(a));
   var compiler = markup.Compiler(input.clone(a), try std.io.read_to_string(a, input));
-  try compiler.compile();
+  try compiler.prepare();
   for (var relative: ref String in compiler.imports) {
     var imported_input = directory(input);
     imported_input.append(relative);
     var imported_output = directory(output);
     imported_output.append(relative);
     imported_output.replace(".view.xml", ".view.sun");
-    try generate(imported_input, imported_output, generation);
+    try collect(imported_input, imported_output, generation, registered);
   }
   match generation.active.pop() {
     Option.Some(_) => {},
     Option.None => {}
   };
   generation.seen.push(input.clone(a));
-  generation.append(input, compiler);
-  return publish(output, compiler.output, compiler.source_map);
+  generation.units.push(SourceUnit(input.clone(a), output.clone(a), compiler, registered));
+  return SystemResult.Ok;
 }
 
-/** Compiles an import graph into ordinary Sun and a source map; errors stop consumer builds. */
-function run(input: ref String, output: ref String) SystemResult<void> {
+/** Reads explicitly listed sources from an XML application registry. */
+function registry_sources(path: ref String) SystemResult<Vec<String>> {
+  var a = make_heap_allocator();
+  var compiler = markup.Compiler(path.clone(a), try std.io.read_to_string(a, path));
+  return compiler.registry_sources();
+}
+
+/** Compiles registered components and views after discovering every typed signature. */
+function run(input: ref String, output: ref String, registry_path: ref String) SystemResult<void> {
   var a = make_heap_allocator();
   var generation = Generation(a);
-  try generate(input, output, generation);
+  if (not registry_path.is_empty()) {
+    var sources = try registry_sources(registry_path);
+    for (var relative: ref String in sources) {
+      var source = directory(registry_path);
+      source.append(relative);
+      var artifact = directory(output);
+      artifact.append("registered/");
+      artifact.append(relative);
+      artifact.replace(".view.xml", ".view.sun");
+      try collect(source, artifact, generation, true);
+    }
+  }
+  try collect(input, output, generation, false);
+  var registry = markup.Registry(a);
+  for (var unit: ref SourceUnit in generation.units) {
+    if (unit.registered) {
+      try unit.compiler.register_components(registry);
+    }
+  }
+  for (var unit: ref SourceUnit in generation.units) {
+    try unit.compiler.use_registry(registry);
+    try unit.compiler.compile();
+    generation.append(unit.input, unit.compiler);
+  }
+  // Publish only after every source has passed generation checks.
+  for (var unit: ref SourceUnit in generation.units) {
+    try publish(unit.output, unit.compiler.output, unit.compiler.source_map);
+  }
   return publish(output, generation.source, generation.mapping);
 }
 
-/** Generates view source and mapping from two explicit paths. */
+/** Generates a view with an optional explicit or adjacent application registry. */
 function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   var a = make_heap_allocator();
   var env = std.env.Env(a);
   var args = env.args(argc, argv);
-  if (args.size() != 3) {
-    eprintln("Usage: sun-viewc INPUT.view.xml OUTPUT.sun");
+  if (args.size() != 3 and args.size() != 5) {
+    eprintln("Usage: sun-viewc INPUT.view.xml OUTPUT.sun [--registry COMPONENTS.xml]");
     return 1;
   }
-  return match run(args[1], args[2]) {
+  var registry_path = directory(args[1]);
+  registry_path.append("components.registry.xml");
+  if (args.size() == 5) {
+    if (not args[3].equals_literal("--registry")) {
+      eprintln("Expected --registry COMPONENTS.xml");
+      return 1;
+    }
+    registry_path = args[4].clone(a);
+  } else if (not std.io.exists(registry_path)) {
+    registry_path = String("");
+  }
+  return match run(args[1], args[2], registry_path) {
     SystemResult.Ok => 0,
     SystemResult.Error(error) => {
       eprintln(error.message());

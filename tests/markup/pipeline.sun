@@ -58,6 +58,23 @@ module markup_pipeline_tests {
     var cycle = try generate();
     try std.test.assert(cycle.status() != 0, "import cycles stop generation");
     try std.test.assert(cycle.stderr().contains("cycle"), "cycle diagnostic explains the failure");
+    try write("tmp/markup-pipeline/main.view.xml", "<Views module=\"pipeline\"><Include source=\"parts/footer.view.xml\"/><Include source=\"parts/footer.view.xml\"/></Views>");
+    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"palette\"><Resources name=\"resources\"><Color name=\"accent\" value=\"7\"/></Resources></Views>");
+    var included = try generate();
+    try std.test.assert_eq(included.status(), 0);
+    var included_source = try std.io.read_to_string(a, path);
+    var lines = included_source.split(a, b'\n');
+    var definitions: i64 = 0;
+    for (var line: ref String in lines) {
+      if (line.contains("public function resources")) {
+        definitions += 1;
+      }
+    }
+    try std.test.assert_eq(definitions, 1);
+    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"palette\"><Include source=\"footer.view.xml\"/></Views>");
+    var include_cycle = try generate();
+    try std.test.assert(include_cycle.status() != 0);
+    try std.test.assert(include_cycle.stderr().contains("cycle"));
   }
 
   /** Maps compiler diagnostics to imported XML, counting CRLF and Unicode correctly. */
@@ -70,5 +87,74 @@ module markup_pipeline_tests {
     var messages = try build_diagnostics.mapped(diagnostic, generated, original);
     try std.test.assert(messages.contains("tmp/markup-map-source.view.xml:2:4:"), "maps to original Unicode column across CRLF");
     try std.test.assert(not messages.contains("unused.view.xml"), "uses imported source instead of root fallback");
+  }
+
+  /** Runs a registry fixture through either explicit selection or adjacent discovery. */
+  function generate_registered(explicit_registry: bool) SystemResult<std.process.Output> {
+    var a = make_heap_allocator();
+    var target = try build_targets.load("viewc");
+    var command = std.process.Command(a, target.output);
+    command.add_arg(explicit_registry ? "tmp/registry-pipeline/views/main.view.xml" : "tmp/registry-pipeline/main.view.xml");
+    command.add_arg("build/generated/tests/registry/main.view.sun");
+    if (explicit_registry) {
+      command.add_arg("--registry");
+      command.add_arg("tmp/registry-pipeline/components.registry.xml");
+    }
+    return command.output();
+  }
+
+  /** Checks registry discovery, source regeneration, deduplication, and failure diagnostics. */
+  test_function registry_pipeline() TestResult<void> {
+    var a = make_heap_allocator();
+    var mkdir = std.process.Command(a, "mkdir");
+    mkdir.add_arg("-p");
+    mkdir.add_arg("tmp/registry-pipeline/views");
+    try std.test.assert_eq(try mkdir.status(), 0);
+    try write("tmp/registry-pipeline/main.view.xml", "<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption text=\"Hello\"/></View></Views>");
+    try write("tmp/registry-pipeline/views/main.view.xml", "<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption text=\"Nested\"/></View></Views>");
+    try write("tmp/registry-pipeline/components.registry.xml", "<ComponentRegistry><Source path=\"parts.view.xml\"/><Source path=\"parts.view.xml\"/></ComponentRegistry>");
+    try write("tmp/registry-pipeline/parts.view.xml", "<Views module=\"parts\"><Component name=\"Caption\"><Param name=\"text\" type=\"String\"/><Label text=\"{text}\"/></Component></Views>");
+    var first = try generate_registered(false);
+    try std.test.assert_eq(first.status(), 0);
+    var output = String("build/generated/tests/registry/main.view.sun");
+    var map = String("build/generated/tests/registry/main.view.sun.map");
+    var original = try std.io.read_to_string(a, output);
+    var mapping = try std.io.read_to_string(a, map);
+    try std.test.assert(original.contains("parts.Caption(result,"));
+    try std.test.assert(mapping.contains("tmp/registry-pipeline/parts.view.xml"));
+    var lines = original.split(a, b'\n');
+    var count: i64 = 0;
+    for (var line: ref String in lines) {
+      if (line.contains("public function Caption(")) {
+        count += 1;
+      }
+    }
+    try std.test.assert_eq(count, 1);
+    var repeated = try generate_registered(false);
+    try std.test.assert_eq(repeated.status(), 0);
+    var repeated_source = try std.io.read_to_string(a, output);
+    try std.test.assert(original.equals(repeated_source));
+    var explicit_result = try generate_registered(true);
+    try std.test.assert_eq(explicit_result.status(), 0);
+    try write("tmp/registry-pipeline/parts.view.xml", "<Views module=\"parts\"><Component name=\"Caption\"><Param name=\"text\" type=\"String\"/><Label text=\"Changed\"/></Component></Views>");
+    var changed = try generate_registered(false);
+    try std.test.assert_eq(changed.status(), 0);
+    var changed_source = try std.io.read_to_string(a, output);
+    try std.test.assert(changed_source.contains("Changed"));
+    try write("tmp/registry-pipeline/components.registry.xml", "<ComponentRegistry/>");
+    var unknown = try generate_registered(false);
+    try std.test.assert(unknown.status() != 0);
+    try std.test.assert(unknown.stderr().contains("main.view.xml:"));
+    var preserved = try std.io.read_to_string(a, output);
+    try std.test.assert(changed_source.equals(preserved), "failed generation must not publish partial output");
+    try write("tmp/registry-pipeline/components.registry.xml", "<ComponentRegistry><Source path=\"parts.view.xml\"></ComponentRegistry>");
+    var malformed = try generate_registered(false);
+    try std.test.assert(malformed.status() != 0);
+    try write("tmp/registry-pipeline/components.registry.xml", "<ComponentRegistry><Source path=\"../parts.view.xml\"/></ComponentRegistry>");
+    var traversal = try generate_registered(false);
+    try std.test.assert(traversal.status() != 0);
+    try write("tmp/registry-pipeline/components.registry.xml", "<ComponentRegistry><Source path=\"missing.view.xml\"/></ComponentRegistry>");
+    var missing = try generate_registered(false);
+    try std.test.assert(missing.status() != 0);
   }
 }

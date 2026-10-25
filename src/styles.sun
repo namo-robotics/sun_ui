@@ -95,7 +95,79 @@ public module ui {
   }
 
   /** Distinguishes resource types so references cannot silently change meaning. */
-  public enum ResourceKind { Color, Font, Spacing, Style, Template }
+  public enum ResourceKind { Color, Font, Spacing, Style, Template, Theme }
+
+  /** Records typed palette references for one resource appearance. */
+  public class AppearanceReferences {
+    public var foreground: String = String("");
+    public var background: String = String("");
+    public var font: String = String("");
+    public var font_size: String = String("");
+    public var border_width: String = String("");
+    public var radius: String = String("");
+    public var padding: String = String("");
+
+    /** Creates an appearance without palette references. */
+    init() {}
+  }
+
+  /** Associates a control kind with its resolved default style. */
+  public class ThemeDefault {
+    public var kind: Kind;
+    public var style: Style;
+
+    /** Transfers an owned style for one control kind. */
+    init(kind: Kind, style: Style) {
+      this.kind = kind;
+      this.style = style;
+    }
+  }
+
+  /** Owns a base appearance and explicit defaults for native control kinds. */
+  public class Theme {
+    public var base: Style = Style();
+    public var defaults: Vec<ThemeDefault>;
+
+    /** Allocates an empty theme without replacing native defaults. */
+    init(a: const ref HeapAllocator) {
+      this.defaults = Vec<ThemeDefault>(a, 4);
+    }
+
+    /** Rejects duplicate defaults and invalid appearances. */
+    public const method validate() SystemResult<void> {
+      if (not this.base.valid()) {
+        return SystemResult.Error(Error(1, "Invalid theme base"));
+      }
+      return validate_theme_defaults(this.defaults);
+    }
+  }
+
+  /** Validates control defaults even when a handwritten view supplies them directly. */
+  function validate_theme_defaults(defaults: const ref Vec<ThemeDefault>) SystemResult<void> {
+    for (var i: i64 = 0; i < defaults.size(); i += 1) {
+      if (defaults[i].kind == Kind.Group or not defaults[i].style.valid()) {
+        return SystemResult.Error(Error(1, "Invalid theme default"));
+      }
+      for (var j: i64 = 0; j < i; j += 1) {
+        if (defaults[j].kind == defaults[i].kind) {
+          return SystemResult.Error(Error(1, "Duplicate theme control kind"));
+        }
+      }
+    }
+    return SystemResult.Ok;
+  }
+
+  /** Names a style used by one control kind in a theme resource. */
+  public class ThemeReference {
+    public var kind: Kind;
+    public var name: String;
+
+    /** Transfers the referenced style name. */
+    init(kind: Kind, name: String) {
+      this.kind = kind;
+      this.name = name;
+    }
+  }
 
   /** Owns one typed resource, optional alias, or inherited style. */
   public class Resource {
@@ -106,6 +178,11 @@ public module ui {
     public var style: Style = Style();
     public var reference: String = String("");
     public var based_on: String = String("");
+    public var normal_references: AppearanceReferences = AppearanceReferences();
+    public var hover_references: AppearanceReferences = AppearanceReferences();
+    public var focus_references: AppearanceReferences = AppearanceReferences();
+    public var disabled_references: AppearanceReferences = AppearanceReferences();
+    public var defaults: Vec<ThemeReference> = Vec<ThemeReference>(make_heap_allocator(), 4);
     var scope: i64 = 0;
 
     /** Transfers the resource name into a typed definition. */
@@ -193,6 +270,8 @@ public module ui {
         var index = try this.resolve(resource.scope, resource.name, resource.kind);
         if (resource.kind == ResourceKind.Style) {
           var value = try this.style(resource.scope, resource.name);
+        } else if (resource.kind == ResourceKind.Theme) {
+          var value = try this.theme(resource.scope, resource.name);
         } else if (resource.kind == ResourceKind.Color or resource.kind == ResourceKind.Spacing) {
           var value = try this.number(resource.scope, resource.name, resource.kind);
         } else {
@@ -234,6 +313,91 @@ public module ui {
       return SystemResult.Ok(this.entries[i].text.clone(a));
     }
 
+    /** Resolves a palette-backed appearance in the dictionary that defines it. */
+    const method appearance(scope: i64, value: const ref Appearance, references: const ref AppearanceReferences) SystemResult<Appearance> {
+      var result = Appearance();
+      result.overlay(value);
+      if (not references.foreground.is_empty()) {
+        if (value.foreground >= 0) {
+          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+        }
+        var number = try this.number(scope, references.foreground, ResourceKind.Color);
+        result.foreground = number;
+      }
+      if (not references.background.is_empty()) {
+        if (value.background >= 0) {
+          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+        }
+        var number = try this.number(scope, references.background, ResourceKind.Color);
+        result.background = number;
+      }
+      if (not references.font.is_empty()) {
+        if (not value.font.is_empty()) {
+          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+        }
+        result.font = try this.text(scope, references.font, ResourceKind.Font);
+      }
+      if (not references.font_size.is_empty()) {
+        if (value.font_size >= 0) {
+          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+        }
+        var number = try this.number(scope, references.font_size, ResourceKind.Spacing);
+        if (number > 2147483647) {
+          return SystemResult.Error(Error(1, "Appearance resource exceeds integer range"));
+        }
+        result.font_size = _convert<i32>(number);
+      }
+      if (not references.border_width.is_empty()) {
+        if (value.border_width >= 0) {
+          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+        }
+        var number = try this.number(scope, references.border_width, ResourceKind.Spacing);
+        if (number > 2147483647) {
+          return SystemResult.Error(Error(1, "Appearance resource exceeds integer range"));
+        }
+        result.border_width = _convert<i32>(number);
+      }
+      if (not references.radius.is_empty()) {
+        if (value.radius >= 0) {
+          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+        }
+        var number = try this.number(scope, references.radius, ResourceKind.Spacing);
+        if (number > 2147483647) {
+          return SystemResult.Error(Error(1, "Appearance resource exceeds integer range"));
+        }
+        result.radius = _convert<i32>(number);
+      }
+      if (not references.padding.is_empty()) {
+        if (value.padding >= 0) {
+          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+        }
+        var number = try this.number(scope, references.padding, ResourceKind.Spacing);
+        if (number > 2147483647) {
+          return SystemResult.Error(Error(1, "Appearance resource exceeds integer range"));
+        }
+        result.padding = _convert<i32>(number);
+      }
+      if (not result.valid()) {
+        return SystemResult.Error(Error(1, "Invalid resolved appearance"));
+      }
+      return SystemResult.Ok(result);
+    }
+
+    /** Resolves all defaults using the theme resource's defining dictionary. */
+    public const method theme(scope: i64, name: const ref String) SystemResult<Theme> {
+      var i = try this.resolve(scope, name, ResourceKind.Theme);
+      var resource = this.entries[i];
+      var result = Theme(make_heap_allocator());
+      if (not resource.based_on.is_empty()) {
+        result.base = try this.style(resource.scope, resource.based_on);
+      }
+      for (var entry: ref ThemeReference in resource.defaults) {
+        result.defaults.push(ThemeDefault(entry.kind, try this.style(resource.scope, entry.name)));
+      }
+      try result.validate();
+      return SystemResult.Ok(result);
+    }
+
     /** Resolves a style's inheritance chain from base to derived. */
     public const method style(scope: i64, name: const ref String) SystemResult<Style> {
       var a = make_heap_allocator();
@@ -253,7 +417,13 @@ public module ui {
       }
       var result = Style();
       for (var j = chain.size() - 1; j >= 0; j -= 1) {
-        result.overlay(this.entries[chain[j]].style);
+        var resource = this.entries[chain[j]];
+        var resolved = Style();
+        resolved.normal = try this.appearance(resource.scope, resource.style.normal, resource.normal_references);
+        resolved.hover = try this.appearance(resource.scope, resource.style.hover, resource.hover_references);
+        resolved.focus = try this.appearance(resource.scope, resource.style.focus, resource.focus_references);
+        resolved.disabled = try this.appearance(resource.scope, resource.style.disabled, resource.disabled_references);
+        result.overlay(resolved);
       }
       if (not result.valid()) {
         return SystemResult.Error(Error(1, "Invalid style resource"));

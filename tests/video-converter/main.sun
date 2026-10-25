@@ -3,7 +3,7 @@ function main() i32 {
   return 0;
 }
 manifest {
-  test_files: ["media.sun"]
-  libraries: ["stdlib.moon"]
-  source_files: ["../../examples/video-converter/process.sun", "../../examples/video-converter/media.sun", "../../examples/video-converter/job.sun", "fixtures.sun"]
+  test_files: ["media.sun", "view.sun"]
+  libraries: ["stdlib.moon", "sun_ui.moon"]
+  source_files: ["../../examples/video-converter/state.sun", "../../examples/video-converter/view.sun", "../../build/generated/examples/video-converter/video-converter.view.sun", "../../examples/video-converter/process.sun", "../../examples/video-converter/media.sun", "../../examples/video-converter/job.sun", "fixtures.sun"]
 }

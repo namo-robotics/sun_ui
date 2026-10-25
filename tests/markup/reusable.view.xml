@@ -1,0 +1,19 @@
+<Views module="reusable_checks">
+  <Include source="parts/palette.view.xml" />
+  <Resources name="templates"><Template name="panel" value="Panel" /></Resources>
+  <View name="view" state="i64" resources="{reusable_palette.resources()}" themeResource="theme">
+    <Panel key="first">
+      <Panel.header><Label text="Header" foregroundResource="accent" /></Panel.header>
+      <Panel.body>
+        <Panel key="nested">
+          <Panel.header />
+          <Panel.body><Button text="{`Value: ${state}`}" action="increment" foregroundResource="accent" /></Panel.body>
+        </Panel>
+        <If test="{state > 0}"><Label text="Visible" /></If>
+        <For each="id" in="{ids()}" key="{id}"><Label text="{`Item: ${id}`}" foregroundResource="accent" /></For>
+      </Panel.body>
+    </Panel>
+    <Use template="panel" key="second"><Use.header /><Use.body><Label text="Second" foregroundResource="accent" /></Use.body></Use>
+    <Label text="After" foregroundResource="accent" />
+  </View>
+</Views>

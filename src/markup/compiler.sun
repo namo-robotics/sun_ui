@@ -33,6 +33,16 @@ public module markup {
       this.attributes = Vec<Attribute>(a, 4);
     }
 
+    /** Compares an attribute without allocating a temporary during declaration lookup. */
+    const method attr_equals(name: static_ptr<u8>, value: const ref String) bool {
+      for (var i: i64 = 0; i < this.attributes.size(); i += 1) {
+        if (this.attributes[i].name.equals_literal(name)) {
+          return this.attributes[i].value.equals(value);
+        }
+      }
+      return false;
+    }
+
     /** Copies an attribute value, using an empty string for absence. */
     const method attr(name: static_ptr<u8>) String {
       var a = make_heap_allocator();
@@ -103,8 +113,8 @@ public module markup {
     return true;
   }
 
-  /** Restricts imported markup to relative files below the current view directory. */
-  function import_path(value: const ref String) bool {
+  /** Restricts markup dependencies to relative files below their declaring directory. */
+  public function import_path(value: const ref String) bool {
     if (value.starts_with("/") or not value.ends_with(".view.xml") or value.contains("\\")) {
       return false;
     }
@@ -141,6 +151,32 @@ public module markup {
     return name.equals_literal("Group") or name.equals_literal("Row") or name.equals_literal("Column") or name.equals_literal("Grid") or name.equals_literal("Scroll") or name.equals_literal("Label") or name.equals_literal("Button") or name.equals_literal("TextInput") or name.equals_literal("Checkbox") or name.equals_literal("Select") or name.equals_literal("Video");
   }
 
+  /** Owns a discovered component signature without retaining its source parser. */
+  class Registration {
+    var name: String;
+    var function_name: String;
+    var source: String;
+    var inputs: Vec<Node>;
+
+    /** Takes the component identity and allocates its typed input declarations. */
+    init(name: String, function_name: String, source: String) {
+      this.name = name;
+      this.function_name = function_name;
+      this.source = source;
+      this.inputs = Vec<Node>(make_heap_allocator(), 4);
+    }
+  }
+
+  /** Holds application component names discovered before any view is generated. */
+  public class Registry {
+    var entries: Vec<Registration>;
+
+    /** Creates an isolated registry for one application compilation. */
+    init(a: const ref HeapAllocator) {
+      this.entries = Vec<Registration>(a, 8);
+    }
+  }
+
   /** Owns parsing, validation, generated source, and its source map for one file. */
   public class Compiler {
     var input: String;
@@ -150,6 +186,7 @@ public module markup {
     public var imports: Vec<String>;
     public var source_map: String = String("");
     var line: i64 = 1;
+    var prepared: bool = false;
 
     /** Takes original input without normalizing offsets or retaining external borrows. */
     init(filename: String, input: String) {
@@ -301,6 +338,96 @@ public module markup {
       return SystemResult.Ok;
     }
 
+    /** Finds the component declaration enclosing a slot. */
+    const method component_owner(index: i64) i64 {
+      var current = this.nodes[index].parent;
+      while (current > 0) {
+        if (this.nodes[current].name.equals_literal("Component") or this.nodes[current].name.equals_literal("Template")) {
+          return current;
+        }
+        current = this.nodes[current].parent;
+      }
+      return -1;
+    }
+
+    /** Finds a named XML content input on a component declaration. */
+    const method content_input(owner: i64, name: const ref String) i64 {
+      for (var p = owner + 1; p < this.nodes.size(); p += 1) {
+        if (this.nodes[p].parent == owner and this.nodes[p].name.equals_literal("Content") and this.nodes[p].attr_equals("name", name)) {
+          return p;
+        }
+      }
+      return -1;
+    }
+
+    /** Checks content signatures and their single unconditional insertion points. */
+    method validate_content(owner: i64) SystemResult<void> {
+      for (var p = owner + 1; p < this.nodes.size(); p += 1) {
+        if (this.nodes[p].parent != owner) {
+          continue;
+        }
+        var content = this.nodes[p].name.equals_literal("Content");
+        if (not content and not this.nodes[p].name.equals_literal("Param")) {
+          continue;
+        }
+        var name = this.nodes[p].attr("name");
+        if (not identifier(name)) {
+          return SystemResult.Error(this.failure(this.nodes[p].offset, "Expected component input identifier"));
+        }
+        for (var previous = owner + 1; previous < p; previous += 1) {
+          if (this.nodes[previous].parent == owner and (this.nodes[previous].name.equals_literal("Content") or this.nodes[previous].name.equals_literal("Param")) and this.nodes[previous].attr_equals("name", name)) {
+            return SystemResult.Error(this.failure(this.nodes[p].offset, "Duplicate component input"));
+          }
+        }
+        if (not content) {
+          continue;
+        }
+        try this.attributes(p, "name");
+        for (var nested = p + 1; nested < this.nodes.size(); nested += 1) {
+          if (this.nodes[nested].parent == p) {
+            return SystemResult.Error(this.failure(this.nodes[nested].offset, "Content declaration cannot contain children"));
+          }
+        }
+        if (this.nodes[owner].name.equals_literal("Import")) {
+          continue;
+        }
+        var count: i64 = 0;
+        for (var slot = owner + 1; slot < this.nodes.size(); slot += 1) {
+          if (not this.nodes[slot].name.equals_literal("Slot") or this.component_owner(slot) != owner or not this.nodes[slot].attr_equals("name", name)) {
+            continue;
+          }
+          count += 1;
+          var parent = this.nodes[slot].parent;
+          while (parent != owner) {
+            var tag: const ref String = this.nodes[parent].name;
+            if (tag.equals_literal("If") or tag.equals_literal("For") or tag.equals_literal("Else") or tag.contains(".")) {
+              return SystemResult.Error(this.failure(this.nodes[slot].offset, "Content slot must have an unconditional insertion point"));
+            }
+            parent = this.nodes[parent].parent;
+          }
+        }
+        if (count != 1) {
+          return SystemResult.Error(this.failure(this.nodes[p].offset, "Content requires exactly one Slot insertion point"));
+        }
+      }
+      for (var slot = owner + 1; slot < this.nodes.size(); slot += 1) {
+        if (not this.nodes[slot].name.equals_literal("Slot") or this.component_owner(slot) != owner) {
+          continue;
+        }
+        var name = this.nodes[slot].attr("name");
+        var declared = this.content_input(owner, name) >= 0;
+        for (var p = owner + 1; p < this.nodes.size(); p += 1) {
+          if (this.nodes[p].parent == owner and this.nodes[p].name.equals_literal("Param") and this.nodes[p].attr_equals("name", name)) {
+            declared = true;
+          }
+        }
+        if (not declared) {
+          return SystemResult.Error(this.failure(this.nodes[slot].offset, "Unknown slot input"));
+        }
+      }
+      return SystemResult.Ok;
+    }
+
     /** Compiles children in source order under one UI parent expression. */
     method children(index: i64, parent: const ref String) SystemResult<void> {
       var owner: const ref String = this.nodes[index].name;
@@ -321,7 +448,7 @@ public module markup {
           continue;
         }
         var owner: const ref String = this.nodes[index].name;
-        if (name.equals_literal("Param") and (owner.equals_literal("Component") or owner.equals_literal("Template"))) {
+        if ((name.equals_literal("Param") or name.equals_literal("Content")) and (owner.equals_literal("Component") or owner.equals_literal("Template"))) {
           continue;
         }
         if ((name.equals_literal("Grid.Rows") or name.equals_literal("Grid.Columns")) and owner.equals_literal("Grid")) {
@@ -411,6 +538,8 @@ public module markup {
           var type = this.nodes[p].attr("type");
           line.append(", ");
           line.append(type);
+        } else if (this.nodes[p].parent == target and this.nodes[p].name.equals_literal("Content")) {
+          line.append(", ref ui.ContentSlot");
         }
       }
       line.append(") void { return ");
@@ -487,6 +616,7 @@ public module markup {
     method child(index: i64, parent: const ref String) SystemResult<void> {
       var a = make_heap_allocator();
       var node = this.nodes[index];
+      var invocation_tag = node.name.clone(a);
       var template_factory = String("");
       if (node.name.equals_literal("Use")) {
         var resource_name = node.attr("template");
@@ -513,7 +643,19 @@ public module markup {
         if (not identifier(name)) {
           return SystemResult.Error(this.failure(node.offset, "Slot requires a parameter name"));
         }
+        for (var nested = index + 1; nested < this.nodes.size(); nested += 1) {
+          if (this.nodes[nested].parent == index) {
+            return SystemResult.Error(this.failure(this.nodes[nested].offset, "Slot cannot contain children"));
+          }
+        }
+        var owner = this.component_owner(index);
+        if (owner < 0) {
+          return SystemResult.Error(this.failure(node.offset, "Slot requires a component declaration"));
+        }
         var line = `${name}(result, ${parent});`;
+        if (owner >= 0 and this.content_input(owner, name) >= 0) {
+          line = `${name}.parent = result.append(${parent}, ui.Element(ui.Key(String("slot:${name}")), ui.Kind.Group));`;
+        }
         this.emit(line, node.offset);
         return SystemResult.Ok;
       }
@@ -811,7 +953,17 @@ public module markup {
         line.append(scope);
         var allowed = String("key");
         for (var p = declaration + 1; p < this.nodes.size(); p += 1) {
-          if (this.nodes[p].parent != declaration or not this.nodes[p].name.equals_literal("Param")) {
+          if (this.nodes[p].parent != declaration) {
+            continue;
+          }
+          if (this.nodes[p].name.equals_literal("Content")) {
+            var slot = `content_${index}_${p}`;
+            this.emit(`var ${slot} = ui.ContentSlot();`, node.offset);
+            line.append(", ");
+            line.append(slot);
+            continue;
+          }
+          if (not this.nodes[p].name.equals_literal("Param")) {
             continue;
           }
           if (not this.nodes[p].name.equals_literal("Param")) {
@@ -852,6 +1004,49 @@ public module markup {
         }
         line.append(");");
         this.emit(line, node.offset);
+        for (var p = declaration + 1; p < this.nodes.size(); p += 1) {
+          if (this.nodes[p].parent != declaration or not this.nodes[p].name.equals_literal("Content")) {
+            continue;
+          }
+          var name = this.nodes[p].attr("name");
+          var property = invocation_tag.clone(a);
+          property.append(".");
+          property.append(name);
+          var body: i64 = -1;
+          for (var child = index + 1; child < this.nodes.size(); child += 1) {
+            if (this.nodes[child].parent == index and this.nodes[child].name.equals(property)) {
+              if (body >= 0) {
+                return SystemResult.Error(this.failure(this.nodes[child].offset, "Duplicate content body"));
+              }
+              body = child;
+            }
+          }
+          if (body < 0) {
+            return SystemResult.Error(this.failure(node.offset, "Missing content body"));
+          }
+          try this.attributes(body, "");
+          try this.children(body, `content_${index}_${p}.parent`);
+        }
+        for (var child = index + 1; child < this.nodes.size(); child += 1) {
+          if (this.nodes[child].parent != index) {
+            continue;
+          }
+          var known = false;
+          for (var p = declaration + 1; p < this.nodes.size(); p += 1) {
+            if (this.nodes[p].parent != declaration or not this.nodes[p].name.equals_literal("Content")) {
+              continue;
+            }
+            var property = invocation_tag.clone(a);
+            property.append(".");
+            property.append(this.nodes[p].attr("name"));
+            if (this.nodes[child].name.equals(property)) {
+              known = true;
+            }
+          }
+          if (not known) {
+            return SystemResult.Error(this.failure(this.nodes[child].offset, "Unknown component content body"));
+          }
+        }
         return SystemResult.Ok;
       }
       return SystemResult.Error(this.failure(node.offset, "Unknown view declaration"));
@@ -867,7 +1062,7 @@ public module markup {
       }
       if (not local) {
         this.emit(String("/** Constructs typed theme and application resources with duplicate checking. */"), this.nodes[index].offset);
-        var header = `function ${name}() SystemResult<ui.Resources> {`;
+        var header = `public function ${name}() SystemResult<ui.Resources> {`;
         this.emit(header, this.nodes[index].offset);
         this.emit(String("var a = make_heap_allocator(); var result = ui.Resources(a);"), this.nodes[index].offset);
       }
@@ -877,7 +1072,7 @@ public module markup {
         if (node.parent != index) {
           continue;
         }
-        if (not (node.name.equals_literal("Color") or node.name.equals_literal("Font") or node.name.equals_literal("Spacing") or node.name.equals_literal("Style") or node.name.equals_literal("Template"))) {
+        if (not (node.name.equals_literal("Color") or node.name.equals_literal("Font") or node.name.equals_literal("Spacing") or node.name.equals_literal("Style") or node.name.equals_literal("Template") or node.name.equals_literal("Theme"))) {
           return SystemResult.Error(this.failure(node.offset, "Unknown resource type"));
         }
         try this.attributes(i, "name value ref basedOn scope");
@@ -886,7 +1081,7 @@ public module markup {
         var alias = node.attr("ref");
         var base = node.attr("basedOn");
         var scope = node.attr("scope");
-        if ((not base.is_empty() and not node.name.equals_literal("Style")) or (node.name.equals_literal("Style") and not value.is_empty())) {
+        if ((not base.is_empty() and not node.name.equals_literal("Style") and not node.name.equals_literal("Theme")) or ((node.name.equals_literal("Style") or node.name.equals_literal("Theme")) and not value.is_empty())) {
           return SystemResult.Error(this.failure(node.offset, "Invalid property for resource type"));
         }
         if (not alias.is_empty() and (not value.is_empty() or not base.is_empty())) {
@@ -936,6 +1131,29 @@ public module markup {
           if (appearance.parent != i) {
             continue;
           }
+          if (node.name.equals_literal("Theme") and alias.is_empty()) {
+            if (not appearance.name.equals_literal("Default")) {
+              return SystemResult.Error(this.failure(appearance.offset, "Theme requires Default children"));
+            }
+            try this.attributes(state, "kind styleResource");
+            var kind = appearance.attr("kind");
+            var style = appearance.attr("styleResource");
+            var kinds = String("Row Column Grid Scroll Label Button TextInput Checkbox Select Video").split_whitespace(a);
+            var known = false;
+            for (var item: ref String in kinds) {
+              if (item.equals(kind)) {
+                known = true;
+              }
+            }
+            if (not known or style.is_empty()) {
+              return SystemResult.Error(this.failure(appearance.offset, "Default requires a control kind and styleResource"));
+            }
+            line = `${variable}.defaults.push(ui.ThemeReference(ui.Kind.${kind}, `;
+            line.append(expression(style, true));
+            line.append("));");
+            this.emit(line, appearance.offset);
+            continue;
+          }
           if (not node.name.equals_literal("Style") or not alias.is_empty()) {
             return SystemResult.Error(this.failure(appearance.offset, "Only non-alias styles have appearance children"));
           }
@@ -961,17 +1179,30 @@ public module markup {
           } else {
             return SystemResult.Error(this.failure(appearance.offset, "Unknown interaction state"));
           }
-          try this.attributes(state, "foreground background font fontSize borderWidth radius padding");
+          try this.attributes(state, "foreground background font fontSize borderWidth radius padding foregroundResource backgroundResource fontResource fontSizeResource borderWidthResource radiusResource paddingResource");
           for (var attribute: ref Attribute in appearance.attributes) {
             var property = attribute.name.clone(a);
+            var reference = property.ends_with("Resource");
+            if (reference) {
+              property.replace("Resource", "");
+              for (var supplied: ref Attribute in appearance.attributes) {
+                if (supplied.name.equals(property)) {
+                  return SystemResult.Error(this.failure(attribute.offset, "Conflicting appearance value and resource"));
+                }
+              }
+            }
             if (property.equals_literal("borderWidth")) {
               property = String("border_width");
             }
             if (property.equals_literal("fontSize")) {
               property = String("font_size");
             }
-            line = `${variable}.style.${field}.${property} = `;
-            line.append(expression(attribute.value, property.equals_literal("font")));
+            if (reference) {
+              line = `${variable}.${field}_references.${property} = `;
+            } else {
+              line = `${variable}.style.${field}.${property} = `;
+            }
+            line.append(expression(attribute.value, reference or property.equals_literal("font")));
             line.append(";");
             this.emit(line, attribute.offset);
           }
@@ -991,8 +1222,38 @@ public module markup {
       return SystemResult.Ok;
     }
 
-    /** Produces deterministic Sun source only after complete XML parsing succeeds. */
-    public method compile() SystemResult<void> {
+    /** Reads a registry's explicitly listed sources using the same XML diagnostics as views. */
+    public method registry_sources() SystemResult<Vec<String>> {
+      match this.parse() {
+        XmlResult.Ok => {},
+        XmlResult.Error(error) => {
+          return SystemResult.Error(this.failure(error.offset(), "Malformed registry XML"));
+        }
+      };
+      if (this.nodes.size() == 0 or not this.nodes[0].name.equals_literal("ComponentRegistry")) {
+        return SystemResult.Error(this.failure(0, "Expected ComponentRegistry root"));
+      }
+      try this.attributes(0, "");
+      var result = Vec<String>(make_heap_allocator(), 4);
+      for (var i: i64 = 1; i < this.nodes.size(); i += 1) {
+        if (this.nodes[i].parent != 0 or not this.nodes[i].name.equals_literal("Source")) {
+          return SystemResult.Error(this.failure(this.nodes[i].offset, "Registry accepts only empty Source declarations"));
+        }
+        try this.attributes(i, "path");
+        var path = this.nodes[i].attr("path");
+        if (not import_path(path)) {
+          return SystemResult.Error(this.failure(this.nodes[i].offset, "Registered component source must be a relative .view.xml path without parent traversal"));
+        }
+        result.push(path);
+      }
+      return SystemResult.Ok(result);
+    }
+
+    /** Parses declarations and dependencies before component lookup or code generation. */
+    public method prepare() SystemResult<void> {
+      if (this.prepared) {
+        return SystemResult.Ok;
+      }
       match this.parse() {
         XmlResult.Ok => {},
         XmlResult.Error(error) => {
@@ -1011,10 +1272,134 @@ public module markup {
       if (not identifier(module_name)) {
         return SystemResult.Error(this.failure(0, "Expected a Sun module identifier"));
       }
+      for (var i: i64 = 1; i < this.nodes.size(); i += 1) {
+        if (this.nodes[i].parent != 0) {
+          continue;
+        }
+        var tag: const ref String = this.nodes[i].name;
+        if (not tag.equals_literal("Import") and not tag.equals_literal("Include")) {
+          continue;
+        }
+        var source = this.nodes[i].attr("source");
+        if (source.is_empty() and tag.equals_literal("Import")) {
+          continue;
+        }
+        if (not import_path(source)) {
+          return SystemResult.Error(this.failure(this.nodes[i].offset, "Dependency source must be a relative .view.xml path without parent traversal"));
+        }
+        this.imports.push(source);
+      }
+      this.prepared = true;
+      return SystemResult.Ok;
+    }
+
+    /** Copies this file's declared components into an application registry. */
+    public method register_components(registry: ref Registry) SystemResult<void> {
+      try this.prepare();
+      var a = make_heap_allocator();
+      var module_name = this.nodes[0].attr("module");
+      for (var i: i64 = 1; i < this.nodes.size(); i += 1) {
+        if (this.nodes[i].parent != 0 or not (this.nodes[i].name.equals_literal("Component") or this.nodes[i].name.equals_literal("Template"))) {
+          continue;
+        }
+        try this.attributes(i, "name");
+        try this.validate_content(i);
+        var name = this.nodes[i].attr("name");
+        var reserved = builtin(name);
+        var declarations = String("Views View Component Template Resources Import Include Param Content Use If Else For Slot").split_whitespace(a);
+        for (var declaration: ref String in declarations) {
+          if (declaration.equals(name)) {
+            reserved = true;
+          }
+        }
+        if (not identifier(name) or reserved) {
+          return SystemResult.Error(this.failure(this.nodes[i].offset, "Invalid or reserved registered component name"));
+        }
+        for (var entry: ref Registration in registry.entries) {
+          if (entry.name.equals(name)) {
+            var error = this.failure(this.nodes[i].offset, "Duplicate registered component");
+            var message = error.message();
+            message.append(": ");
+            message.append(name);
+            message.append(" (already registered in ");
+            message.append(entry.source);
+            message.append(")");
+            return SystemResult.Error(Error(1, message));
+          }
+        }
+        var entry = Registration(name.clone(a), `${module_name}.${name}`, this.filename.clone(a));
+        for (var p = i + 1; p < this.nodes.size(); p += 1) {
+          if (this.nodes[p].parent != i or not (this.nodes[p].name.equals_literal("Param") or this.nodes[p].name.equals_literal("Content"))) {
+            continue;
+          }
+          if (this.nodes[p].name.equals_literal("Param")) {
+            try this.attributes(p, "name type");
+            if (this.nodes[p].attr("type").is_empty()) {
+              return SystemResult.Error(this.failure(this.nodes[p].offset, "Param requires name and type"));
+            }
+          }
+          var input = Node(this.nodes[p].name.clone(a), 0, this.nodes[p].offset);
+          for (var attr: ref Attribute in this.nodes[p].attributes) {
+            input.attributes.push(Attribute(attr.name.clone(a), attr.value.clone(a), attr.offset));
+          }
+          entry.inputs.push(input);
+        }
+        registry.entries.push(entry);
+      }
+      return SystemResult.Ok;
+    }
+
+    /** Makes registered component signatures available without declarations in the view. */
+    public method use_registry(registry: const ref Registry) SystemResult<void> {
+      try this.prepare();
+      var a = make_heap_allocator();
+      for (var entry: ref Registration in registry.entries) {
+        var local = false;
+        for (var i: i64 = 1; i < this.nodes.size(); i += 1) {
+          if (this.nodes[i].parent != 0 or not (this.nodes[i].name.equals_literal("Component") or this.nodes[i].name.equals_literal("Template") or this.nodes[i].name.equals_literal("Import"))) {
+            continue;
+          }
+          if (not this.nodes[i].attr_equals("name", entry.name)) {
+            continue;
+          }
+          if (entry.source.equals(this.filename) and not this.nodes[i].name.equals_literal("Import")) {
+            local = true;
+            break;
+          }
+          return SystemResult.Error(this.failure(this.nodes[i].offset, "Component name conflicts with application registry"));
+        }
+        if (local) {
+          continue;
+        }
+        var parent = this.nodes.size();
+        var declaration = Node(String("Import"), 0, 0);
+        declaration.attributes.push(Attribute(String("name"), entry.name.clone(a), 0));
+        declaration.attributes.push(Attribute(String("function"), entry.function_name.clone(a), 0));
+        this.nodes.push(declaration);
+        for (var input: ref Node in entry.inputs) {
+          var node = Node(input.name.clone(a), parent, 0);
+          for (var attr: ref Attribute in input.attributes) {
+            node.attributes.push(Attribute(attr.name.clone(a), attr.value.clone(a), 0));
+          }
+          this.nodes.push(node);
+        }
+      }
+      return SystemResult.Ok;
+    }
+
+    /** Produces deterministic Sun source after parsing and optional application registration. */
+    public method compile() SystemResult<void> {
+      try this.prepare();
+      var module_name = this.nodes[0].attr("module");
       this.emit(String("using std;"), 0);
       this.emit(String("/** Builds owned descriptions from declarative markup. */"), 0);
       var line = `module ${module_name} {`;
       this.emit(line, 0);
+      for (var declaration: i64 = 1; declaration < this.nodes.size(); declaration += 1) {
+        if (this.nodes[declaration].parent == 0 and (this.nodes[declaration].name.equals_literal("Component") or this.nodes[declaration].name.equals_literal("Template") or this.nodes[declaration].name.equals_literal("Import"))) {
+          try this.validate_content(declaration);
+        }
+      }
       for (var r: i64 = 1; r < this.nodes.size(); r += 1) {
         var parent = this.nodes[r].parent;
         if (parent >= 0 and this.nodes[parent].name.equals_literal("Resources") and this.nodes[r].name.equals_literal("Template")) {
@@ -1038,7 +1423,16 @@ public module markup {
           this.emit(String("/** Appends owned component content during the current construction call. */"), this.nodes[i].offset);
           line = `public function ${name}(result: ref ui.View, parent: i64`;
           for (var p = i + 1; p < this.nodes.size(); p += 1) {
-            if (this.nodes[p].parent != i or not this.nodes[p].name.equals_literal("Param")) {
+            if (this.nodes[p].parent != i) {
+              continue;
+            }
+            if (this.nodes[p].name.equals_literal("Content")) {
+              line.append(", ");
+              line.append(this.nodes[p].attr("name"));
+              line.append(": ref ui.ContentSlot");
+              continue;
+            }
+            if (not this.nodes[p].name.equals_literal("Param")) {
               continue;
             }
             try this.attributes(p, "name type");
@@ -1061,6 +1455,19 @@ public module markup {
           this.emit(String("}"), this.nodes[i].offset);
           continue;
         }
+        if (this.nodes[i].name.equals_literal("Include")) {
+          try this.attributes(i, "source");
+          var source = this.nodes[i].attr("source");
+          if (not import_path(source)) {
+            return SystemResult.Error(this.failure(this.nodes[i].offset, "Include source must be a relative .view.xml path without parent traversal"));
+          }
+          for (var child = i + 1; child < this.nodes.size(); child += 1) {
+            if (this.nodes[child].parent == i) {
+              return SystemResult.Error(this.failure(this.nodes[child].offset, "Include cannot contain children"));
+            }
+          }
+          continue;
+        }
         if (this.nodes[i].name.equals_literal("Import")) {
           try this.attributes(i, "name function source");
           var imported_name = this.nodes[i].attr("name");
@@ -1073,14 +1480,13 @@ public module markup {
             if (not import_path(source)) {
               return SystemResult.Error(this.failure(this.nodes[i].offset, "Import source must be a relative .view.xml path without parent traversal"));
             }
-            this.imports.push(source);
           }
           continue;
         }
         if (not this.nodes[i].name.equals_literal("View")) {
           return SystemResult.Error(this.failure(this.nodes[i].offset, "Expected View declaration"));
         }
-        try this.attributes(i, "name state theme resources fallback");
+        try this.attributes(i, "name state theme themeResource resources fallback");
         var name = this.nodes[i].attr("name");
         var state = this.nodes[i].attr("state");
         if (not identifier(name) or not identifier(state)) {
@@ -1107,7 +1513,17 @@ public module markup {
           line.append(";");
           this.emit(line, this.nodes[i].offset);
         }
+        var theme_resource = this.nodes[i].attr("themeResource");
+        if (not theme_resource.is_empty() and not theme.is_empty()) {
+          return SystemResult.Error(this.failure(this.nodes[i].offset, "Specify either theme or themeResource"));
+        }
         try this.children(i, String("-1"));
+        if (not theme_resource.is_empty()) {
+          line = String("result.theme_resource(");
+          line.append(expression(theme_resource, true));
+          line.append(");");
+          this.emit(line, this.nodes[i].offset);
+        }
         this.emit(String("result.resource_scope = enclosing_resources;"), this.nodes[i].offset);
         this.emit(String("return result;"), this.nodes[i].offset);
         this.emit(String("}"), this.nodes[i].offset);

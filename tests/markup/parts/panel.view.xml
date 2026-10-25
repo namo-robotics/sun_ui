@@ -1,0 +1,12 @@
+<Views module="reusable_parts">
+  <Component name="Panel">
+    <Content name="header" />
+    <Content name="body" />
+    <Resources><Color name="accent" value="99" /></Resources>
+    <Column key="panel">
+      <Slot name="header" />
+      <Caption key="own" text="Component" />
+      <Slot name="body" />
+    </Column>
+  </Component>
+</Views>

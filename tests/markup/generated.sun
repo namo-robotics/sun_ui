@@ -129,8 +129,74 @@ module action_checks {
   }
 }
 
+/** Checks imported content, caller bindings, and palette-backed themes together. */
+module reusable_checks {
+
+  /** Reports generated-view assertion and resource failures. */
+  enum ReusableResult { Ok, Assertion(std.test.AssertionError), System(Error) }
+
+  /** Supplies stable keys for repeated caller content. */
+  function ids() Vec<i64> {
+    var values = Vec<i64>(make_heap_allocator(), 2);
+    values.push(10);
+    values.push(20);
+    return values;
+  }
+
+  /** Receives a named action from caller-owned XML content. */
+  function increment(state: ref i64, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+    state += 1;
+    return SystemResult.Ok;
+  }
+
+  /** Preserves caller resources, component resources, parent order, and named event routing. */
+  test_function reusable_content_and_theme() ReusableResult {
+    var a = make_heap_allocator();
+    var state: i64 = 4;
+    var result = view(state);
+    try std.test.assert(result.construction_error.is_empty());
+    try result.resources.validate();
+    try std.test.assert_eq(result.resource_scope, 1);
+    try std.test.assert_eq(result.theme.normal.font_size, 14);
+    try std.test.assert_eq(result.control_defaults.size(), 1);
+    try std.test.assert_eq(result.control_defaults[0].style.normal.foreground, 7);
+    try std.test.assert_eq(result.control_defaults[0].style.hover.background, 7);
+    var own: i64 = 0;
+    var caller: i64 = 0;
+    var clicks: i64 = 0;
+    for (var i: i64 = 0; i < result.elements.size(); i += 1) {
+      var node = result.elements[i];
+      try std.test.assert(node.parent < i);
+      if (node.text.equals_literal("Component")) {
+        own += 1;
+        try std.test.assert_eq(node.overrides.normal.foreground, 99);
+      }
+      if (node.overrides.normal.foreground == 7) {
+        caller += 1;
+      }
+      if (node.kind == ui.Kind.Button) {
+        try std.test.assert(node.text.equals_literal("Value: 4"));
+        var event = ui.Event(1, node.action, 0);
+        event.action_scope = node.action_scope.clone(a);
+        var queue = ui.EventQueue(a);
+        try view_handle(state, event, queue);
+        clicks += 1;
+      }
+    }
+    try std.test.assert_eq(own, 3);
+    try std.test.assert_eq(caller, 6);
+    try std.test.assert_eq(clicks, 1);
+    try std.test.assert_eq(state, 5);
+    var again = view(state);
+    try std.test.assert_eq(again.elements.size(), result.elements.size());
+    for (var i: i64 = 0; i < result.elements.size(); i += 1) {
+      try std.test.assert(result.elements[i].key.equals(again.elements[i].key));
+    }
+  }
+}
+
 /** Provides an entrypoint for generated-view compilation tests. */
 function main() i32 {
   return 0;
 }
-manifest { libraries: ["stdlib.moon", "sun_ui.moon"], source_files: ["../../build/generated/examples/counter-xml/counter.view.sun", "../../build/generated/tests/markup/scoped.view.sun", "../../build/generated/tests/markup/actions.view.sun"] }
+manifest { libraries: ["stdlib.moon", "sun_ui.moon"], source_files: ["../../build/generated/tests/markup/reusable.view.sun", "../../build/generated/examples/counter-xml/counter.view.sun", "../../build/generated/tests/markup/scoped.view.sun", "../../build/generated/tests/markup/actions.view.sun"] }

@@ -203,4 +203,103 @@ module markup_tests {
     try rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><Button action=\"click\" changeAction=\"edit\"/></View></Views>", "not both");
     return rejects("<Views module=\"app\"><Component name=\"Card\"><Button action=\"click\"/></Component></Views>", "Named actions require a View");
   }
+
+  /** Rejects malformed slots, conflicting appearance inputs, and invalid theme declarations. */
+  test_function content_and_theme_diagnostics() TestResult<void> {
+    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Slot name=\"unknown\"/></Component></Views>", "Unknown slot input");
+    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/></Component></Views>", "exactly one");
+    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/><Slot name=\"body\"/></Component></Views>", "exactly one");
+    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><If test=\"true\"><Slot name=\"body\"/></If></Component></Views>", "unconditional");
+    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Content name=\"body\"/><Slot name=\"body\"/></Component></Views>", "Duplicate component input");
+    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/></Component><View name=\"view\" state=\"i64\"><Panel/></View></Views>", "Missing content body");
+    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/></Component><View name=\"view\" state=\"i64\"><Panel><Panel.body/><Panel.body/></Panel></View></Views>", "Duplicate content body");
+    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/></Component><View name=\"view\" state=\"i64\"><Panel><Panel.body/><Panel.other/></Panel></View></Views>", "Unknown component content");
+    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Style name=\"bad\"><Normal padding=\"1\" paddingResource=\"space\"/></Style></Resources></Views>", "Conflicting");
+    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Theme name=\"bad\"><Default kind=\"Missing\" styleResource=\"x\"/></Theme></Resources></Views>", "control kind");
+    try rejects("<Views module=\"app\"><View name=\"view\" state=\"i64\" theme=\"{ui.Style()}\" themeResource=\"x\"/></Views>", "either theme");
+    try rejects("<Views module=\"app\"><Include source=\"../bad.view.xml\"/></Views>", "relative");
+  }
+
+  /** Discovers typed inputs once and resolves plain component tags without imports. */
+  test_function application_component_registry() TestResult<void> {
+    var a = make_heap_allocator();
+    var registry = markup.Registry(a);
+    var parts = markup.Compiler(String("parts.view.xml"), String("<Views module=\"parts\"><Component name=\"Caption\"><Param name=\"text\" type=\"String\"/><Label text=\"{text}\"/></Component></Views>"));
+    try parts.register_components(registry);
+    var consumer = markup.Compiler(String("app.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption text=\"Hello\"/></View></Views>"));
+    try consumer.use_registry(registry);
+    try consumer.compile();
+    try std.test.assert(consumer.output.contains("parts.Caption(result,"));
+    try std.test.assert(consumer.output.contains("String(\"Hello\")"));
+    try parts.use_registry(registry);
+    try parts.compile();
+    var missing = markup.Compiler(String("missing.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption/></View></Views>"));
+    try missing.use_registry(registry);
+    match missing.compile() {
+      SystemResult.Error(error) => {
+        try std.test.assert(error.message().contains("Missing component input"));
+      },
+      SystemResult.Ok => {
+        try std.test.assert(false, "registered inputs must be checked");
+      }
+    };
+    var duplicate = markup.Compiler(String("other.view.xml"), String("<Views module=\"other\"><Component name=\"Caption\"><Label/></Component></Views>"));
+    match duplicate.register_components(registry) {
+      SystemResult.Error(error) => {
+        try std.test.assert(error.message().contains("Duplicate registered component"));
+        try std.test.assert(error.message().contains("parts.view.xml"));
+      },
+      SystemResult.Ok => {
+        try std.test.assert(false, "duplicate registrations accepted");
+      }
+    };
+    var conflict = markup.Compiler(String("local.view.xml"), String("<Views module=\"local\"><Component name=\"Caption\"><Label/></Component></Views>"));
+    match conflict.use_registry(registry) {
+      SystemResult.Error(error) => {
+        try std.test.assert(error.message().contains("conflicts"));
+      },
+      SystemResult.Ok => {
+        try std.test.assert(false, "local collision accepted");
+      }
+    };
+    var reserved = markup.Compiler(String("reserved.view.xml"), String("<Views module=\"parts\"><Component name=\"Button\"><Label/></Component></Views>"));
+    match reserved.register_components(registry) {
+      SystemResult.Error(error) => {
+        try std.test.assert(error.message().contains("reserved"));
+      },
+      SystemResult.Ok => {
+        try std.test.assert(false, "built-in component shadowed");
+      }
+    };
+  }
+
+  /** Checks registry diagnostics without starting the command-line generator. */
+  function rejects_registry(source: static_ptr<u8>, expected: static_ptr<u8>) TestResult<void> {
+    var compiler = markup.Compiler(String("components.registry.xml"), String(source));
+    match compiler.registry_sources() {
+      SystemResult.Error(error) => {
+        try std.test.assert(error.message().contains("components.registry.xml:"));
+        try std.test.assert(error.message().contains(expected));
+      },
+      SystemResult.Ok(_) => {
+        try std.test.assert(false, "invalid XML registry accepted");
+      }
+    };
+    return TestResult.Ok;
+  }
+
+  /** Accepts source lists and rejects malformed registry structure and unsafe paths. */
+  test_function xml_component_registry() TestResult<void> {
+    var compiler = markup.Compiler(String("components.registry.xml"), String("<ComponentRegistry><!-- reusable parts --><Source path=\"parts/panel.view.xml\"/></ComponentRegistry>"));
+    var sources = try compiler.registry_sources();
+    try std.test.assert_eq(sources.size(), 1);
+    try std.test.assert(sources[0].equals_literal("parts/panel.view.xml"));
+    try rejects_registry("<Views/>", "ComponentRegistry root");
+    try rejects_registry("<ComponentRegistry extra=\"x\"/>", "Unknown attribute");
+    try rejects_registry("<ComponentRegistry><Source/></ComponentRegistry>", "relative");
+    try rejects_registry("<ComponentRegistry><Source path=\"../parts.view.xml\"/></ComponentRegistry>", "relative");
+    try rejects_registry("<ComponentRegistry><Source path=\"parts.view.xml\"><Source path=\"nested.view.xml\"/></Source></ComponentRegistry>", "empty Source");
+    try rejects_registry("<ComponentRegistry>unexpected text</ComponentRegistry>", "empty Source");
+    try rejects_registry("<ComponentRegistry><Source></ComponentRegistry>", "Malformed registry XML");
+  }
 }

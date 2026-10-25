@@ -186,6 +186,12 @@ module build_tasks {
     actions.add_arg("tests/markup/actions.view.xml");
     actions.add_arg("build/generated/tests/markup/actions.view.sun");
     try run(actions);
+    var reusable = std.process.Command(a, viewc.output);
+    reusable.add_arg("tests/markup/reusable.view.xml");
+    reusable.add_arg("build/generated/tests/markup/reusable.view.sun");
+    reusable.add_arg("--registry");
+    reusable.add_arg("tests/markup/reusable.registry.xml");
+    try run(reusable);
     try compile("generated-view-tests", false);
     var generated_target = try build_targets.load("generated-view-tests");
     var generated_tests = std.process.Command(a, generated_target.tests);

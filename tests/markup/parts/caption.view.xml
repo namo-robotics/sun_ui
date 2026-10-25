@@ -1,0 +1,6 @@
+<Views module="reusable_caption">
+  <Component name="Caption">
+    <Param name="text" type="String" />
+    <Label text="{text}" foregroundResource="accent" />
+  </Component>
+</Views>

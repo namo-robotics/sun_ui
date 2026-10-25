@@ -3,17 +3,6 @@ using std;
 /** Supplies presentation values for the generated XML view without constructing widgets. */
 module video_app {
 
-  /** Returns the base palette used by XML controls and native media children. */
-  function theme() ui.Style {
-    var style = ui.Style();
-    style.normal.font = String("Sans");
-    style.normal.font_size = 14;
-    style.normal.foreground = 0xdce6f4;
-    style.normal.border_width = 0;
-    style.normal.radius = 0;
-    return style;
-  }
-
   /** Expresses the loaded duration in microseconds for the preview widget. */
   function duration_us(state: const ref State) i64 {
     return state.job.ready ? _convert<i64>(state.job.media.duration * 1000000.0) : 0;

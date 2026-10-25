@@ -1,0 +1,4 @@
+<ComponentRegistry>
+  <Source path="parts/panel.view.xml" />
+  <Source path="parts/caption.view.xml" />
+</ComponentRegistry>

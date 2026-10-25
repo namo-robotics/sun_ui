@@ -174,10 +174,95 @@ subtree even when the instance key stays the same.
 Supply slots as named, typed Sun functions, for example
 `<Footer key="footer" content="{render_footer}" />`. Slots run only during view
 construction and append owned nodes; they are not retained event callbacks.
-This initial slot syntax does not accept inline XML slot bodies.
+Function-valued slots remain supported alongside named XML content slots.
 
-`Import` declares a Sun component function and its named inputs. An optional
-`source` imports another `.view.xml` file:
+For XML content, declare named `Content` inputs and insert each with `Slot`:
+
+```xml
+<Component name="Panel">
+  <Content name="header" />
+  <Content name="body" />
+  <Column styleResource="panel">
+    <Slot name="header" />
+    <Slot name="body" />
+  </Column>
+</Component>
+```
+
+Call it with named property elements:
+
+```xml
+<Panel key="preview">
+  <Panel.header><Label text="Preview" /></Panel.header>
+  <Panel.body><Label text="{state.name.clone(a)}" /></Panel.body>
+</Panel>
+```
+
+Every content input is required; an empty property element supplies an empty body.
+Each declaration needs exactly one unconditional insertion point, outside `If`,
+`For`, and other component content bodies. Supplied bodies can contain conditions,
+loops, nested components, and named actions. Expressions, resources, and actions
+belong to the caller; the wrapper's own elements use its local resources.
+
+Content slots generate `ref ui.ContentSlot` parameters recording nonvisual keyed
+insertion groups. The component builds its structure first; the caller then builds
+content beneath those groups. No closures or state references survive view
+construction. Logical sibling order determines native layout, independently of
+when slot descendants are appended. Imported signatures declare the same
+`Content` inputs. For template-resource calls, use `<Use.header>` and `<Use.body>`.
+
+Register application components once instead of repeating their signatures in each
+view. Put `components.registry.xml` beside the application's root view:
+
+```xml
+<ComponentRegistry>
+  <Source path="components.view.xml" />
+</ComponentRegistry>
+```
+
+The generator discovers every top-level `Component` and `Template` in those XML
+files and their dependencies. Their declared names, `Param` types, and `Content`
+slots become available before any view is generated. Views use the names directly:
+
+```xml
+<Views module="video_app">
+  <View name="view" state="State">
+    <LabeledField text="Save as">
+      <LabeledField.body>
+        <TextInput value="{state.output.clone(a)}" changeAction="2" />
+      </LabeledField.body>
+    </LabeledField>
+  </View>
+</Views>
+```
+
+`LabeledField` is defined once in a registered source, including its `text`
+parameter and `body` slot. No `<Import>` declaration is needed in the view.
+Registered components can use other registered components regardless of source
+listing order. Registration is local to one generation invocation, not a process
+or runtime global.
+
+`sun-viewc` automatically reads an adjacent `components.registry.xml`. For views
+in another directory, select the application registry explicitly:
+
+```sh
+build/sun-viewc examples/app/views/main.view.xml build/generated/app/main.view.sun \
+  --registry examples/app/components.registry.xml
+```
+
+Source paths are relative to the registry file, must end in `.view.xml`, and
+cannot contain parent traversal. Repeated source paths are deduplicated. Duplicate
+component names across files, names that shadow built-in controls, and conflicts
+with local component/import declarations are errors. A component's own definition
+is retained when compiling its registered source. Missing registrations and
+incorrect inputs fail during generation; Sun still checks the generated function
+calls and ownership. All registered files are regenerated and checked, including
+unused components. Source maps retain their original XML locations, and failed
+generation does not publish partial source output.
+
+For explicit function bindings without an application registry, `Import` declares
+a Sun component function and its named inputs. An optional `source` imports
+another `.view.xml` file:
 
 ```xml
 <Import name="Footer" function="form_parts.Footer" source="parts/footer.view.xml">
@@ -189,8 +274,14 @@ Import paths are relative, with no parent traversal. Generation rejects cycles,
 deduplicates shared dependencies, preserves their relative artifact paths, and
 combines their code into the consumer's generated compilation unit.
 
+Use `<Include source="theme.view.xml" />` to include shared resource definitions
+without declaring a component import. The same path, cycle, regeneration, and
+source-map rules apply. Generated resource constructors are public; call them
+through their module, for example `resources="{studio.resources()}"`. An include
+makes definitions available but does not automatically merge resource dictionaries.
+
 A root `Resources name="resources"` generates a fallible dictionary constructor.
-Its `Color`, `Font`, `Spacing`, `Style`, and `Template` children have names and
+Its `Color`, `Font`, `Spacing`, `Style`, `Theme`, and `Template` children have names and
 explicit types. `scope="theme"` selects the theme dictionary; the default scope
 is application. `ref` creates an alias and `basedOn` extends a style. The entire
 dictionary is validated, including unused aliases. Colors are packed RGB integers.
@@ -214,6 +305,43 @@ with a control's `style` expression. Direct `foreground`, `background`, `font`,
 and `fontSize` properties override the normal appearance. Precedence is native
 defaults, view theme, control style, then direct overrides. Theme changes update
 properties without replacing unchanged controls.
+
+Style appearances can reference palette entries using `foregroundResource`,
+`backgroundResource`, and `fontResource`. `fontSizeResource`, `borderWidthResource`,
+`radiusResource`, and `paddingResource` require `Spacing` entries. A property cannot
+have both a literal and a resource reference in the same appearance. References
+resolve in the style's defining scope, including forward references; a derived
+style can override the resolved base properties. Numeric values must fit their
+appearance fields, and font sizes must be positive.
+
+A theme resource combines a base style with control-kind defaults:
+
+```xml
+<Resources name="resources">
+  <Color name="accent" value="0x73e2cb" />
+  <Style name="base"><Normal font="Sans" fontSize="14" /></Style>
+  <Style name="field"><Normal foregroundResource="accent" padding="8" /></Style>
+  <Theme name="studio" basedOn="base">
+    <Default kind="TextInput" styleResource="field" />
+    <Default kind="Select" styleResource="field" />
+  </Theme>
+</Resources>
+<View name="view" state="State" resources="{resources()}" themeResource="studio">
+  <TextInput value="{state.name.clone(a)}" changeAction="1" />
+</View>
+```
+
+`Theme.basedOn` names a base **style**, not another theme. Defaults name styles
+and native control kinds; duplicate kinds are errors. `themeResource` and the
+existing `theme` expression are mutually exclusive. Precedence is native
+defaults, theme base, control-kind default, explicit control style, then direct
+overrides. All interaction states participate in this order. All resources,
+including unused themes and styles, are validated before native mutation.
+
+Handwritten views can call `Resources.theme`, then `View.set_theme`, or use
+`View.theme_resource` to resolve a name in the current scope. `ui.Theme` owns its
+base `Style` and `Vec<ThemeDefault>`. The existing `View.theme: Style` remains
+available. Theme changes preserve unchanged control identities.
 
 Use `<Use template="footerTemplate" ... />` for a template resource. Its value must
 name a declared component, template, or import. The generator emits a function

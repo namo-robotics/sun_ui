@@ -643,4 +643,173 @@ module core_tests {
     try session.dispatch(renderer);
     try std.test.assert_eq(session.state, 1);
   }
+
+  /** Resolves forward palette references in their defining scopes for every appearance. */
+  test_function palette_references_and_scopes() TestResult<void> {
+    var a = make_heap_allocator();
+    var resources = ui.Resources(a);
+    var base = ui.Resource(String("base"), ui.ResourceKind.Style);
+    base.normal_references.foreground = String("accent");
+    base.hover_references.background = String("accent");
+    base.focus_references.padding = String("space");
+    base.disabled_references.font = String("font");
+    base.normal_references.font_size = String("space");
+    base.normal_references.border_width = String("space");
+    base.normal_references.radius = String("space");
+    try resources.add(0, base);
+    var accent = ui.Resource(String("accent"), ui.ResourceKind.Color);
+    accent.number = 12;
+    try resources.add(0, accent);
+    var space = ui.Resource(String("space"), ui.ResourceKind.Spacing);
+    space.number = 8;
+    try resources.add(0, space);
+    var font = ui.Resource(String("font"), ui.ResourceKind.Font);
+    font.text = String("Sans");
+    try resources.add(0, font);
+    var local = try resources.scope(1);
+    var shadow = ui.Resource(String("accent"), ui.ResourceKind.Color);
+    shadow.number = 99;
+    try resources.add(local, shadow);
+    var derived = ui.Resource(String("derived"), ui.ResourceKind.Style);
+    derived.based_on = String("base");
+    derived.style.normal.padding = 3;
+    try resources.add(local, derived);
+    try resources.validate();
+    var style = try resources.style(local, String("derived"));
+    try std.test.assert_eq(style.normal.foreground, 12);
+    try std.test.assert_eq(style.hover.background, 12);
+    try std.test.assert_eq(style.focus.padding, 8);
+    try std.test.assert_eq(style.normal.font_size, 8);
+    try std.test.assert_eq(style.normal.border_width, 8);
+    try std.test.assert_eq(style.normal.radius, 8);
+    try std.test.assert_eq(style.normal.padding, 3);
+    try std.test.assert(style.disabled.font.equals_literal("Sans"));
+  }
+
+  /** Rejects missing, mistyped, conflicting, and overflowing appearance resources. */
+  test_function invalid_palette_references() TestResult<void> {
+    var a = make_heap_allocator();
+    for (var scenario: i32 = 0; scenario < 5; scenario += 1) {
+      var resources = ui.Resources(a);
+      var style = ui.Resource(String("bad"), ui.ResourceKind.Style);
+      style.normal_references.padding = String("value");
+      if (scenario == 2) {
+        style.style.normal.padding = 3;
+      }
+      try resources.add(1, style);
+      if (scenario != 0) {
+        var value = ui.Resource(String("value"), scenario == 1 ? ui.ResourceKind.Color : ui.ResourceKind.Spacing);
+        value.number = scenario == 3 ? 2147483648 : (scenario == 4 ? -1 : 4);
+        try resources.add(1, value);
+      }
+      match resources.validate() {
+        SystemResult.Error(_) => {},
+        SystemResult.Ok => {
+          try std.test.assert(false, "invalid appearance resource was accepted");
+        }
+      };
+    }
+  }
+
+  /** Records final button colors to check rendering precedence. */
+  class ThemeRecording implements ui.Renderer {
+    public var color: i64 = -1;
+    public var background: i64 = -1;
+    public var created: i64 = 0;
+    public var updated: i64 = 0;
+
+    /** Starts with no rendered appearance. */
+    init() {}
+
+    /** Captures a newly resolved appearance. */
+    public method create(identity: u64, element: const ref ui.Element) SystemResult<void> {
+      this.created += 1;
+      this.color = element.style.normal.foreground;
+      this.background = element.style.normal.background;
+      return SystemResult.Ok;
+    }
+
+    /** Captures a changed appearance without replacing its control. */
+    public method update(identity: u64, element: const ref ui.Element) SystemResult<void> {
+      this.updated += 1;
+      this.color = element.style.normal.foreground;
+      this.background = element.style.normal.background;
+      return SystemResult.Ok;
+    }
+
+    /** Accepts logical placement without a native widget. */
+    public method place(identity: u64, parent: u64, previous: u64) SystemResult<void> {
+      return SystemResult.Ok;
+    }
+
+    /** Completes the in-memory render. */
+    public method finish() SystemResult<void> {
+      return SystemResult.Ok;
+    }
+
+    /** Accepts removal of the recorded control. */
+    public method remove(identity: u64) void {}
+
+    /** Accepts focus without a native widget. */
+    public method focus(identity: u64) void {}
+
+    /** Releases the recorded appearance. */
+    public method clear() void {}
+  }
+
+  /** Applies kind defaults below explicit styles and rejects unused invalid themes atomically. */
+  test_function themes_update_without_remount() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = ThemeRecording();
+    var identity: u64 = 0;
+    for (var stage: i64 = 0; stage < 4; stage += 1) {
+      var view = ui.View(a);
+      var theme = ui.Theme(a);
+      theme.base.normal.foreground = 1;
+      var control = ui.Style();
+      control.normal.foreground = 2;
+      control.normal.background = stage;
+      theme.defaults.push(ui.ThemeDefault(ui.Kind.Button, control));
+      view.set_theme(theme);
+      var button = ui.Element(ui.Key(1), ui.Kind.Button);
+      if (stage >= 1) {
+        button.style.normal.foreground = 3;
+      }
+      if (stage >= 2) {
+        button.overrides.normal.foreground = 4;
+      }
+      view.append(-1, button);
+      try tree.render(renderer, view);
+      if (stage == 0) {
+        identity = tree.identity(1);
+      }
+      try std.test.assert_eq(tree.identity(1), identity);
+      try std.test.assert_eq(renderer.color, stage == 0 ? 2 : (stage == 1 ? 3 : 4));
+      try std.test.assert_eq(renderer.background, stage);
+    }
+    try std.test.assert_eq(renderer.created, 1);
+    try std.test.assert_eq(renderer.updated, 3);
+    var invalid = ui.View(a);
+    var resource = ui.Resource(String("unused"), ui.ResourceKind.Theme);
+    resource.defaults.push(ui.ThemeReference(ui.Kind.Button, String("missing")));
+    invalid.define(resource);
+    match tree.render(renderer, invalid) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "unused invalid theme accepted");
+      }
+    };
+    try std.test.assert_eq(tree.identity(1), identity);
+    try std.test.assert_eq(renderer.updated, 3);
+    var duplicate = ui.Theme(a);
+    duplicate.defaults.push(ui.ThemeDefault(ui.Kind.Button, ui.Style()));
+    duplicate.defaults.push(ui.ThemeDefault(ui.Kind.Button, ui.Style()));
+    match duplicate.validate() {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "duplicate theme default accepted");
+      }
+    };
+  }
 }

@@ -37,6 +37,16 @@ The GTK CI job also builds and tests this example. Changes to the checked dialog
 binding live in the separate `src/sun_gobject` repository and must be available
 there before a fresh dependency checkout can build this example.
 
+## View organization
+
+`video-converter.view.xml` owns screen layout and application bindings.
+`components.registry.xml` registers `components.view.xml` once for the application.
+The view uses its panels, section headings, and labeled fields directly by name,
+with named XML content slots and no repeated import signatures. `theme.view.xml` owns the palette, inherited styles,
+and defaults for buttons, text inputs, and selects. `view.sun` supplies display
+values and media-time conversions. See the [XML view guide](../../docs/xml-views.md)
+for the reusable component and theme APIs.
+
 ## Workflow
 
 1. Choose **Open video…**. Selecting a file loads its preview automatically; the
