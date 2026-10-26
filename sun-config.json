@@ -118,6 +118,12 @@
       "path": "src/tools/build.sun",
       "type": "binary",
       "output_name": "build/sun-ui-build"
+    },
+    {
+      "name": "package-tool",
+      "path": "src/tools/package.sun",
+      "type": "binary",
+      "output_name": "build/release-package-tool"
     }
   ]
 }

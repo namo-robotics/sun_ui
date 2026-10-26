@@ -2,8 +2,10 @@
   "git.autoRepositoryDetection": true,
   "git.repositoryScanMaxDepth": 3,
   "git.scanRepositories": [
+    ".",
     "src/sun_gobject",
-    "src/sun_video_editor"
+    "src/sun_video_editor",
+    "src/sun_accent_popup"
   ],
   "sun.sun_path": [
     "/usr/lib/sun",
@@ -19,7 +21,8 @@
   "sun.compiler_path": "/usr/bin/sun",
   "sun.sun_configs": [
     "sun-config.json",
-    "src/sun_video_editor/sun-config.json"
+    "src/sun_video_editor/sun-config.json",
+    "src/sun_accent_popup/sun-config.json"
   ],
   "sun.syntaxOnly": false,
   "[sun]": {

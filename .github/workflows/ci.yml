@@ -66,12 +66,15 @@ jobs:
             build/test-results.log
             build/markup-test-results.log
             build/gtk-test-results.log
+      - name: Package Linux development tools and bundles
+        run: docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspaces/sun_ui" sun-ui-dev sun src/tools/package.sun
       - name: Upload development bundles
         uses: actions/upload-artifact@v4
         with:
           name: dev-bundles
           if-no-files-found: error
           path: |
+            build/sun-ui_0.dev_amd64.deb
             build/sun_ui.moon
             build/sun_plot.moon
             build/sun_ui_gtk.moon
@@ -126,6 +129,7 @@ jobs:
           prerelease: true
           fail_on_unmatched_files: true
           files: |
+            build/release/*.deb
             build/release/*.moon
             build/release/sun-version.txt
             build/release/sun_ui-arm64-apple-darwin.tar.gz

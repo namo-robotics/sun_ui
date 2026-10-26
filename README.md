@@ -53,13 +53,23 @@ ABI compatibility across compiler or library changes.
 
 ### Development releases
 
-After both CI jobs pass on a push to `main`, CI updates the rolling
+After the required CI jobs pass on a push to `main`, CI updates the rolling
 [dev prerelease](https://github.com/namo-robotics/sun_ui/releases/tag/dev) with
 the core, plotting, and optional GTK `.moon` bundles for x86_64 Linux. This
 includes each merge to `main`; pull requests and other branches do not publish.
 The release includes `sun-version.txt` identifying the compiler used. Add the
 download directory with `--lib-path`; GTK bundles still need the dependency
 build and system libraries described below.
+
+The Linux release also includes `sun-ui_0.dev_amd64.deb` for Ubuntu 26.04.
+It installs the bundles under `/usr/lib/sun`, the XML compiler at
+`/usr/bin/sun-viewc`, and license/compiler records under `/usr/share/doc/sun-ui`.
+It depends on the published `sun-gobject` and Sun compiler packages. Downstream
+builds may extract the packages into a private directory instead of installing
+system-wide. Compiler versions must match across all bundles.
+
+After a successful GTK build and test run, create the package locally with
+`./scripts/package-linux.sh`. Packaging uses existing build outputs.
 
 ### Build and test the core
 
@@ -103,6 +113,22 @@ SUN_UI_BUILD="$PWD/build" SUN_GOBJECT_BUILD="$PWD/src/sun_gobject/build" ./src/s
 The editor requires FFmpeg and ffprobe 8+. Toolkit builds and CI do not depend on
 the application checkout; CI imports only the GTK dependency from `deps.repos`.
 See the editor's README for standalone setup and Debian/Snap packaging.
+
+### Sun Accent Popup
+
+The independent [sun_accent_popup repository](https://github.com/namo-robotics/sun_accent_popup)
+is registered in `deps.repos` at `src/sun_accent_popup`. It provides hold-to-accent
+input through IBus for Ubuntu/GNOME applications, with a sun_ui practice window.
+Its build, desktop integration, tests, and dev container belong to that checkout.
+
+After building this workspace's GTK bundles, build and test the application with:
+
+```sh
+SUN_UI_BUILD="$PWD/build" SUN_GOBJECT_BUILD="$PWD/src/sun_gobject/build" ./src/sun_accent_popup/build.sh
+```
+
+See [its README](src/sun_accent_popup/README.md) for IBus dependencies, installation,
+and enabling the input source. Toolkit builds and CI do not require this application.
 
 ### Build the GTK backend
 
