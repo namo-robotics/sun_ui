@@ -207,10 +207,25 @@ public module ui_gtk {
     public var creates: i64 = 0;
     public var removals: i64 = 0;
 
-    /** Opens a window with a root vertical layout. */
+    /** Opens a window with a root vertical layout using the default application identifier. */
     init(title: ref String) SystemResult<void> {
       var a = make_heap_allocator();
       var id = String("org.sunlang.UIPrototype");
+      this.app = try gtk.Application(id);
+      this.window = gtk.Window(this.app);
+      this.root = try gtk.Widget(2);
+      this.controls = Vec<Control>(a, 8);
+      try this.root.properties(true, true, 0, -1, -1, 0, 0, false, false, 8);
+      try this.window.set_widget(this.root);
+      this.events = try gtk.EventQueue(this.app);
+      try this.window.set_title(title);
+      try this.window.set_default_size(440, 360);
+      try this.window.present();
+    }
+
+    /** Opens a window with a root vertical layout and an owned application identifier. */
+    init(title: ref String, id: String) SystemResult<void> {
+      var a = make_heap_allocator();
       this.app = try gtk.Application(id);
       this.window = gtk.Window(this.app);
       this.root = try gtk.Widget(2);
