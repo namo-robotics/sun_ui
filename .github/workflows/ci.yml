@@ -25,7 +25,7 @@ jobs:
           -e XDG_CACHE_HOME=/workspaces/sun_ui/tmp/ci/cache
           -e XDG_CONFIG_HOME=/workspaces/sun_ui/tmp/ci/config
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
-          bash -c 'mkdir -p "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && ./build.sh && sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/adapters src/tools examples tests'
+          bash -c 'mkdir -p "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && ./build.sh && sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/graphics src/adapters src/tools examples tests'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -85,7 +85,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install toolchain and GTK dependencies
-        run: brew install namo-robotics/sun/sun gtk4 librsvg gstreamer coreutils cmake ninja pkgconf gobject-introspection
+        run: brew install namo-robotics/sun/sun gtk4 sdl3 libepoxy librsvg gstreamer coreutils cmake ninja pkgconf gobject-introspection
       - name: Import and build GTK dependency
         env:
           GIT_CONFIG_COUNT: 1
@@ -98,13 +98,56 @@ jobs:
           ./src/sun_gobject/scripts/build-macos.sh
       - name: Build and test native bundles
         run: ./scripts/build-macos.sh
+      - name: Build and test GTK and SDL graphics integration
+        run: ./build.sh --graphics
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: graphics-macos-tests
+          path: build/graphics-test-results.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: graphics-macos-bundles
+          path: |
+            build/sun_ui_graphics*.moon
+            build/sun_ui_sdl.moon
+            build/graphics-native/libsun_ui_graphics.a
+            build/graphics-native/libsun_ui_sdl.a
       - uses: actions/upload-artifact@v4
         with:
           name: sun_ui-macos-arm64
           if-no-files-found: error
           path: build/sun_ui-arm64-apple-darwin.tar.gz
+  graphics:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build development image
+        run: docker build -t sun-ui-dev .
+      - name: Build dependency and exercise public graphics APIs
+        run: >-
+          docker run --rm --user "$(id -u):$(id -g)"
+          -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro
+          -e GIT_CONFIG_COUNT=1
+          -e GIT_CONFIG_KEY_0=url.https://github.com/namo-robotics/sun_gobject.git.insteadOf
+          -e GIT_CONFIG_VALUE_0=git@github.com:namo-robotics/sun_gobject.git
+          -v "$PWD:/workspaces/sun_ui" sun-ui-dev
+          bash -o pipefail -c 'bash scripts/import-ci-dependencies.sh && bash scripts/build-ci-dependency.sh && ./build.sh --graphics'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: graphics-linux-tests
+          path: build/graphics-test-results.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: graphics-linux-bundles
+          path: |
+            build/sun_ui_graphics*.moon
+            build/sun_ui_sdl.moon
+            build/graphics-native/libsun_ui_graphics.a
+            build/graphics-native/libsun_ui_sdl.a
   publish-dev:
-    needs: [core, gtk, macos]
+    needs: [core, gtk, macos, graphics]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:

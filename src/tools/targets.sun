@@ -19,9 +19,35 @@ module build_targets {
     }
   }
 
-  /** Selects a named local entry with explicit paths and a binary or library type. */
-  function select(document: ref Json, name: static_ptr<u8>) JsonResult<Target> {
+  /** Selects a named Sun or native build entry without inferring artifact paths. */
+  function select_group(document: ref Json, name: static_ptr<u8>, native: bool) JsonResult<Target> {
     var a = make_heap_allocator();
+    if (native) {
+      var source_key = String("");
+      var output_key = String("");
+      var archive = true;
+      var selected = String(name);
+      if (selected.equals_literal("graphics-native")) {
+        source_key = String("GRAPHICS_NATIVE_SOURCE");
+        output_key = String("GRAPHICS_NATIVE_OUTPUT");
+        archive = false;
+      } else if (selected.equals_literal("graphics-executor")) {
+        source_key = String("GRAPHICS_EXECUTOR_SOURCE");
+        output_key = String("GRAPHICS_EXECUTOR_OUTPUT");
+      } else if (selected.equals_literal("graphics-sdl")) {
+        source_key = String("GRAPHICS_SDL_SOURCE");
+        output_key = String("GRAPHICS_SDL_OUTPUT");
+      } else if (selected.equals_literal("graphics-test-input")) {
+        source_key = String("GRAPHICS_TEST_INPUT_SOURCE");
+        output_key = String("GRAPHICS_TEST_INPUT_OUTPUT");
+      } else {
+        return JsonResult.Error(JsonError("Unknown native target", -1));
+      }
+      var paths = try document.get("path_variables");
+      var source = try (try paths.get(source_key)).as_string();
+      var output = try (try paths.get(output_key)).as_string();
+      return JsonResult.Ok(Target(source.clone(a), output.clone(a), String(""), archive));
+    }
     var entries = try document.get("entrypoints");
     for (var i: i64 = 0; i < entries.len(); i += 1) {
       var entry = try entries.at(i);
@@ -31,7 +57,7 @@ module build_targets {
         var output = try (try entry.get("output_name")).as_string();
         var kind = try (try entry.get("type")).as_string();
         if (kind.equals_literal("library") == false and kind.equals_literal("binary") == false) {
-          return JsonResult.Error(JsonError("Expected a binary or library entrypoint", -1));
+          return JsonResult.Error(JsonError("Unexpected build target type", -1));
         }
         var tests = output.clone(a);
         tests.append("_test");
@@ -45,8 +71,8 @@ module build_targets {
     return JsonResult.Error(JsonError("Unknown build target", -1));
   }
 
-  /** Loads one target, reporting malformed configuration or missing targets as build errors. */
-  public function load(name: static_ptr<u8>) SystemResult<Target> {
+  /** Loads one target group and reports configuration failures as build errors. */
+  function load_group(name: static_ptr<u8>, native: bool) SystemResult<Target> {
     var a = make_heap_allocator();
     var path = String("sun-config.json");
     var text = try std.io.read_to_string(a, path);
@@ -57,7 +83,7 @@ module build_targets {
         return SystemResult.Error(Error(1, "Cannot parse sun-config.json"));
       }
     };
-    return match select(document, name) {
+    return match select_group(document, name, native) {
       JsonResult.Ok(value) => SystemResult.Ok(value),
       JsonResult.Error(error) => {
         eprintln(name);
@@ -65,5 +91,20 @@ module build_targets {
         return SystemResult.Error(Error(1, "Cannot load configured build target"));
       }
     };
+  }
+
+  /** Selects a Sun entrypoint for compiler configuration and unit tests. */
+  function select(document: ref Json, name: static_ptr<u8>) JsonResult<Target> {
+    return select_group(document, name, false);
+  }
+
+  /** Loads a named Sun library or executable. */
+  public function load(name: static_ptr<u8>) SystemResult<Target> {
+    return load_group(name, false);
+  }
+
+  /** Loads a named native project or static archive. */
+  public function load_native(name: static_ptr<u8>) SystemResult<Target> {
+    return load_group(name, true);
   }
 }

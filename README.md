@@ -85,7 +85,7 @@ For separate build, test, and formatting checks:
 ```sh
 sun src/tools/build.sun -- build
 sun src/tools/build.sun -- test
-sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/adapters src/tools examples tests
+sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/graphics src/adapters src/tools examples tests
 ```
 
 Build targets are declared in `sun-config.json`, including bundle types, source
@@ -266,6 +266,16 @@ the current published compiler with XML source spans; the build checks this API.
 The [upstream notes](upstream/README.md) record the migration history.
 GTK applications require the corresponding changes in the separate sun_gobject
 checkout; additional rendering backends remain future work.
+
+## Optional OpenGL graphics
+
+`./build.sh --graphics` builds the owned-frame graphics API, embedded GTK viewport,
+separate SDL3 window, and their acceptance tests. Run `./build/graphics` for a
+shared 3D scene with GTK settings and an SDL FPS camera. See
+[graphics integration](docs/graphics.md) for dependencies, ownership, the combined
+event loop, and Wayland's Cairo decoration-plugin requirement. This requires the
+matching GLArea bindings in the separate sun_gobject checkout. macOS graphics
+compatibility is validated in CI.
 
 ## Apple Silicon macOS releases
 

@@ -1,0 +1,72 @@
+/** Declares the native ownership and OpenGL boundary for checked graphics APIs. */
+public module gpu {
+
+  /** Retains shared surface state without copying GPU ownership. */
+  extern "C" function gu_surface_ref(surface: raw_ptr<u8>) void;
+
+  /** Rejects invalid UTF-8 and embedded NUL bytes at the native boundary. */
+  extern "C" function gu_text_valid(text: raw_ptr<u8>, length: u64) i32;
+
+  /** Allocates immutable geometry storage. */
+  extern "C" function gu_mesh_new(vertices: i32, indices: i32) raw_ptr<u8>;
+
+  /** Initializes one private position component. */
+  extern "C" function gu_mesh_vertex(mesh: raw_ptr<u8>, index: i32, value: f32) void;
+
+  /** Initializes one private element index. */
+  extern "C" function gu_mesh_index(mesh: raw_ptr<u8>, index: i32, value: u32) void;
+
+  /** Releases one CPU mesh reference. */
+  extern "C" function gu_mesh_free(mesh: raw_ptr<u8>) void;
+
+  /** Copies shader source storage. */
+  extern "C" function gu_shader_new(vertex: raw_ptr<u8>, fragment: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Releases one shader reference. */
+  extern "C" function gu_shader_free(shader: raw_ptr<u8>) void;
+
+  /** Creates a drawing packet. */
+  extern "C" function gu_frame_new(r: f32, g: f32, b: f32, a: f32) raw_ptr<u8>;
+
+  /** Releases a drawing packet. */
+  extern "C" function gu_frame_free(frame: raw_ptr<u8>) void;
+
+  /** Appends a validated draw command. */
+  extern "C" function gu_frame_draw(frame: raw_ptr<u8>, mesh: raw_ptr<u8>, shader: raw_ptr<u8>, mode: i32, depth: i32, blend: i32) i32;
+
+  /** Stages a uniform component on the main thread. */
+  extern "C" function gu_uniform_value(index: i32, value: f32) void;
+
+  /** Copies the staged uniform into the packet. */
+  extern "C" function gu_frame_uniform_built(frame: raw_ptr<u8>, name: raw_ptr<u8>, count: i32) i32;
+
+  /** Creates an independent rendering surface. */
+  extern "C" function gu_surface_new() raw_ptr<u8>;
+
+  /** Releases a surface reference. */
+  extern "C" function gu_surface_free(surface: raw_ptr<u8>) void;
+
+  /** Snapshots a packet for later rendering. */
+  extern "C" function gu_surface_submit(surface: raw_ptr<u8>, frame: raw_ptr<u8>) void;
+
+  /** Borrows the rendering diagnostic. */
+  extern "C" function gu_surface_error(surface: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Returns completed rendering count. */
+  extern "C" function gu_surface_frames(surface: raw_ptr<u8>) i32;
+
+  /** Returns a physical framebuffer dimension. */
+  extern "C" function gu_surface_extent(surface: raw_ptr<u8>, horizontal: i32) i32;
+
+  /** Configures test-only pixel readback. */
+  extern "C" function gu_surface_readback(surface: raw_ptr<u8>, enabled: i32) void;
+
+  /** Returns a stored readback channel. */
+  extern "C" function gu_surface_pixel(surface: raw_ptr<u8>, channel: i32) i32;
+
+  /** Pops an owned input event. */
+  extern "C" function gu_surface_next(surface: raw_ptr<u8>) i32;
+
+  /** Reads the last popped input field. */
+  extern "C" function gu_surface_event(surface: raw_ptr<u8>, field: i32) f64;
+}

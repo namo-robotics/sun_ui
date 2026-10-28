@@ -4,7 +4,15 @@
     "$SUN_UI_BUILD"
   ],
   "path_variables": {
-    "SUN_UI_BUILD": "build"
+    "SUN_UI_BUILD": "build",
+    "GRAPHICS_NATIVE_SOURCE": "src/graphics/native",
+    "GRAPHICS_NATIVE_OUTPUT": "build/graphics-native",
+    "GRAPHICS_EXECUTOR_SOURCE": "src/graphics/native/graphics.c",
+    "GRAPHICS_EXECUTOR_OUTPUT": "build/graphics-native/libsun_ui_graphics.a",
+    "GRAPHICS_SDL_SOURCE": "src/adapters/sdl/native.c",
+    "GRAPHICS_SDL_OUTPUT": "build/graphics-native/libsun_ui_sdl.a",
+    "GRAPHICS_TEST_INPUT_SOURCE": "tests/graphics/input.c",
+    "GRAPHICS_TEST_INPUT_OUTPUT": "build/graphics-native/libgraphics_test_input.a"
   },
   "entrypoints": [
     {
@@ -124,6 +132,36 @@
       "path": "src/tools/package.sun",
       "type": "binary",
       "output_name": "build/release-package-tool"
+    },
+    {
+      "name": "sun_ui_graphics",
+      "path": "src/graphics/graphics.sun",
+      "type": "library",
+      "output_name": "build/sun_ui_graphics.moon"
+    },
+    {
+      "name": "sun_ui_graphics_gtk",
+      "path": "src/graphics/gtk.sun",
+      "type": "library",
+      "output_name": "build/sun_ui_graphics_gtk.moon"
+    },
+    {
+      "name": "sun_ui_sdl",
+      "path": "src/adapters/sdl/window.sun",
+      "type": "library",
+      "output_name": "build/sun_ui_sdl.moon"
+    },
+    {
+      "name": "graphics-tests",
+      "path": "tests/graphics/main.sun",
+      "type": "binary",
+      "output_name": "build/graphics-tests"
+    },
+    {
+      "name": "graphics",
+      "path": "examples/graphics/main.sun",
+      "type": "binary",
+      "output_name": "build/graphics"
     }
   ]
 }

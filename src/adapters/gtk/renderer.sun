@@ -16,7 +16,8 @@ public module ui_gtk {
       ui.Kind.TextInput => 7,
       ui.Kind.Checkbox => 8,
       ui.Kind.Select => 9,
-      ui.Kind.Video => 10
+      ui.Kind.Video => 10,
+      ui.Kind.Viewport => 11
     };
   }
 
@@ -99,6 +100,7 @@ public module ui_gtk {
   /** Owns a heterogeneous widget, its subscription, and placement metadata. */
   class Control {
     var identity: u64;
+    var viewport_id: i64 = 0;
     var kind: ui.Kind;
     var parent: u64 = 0;
     var previous: u64 = 0;
@@ -113,11 +115,12 @@ public module ui_gtk {
     var styled: bool = false;
 
     /** Constructs a native control before registering user events. */
-    init(identity: u64, element: const ref ui.Element, events: ref gtk.EventQueue) SystemResult<void> {
+    init(identity: u64, element: const ref ui.Element, events: ref gtk.EventQueue, widget: gtk.Widget) SystemResult<void> {
       var a = make_heap_allocator();
       this.identity = identity;
       this.kind = element.kind;
-      this.widget = try gtk.Widget(widget_kind(element.kind));
+      this.widget = widget;
+      this.viewport_id = element.viewport_id;
       this.choices = Vec<ui.Choice>(a, 4);
       this.subscriptions = Vec<gtk.RegistrationId>(a, 4);
       try this.apply(element);
@@ -194,6 +197,19 @@ public module ui_gtk {
     }
   }
 
+  /** Retains a registered viewport independently of its mounted control. */
+  class ViewportRegistration {
+    var id: i64;
+    var area: gtk.GLArea;
+    var mounted: u64 = 0;
+
+    /** Takes ownership of one unique surface registration. */
+    init(id: i64, area: gtk.GLArea) {
+      this.id = id;
+      this.area = area;
+    }
+  }
+
   /** Owns the application, window, native controls, and exclusive GTK event queue. */
   public class Renderer implements ui.Renderer {
     var app: gtk.Application;
@@ -203,6 +219,7 @@ public module ui_gtk {
     var root: gtk.Widget;
     var events: gtk.EventQueue;
     var controls: Vec<Control>;
+    var viewports: Vec<ViewportRegistration>;
     public var updates: i64 = 0;
     public var creates: i64 = 0;
     public var removals: i64 = 0;
@@ -215,6 +232,7 @@ public module ui_gtk {
       this.window = gtk.Window(this.app);
       this.root = try gtk.Widget(2);
       this.controls = Vec<Control>(a, 8);
+      this.viewports = Vec<ViewportRegistration>(a, 4);
       try this.root.properties(true, true, 0, -1, -1, 0, 0, false, false, 8);
       try this.window.set_widget(this.root);
       this.events = try gtk.EventQueue(this.app);
@@ -230,6 +248,7 @@ public module ui_gtk {
       this.window = gtk.Window(this.app);
       this.root = try gtk.Widget(2);
       this.controls = Vec<Control>(a, 8);
+      this.viewports = Vec<ViewportRegistration>(a, 4);
       try this.root.properties(true, true, 0, -1, -1, 0, 0, false, false, 8);
       try this.window.set_widget(this.root);
       this.events = try gtk.EventQueue(this.app);
@@ -256,9 +275,64 @@ public module ui_gtk {
       return -1;
     }
 
+    /** Finds a registered application-owned viewport identifier. */
+    method viewport_index(id: i64) i64 {
+      for (var i: i64 = 0; i < this.viewports.size(); i += 1) {
+        if (this.viewports[i].id == id) {
+          return i;
+        }
+      }
+      return -1;
+    }
+
+    /** Registers an independently retained surface before a view mounts it. */
+    public method register_viewport(id: i64, area: gtk.GLArea) SystemResult<void> {
+      if (id <= 0) {
+        return SystemResult.Error(Error(1, "Viewport identifier must be positive"));
+      }
+      for (var i: i64 = 0; i < this.viewports.size(); i += 1) {
+        if (this.viewports[i].id == id or this.viewports[i].area.same(area)) {
+          return SystemResult.Error(Error(1, "Viewport identifier or surface is already registered"));
+        }
+      }
+      this.viewports.push(ViewportRegistration(id, area));
+      return SystemResult.Ok;
+    }
+
+    /** Returns an explicitly retained surface for redraw and native status access. */
+    public method viewport(id: i64) SystemResult<gtk.GLArea> {
+      var index = this.viewport_index(id);
+      if (index < 0) {
+        return SystemResult.Error(Error(1, "Unknown viewport identifier"));
+      }
+      return SystemResult.Ok(gtk.GLArea(this.viewports[index].area));
+    }
+
+    /** Releases an unmounted registration; mounted surfaces must first leave the tree. */
+    public method unregister_viewport(id: i64) SystemResult<void> {
+      var index = this.viewport_index(id);
+      if (index < 0 or this.viewports[index].mounted != 0) {
+        return SystemResult.Error(Error(1, "Viewport is missing or still mounted"));
+      }
+      match this.viewports.remove(index) {
+        AccessResult.Ok(_) => {},
+        AccessResult.OutOfBounds(_) => {}
+      };
+      return SystemResult.Ok;
+    }
+
     /** Creates an owned typed control and any native edit subscription. */
     public method create(identity: u64, element: const ref ui.Element) SystemResult<void> {
-      this.controls.push(try Control(identity, element, this.events));
+      if (element.kind == ui.Kind.Viewport) {
+        var index = this.viewport_index(element.viewport_id);
+        if (index < 0 or this.viewports[index].mounted != 0) {
+          return SystemResult.Error(Error(1, "Viewport is missing or already mounted"));
+        }
+        this.controls.push(try Control(identity, element, this.events, gtk.Widget(this.viewports[index].area)));
+        this.viewports[index].mounted = identity;
+      } else {
+        this.controls.push(try Control(identity, element, this.events, try gtk.Widget(widget_kind(element.kind))));
+      }
       this.creates += 1;
       return SystemResult.Ok;
     }
@@ -268,6 +342,21 @@ public module ui_gtk {
       var index = this.index(identity);
       if (index < 0) {
         return SystemResult.Error(Error(1, "Unknown GTK control"));
+      }
+      if (element.kind == ui.Kind.Viewport and this.controls[index].viewport_id != element.viewport_id) {
+        var next = this.viewport_index(element.viewport_id);
+        if (next < 0 or this.viewports[next].mounted != 0) {
+          return SystemResult.Error(Error(1, "Replacement viewport is missing or already mounted"));
+        }
+        var old = this.viewport_index(this.controls[index].viewport_id);
+        this.controls[index].widget.detach();
+        if (old >= 0) {
+          this.viewports[old].mounted = 0;
+        }
+        this.controls[index].widget = gtk.Widget(this.viewports[next].area);
+        this.controls[index].viewport_id = element.viewport_id;
+        this.controls[index].styled = false;
+        this.viewports[next].mounted = identity;
       }
       try this.controls[index].apply(element);
       this.updates += 1;
@@ -347,6 +436,12 @@ public module ui_gtk {
         ignore_error(this.events.disconnect(this.controls[index].subscriptions[0]));
       }
       this.controls[index].widget.detach();
+      if (this.controls[index].kind == ui.Kind.Viewport) {
+        var registration = this.viewport_index(this.controls[index].viewport_id);
+        if (registration >= 0) {
+          this.viewports[registration].mounted = 0;
+        }
+      }
       match this.controls.remove(index) {
         AccessResult.Ok(_) => {},
         AccessResult.OutOfBounds(_) => {}
@@ -446,6 +541,7 @@ public module ui_gtk {
         this.events.iterate(true);
         this.collect(tree, queue);
       }
+      gtk.clear_gl_context();
     }
 
     /** Waits on GTK's event loop, with a bounded wakeup only for external work polling. */
@@ -462,6 +558,7 @@ public module ui_gtk {
         this.collect(tree, queue);
         try this.events.disconnect(wakeup);
       }
+      gtk.clear_gl_context();
       return SystemResult.Ok;
     }
 
@@ -519,6 +616,12 @@ public module ui_gtk {
       if (index >= 0) {
         this.controls[index].widget.toggle_media();
       }
+    }
+
+    /** Closes this window without stopping other application hosts. */
+    public method close() void {
+      this.window.close();
+      gtk.clear_gl_context();
     }
 
     /** Reports whether the application window remains open. */
