@@ -175,7 +175,9 @@ module build_tasks {
     try link_native(command, "graphics-executor");
     command.add_arg("-lm");
     var pkg = std.process.Command(make_heap_allocator(), "pkg-config");
-    pkg.add_arg("--libs");
+    // Sun accepts library names and search paths, not compiler-driver flags such as -Wl.
+    pkg.add_arg("--libs-only-L");
+    pkg.add_arg("--libs-only-l");
     pkg.add_arg("sdl3");
     pkg.add_arg("epoxy");
     pkg.add_arg("glib-2.0");
