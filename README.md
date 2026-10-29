@@ -2,71 +2,26 @@
 
 [![CI](https://github.com/namo-robotics/sun_ui/actions/workflows/ci.yml/badge.svg)](https://github.com/namo-robotics/sun_ui/actions/workflows/ci.yml)
 
-An experimental React-like UI library written in Sun, with a platform-independent
-core and a GTK rendering backend. Application state describes the interface;
-events update state; reconciliation updates existing controls while preserving
-their keyed identity.
+## Overview
 
-GTK is currently the only graphical backend. The core can be built and tested
-without it, but displaying an interface requires the backend. This prototype
-supports nested layouts, grids, scrolling, labels, buttons, controlled form inputs,
-and structured themes. Optional [XML views](docs/xml-views.md) compile to ordinary
-Sun functions; handwritten counter and task-list examples remain supported.
+An experimental React-like UI library written in Sun. Application state describes
+the interface; events update state; reconciliation updates existing controls while
+preserving their keyed identity. The core is platform-independent, with GTK as the
+current graphical backend.
 
-This repository also maintains **[sun_plot](src/plot/README.md)**, a separate
-scientific plotting library built on sun_ui. It supports line and scatter series,
-labelled linear axes, legends, subplot grids, SVG export, and a resizable GTK
-vector viewer. The plotting example presents a four-panel damped oscillator study.
+The library supports nested layouts, grids, scrolling, labels, buttons, controlled
+form inputs, and structured themes. Optional [XML views](docs/xml-views.md) compile
+to ordinary Sun functions.
 
-## Setup
+This repository also maintains [sun_plot](src/plot/README.md), a separate scientific
+plotting library built on sun_ui, with line and scatter series, labelled axes,
+legends, subplot grids, SVG export, and a resizable GTK viewer.
 
-Run commands from the repository root. The included VS Code devcontainer provides
-Sun and the system dependencies. Alternatively, build and run the development
-image directly:
+## Install
 
-```sh
-docker build -t sun-ui-dev .
-docker run --rm --user "$(id -u):$(id -g)" \
-  -v "$PWD:/workspaces/sun_ui" sun-ui-dev ./build.sh
-```
-
-For a local Debian/Ubuntu setup, install the published Sun development package:
-
-```sh
-./scripts/bootstrap-sun.sh --update
-```
-
-Installation requires network access and package-install privileges; the package
-supports amd64. Use the development compiler rather than an older system version.
-Set `SUN_EXECUTABLE=/absolute/path/to/sun` to use a specific compiler.
-
-The current baseline is Sun `0.dev (fc9a5b23cc63)`. Recreating the devcontainer
-updates the rolling development package; rebuild all bundles together after a
-compiler update.
-
-The bundle manifests declare stable library IDs: `namo-robotics/sun_ui`,
-`namo-robotics/sun_plot`, `namo-robotics/sun_ui_gtk`, and
-`namo-robotics/sun_ui_gtk_drawing`.
-Keep these IDs unchanged when moving source files or renaming output bundles.
-They identify the libraries independently of build paths; they do not guarantee
-ABI compatibility across compiler or library changes.
-
-### Development releases
-
-After the required CI jobs pass on a push to `main`, CI updates the rolling
-[dev prerelease](https://github.com/namo-robotics/sun_ui/releases/tag/dev) with
-the core, plotting, and optional GTK `.moon` bundles for x86_64 Linux. This
-includes each merge to `main`; pull requests and other branches do not publish.
-The release includes `sun-version.txt` identifying the compiler used. Add the
-download directory with `--lib-path`; GTK bundles still need the dependency
-build and system libraries described below.
-
-The Linux release also includes `sun-ui_0.dev_amd64.deb` for Ubuntu 26.04.
-It installs the bundles under `/usr/lib/sun`, the XML compiler at
-`/usr/bin/sun-viewc`, and license/compiler records under `/usr/share/doc/sun-ui`.
-It depends on the published `sun-gobject` and Sun compiler packages. Downstream
-builds may extract the packages into a private directory instead of installing
-system-wide. Compiler versions must match across all bundles.
+Download prebuilt bundles from the rolling
+[dev release](https://github.com/namo-robotics/sun_ui/releases/tag/dev), updated after
+CI passes on `main`:
 
 After a successful GTK build and test run, create the package locally with
 `./scripts/package-linux.sh`. Packaging uses existing build outputs.
@@ -88,56 +43,44 @@ sun src/tools/build.sun -- test
 sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/graphics src/adapters src/tools examples tests
 ```
 
-Build targets are declared in `sun-config.json`, including bundle types, source
-entry points, and output paths. `src/tools/build.sun` selects those targets by
-name and handles build order, XML generation, GTK linker flags, and acceptance
-tests. Use `./build.sh` for core builds or `./build.sh --gtk` for the full build;
-`sun -c sun-config.json` selects every entry and does not perform those preparation
-steps or supply GTK's native linker flags.
+The Debian package depends on the published Sun compiler and `sun-gobject`
+packages. It installs bundles under `/usr/lib/sun` and the XML compiler at
+`/usr/bin/sun-viewc`. For downloaded bundles, add their directory with `--lib-path`.
+GTK applications also require the native dependencies described under [Backends](#backends).
 
-### Sun Video Editor
+Use the compiler version recorded in the release's `sun-version.txt` and matching
+native dependencies. Rebuild all bundles together after a compiler update. Linux
+bundles cannot be reused on macOS; Intel macOS releases are not provided.
 
-The video application now lives in the independent
-[sun_video_editor repository](https://github.com/namo-robotics/sun_video_editor).
-`deps.repos` checks it out at `src/sun_video_editor`, alongside sun_gobject.
-It has its own dev container, agent guidance, build, tests, and release packaging.
+## Build from source
 
-After importing dependencies and building sun_ui's GTK bundles, run it from this
-workspace with the existing dependency builds:
+Run commands from the repository root. The included VS Code devcontainer provides
+Sun and the system dependencies. You can also run the development image directly:
 
 ```sh
-SUN_UI_BUILD="$PWD/build" SUN_GOBJECT_BUILD="$PWD/src/sun_gobject/build" ./src/sun_video_editor/build.sh
-./src/sun_video_editor/build/sun_video_editor
+docker build -t sun-ui-dev .
+docker run --rm --user "$(id -u):$(id -g)" \
+  -v "$PWD:/workspaces/sun_ui" sun-ui-dev ./build.sh
 ```
 
-The editor requires FFmpeg and ffprobe 8+. Toolkit builds and CI do not depend on
-the application checkout; CI imports only the GTK dependency from `deps.repos`.
-See the editor's README for standalone setup and Debian/Snap packaging.
+For a local Debian/Ubuntu amd64 setup, install the development compiler with
+`./scripts/bootstrap-sun.sh --update`. This requires network access and
+package-install privileges. Set `SUN_EXECUTABLE=/absolute/path/to/sun` to select a
+specific compiler.
 
-### Sun Accent Popup
-
-The independent [sun_accent_popup repository](https://github.com/namo-robotics/sun_accent_popup)
-is registered in `deps.repos` at `src/sun_accent_popup`. It provides hold-to-accent
-input through IBus for Ubuntu/GNOME applications, with a sun_ui practice window.
-Its build, desktop integration, tests, and dev container belong to that checkout.
-
-After building this workspace's GTK bundles, build and test the application with:
+Build and test the core without GTK or `sun_gobject`:
 
 ```sh
-SUN_UI_BUILD="$PWD/build" SUN_GOBJECT_BUILD="$PWD/src/sun_gobject/build" ./src/sun_accent_popup/build.sh
+./build.sh
 ```
 
-See [its README](src/sun_accent_popup/README.md) for IBus dependencies, installation,
-and enabling the input source. Toolkit builds and CI do not require this application.
+This builds `build/sun_ui.moon`, `build/sun_plot.moon`, and the plot export example,
+runs UI, plotting, and XML compiler tests, and generates the XML examples. Outputs,
+compiler records, and test results go into `build/`.
 
-### Build the GTK backend
-
-Install GTK 4 development packages and `pkg-config`, plus Xvfb, xauth, and
-`dbus-run-session` for headless tests. The development image includes these tools.
-Manage the [sun_gobject](https://github.com/namo-robotics/sun_gobject) checkout with
-[vcs2l](https://github.com/ros-infrastructure/vcs2l/), whose command is `vcs`.
-The development image includes it. For an existing local environment, install
-`python3-venv`, then set up the same tool version:
+For the GTK build, install GTK 4 development packages, `pkg-config`, Xvfb, xauth,
+and `dbus-run-session`. The development image includes these and `vcs2l` (the `vcs`
+command). To install `vcs2l` locally with `python3-venv` available:
 
 ```sh
 python3 -m venv tmp/vcs2l
@@ -145,7 +88,7 @@ tmp/vcs2l/bin/pip install vcs2l==1.1.7
 export PATH="$PWD/tmp/vcs2l/bin:$PATH"
 ```
 
-Import the development checkout and build both projects with the same Sun compiler:
+Import dependencies and build them with the same Sun compiler:
 
 ```sh
 vcs import --skip-existing --input deps.repos .
@@ -153,111 +96,90 @@ bash src/sun_gobject/build.sh
 ./build.sh --gtk
 ```
 
-This builds the core, backend, and examples, and runs both core tests and GTK
-acceptance tests under a virtual display. The dependency build must contain
-`sun_gobject.moon`, `sun_gtk.moon`, and `native/libsun_gobject_native.a`.
+The GTK build also runs acceptance tests under a virtual display. The default
+dependency build is `src/sun_gobject/build`; set `SUN_GOBJECT_BUILD` to use another
+location. Dependencies are independent checkouts with their own development
+instructions. The import preserves existing checkouts; builds never fetch or reset
+them. Toolkit CI imports only `sun_gobject` from [deps.repos](deps.repos).
 
-The default dependency build is `src/sun_gobject/build`; `SUN_GOBJECT_BUILD`
-can select another build. Interactive examples require a graphical display.
+On Apple Silicon macOS, use `./scripts/build-macos.sh` with the Homebrew dependencies
+listed in [.github/workflows/ci.yml](.github/workflows/ci.yml). To package an existing
+successful Linux GTK build, run `./scripts/package-linux.sh`.
 
-### Working across repositories
-
-`src/sun_gobject/` is a separate Git clone, ignored by sun_ui, with its own history
-and development instructions. Edit and review binding changes there; review UI
-changes in this repository. The import command preserves existing checkouts.
-Builds never fetch or reset the dependency automatically.
-
-Development and CI both use `deps.repos`, which follows `main`. Local dependency
-edits are not captured by the parent repository or by the manifest.
+For separate build, test, and formatting checks:
 
 ```sh
-vcs status src/sun_gobject
-git -C src/sun_gobject diff
+sun src/tools/build.sun -- build
+sun src/tools/build.sun -- test
+sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/adapters src/tools examples tests
 ```
 
-Keep formatting scoped to the first-party paths shown above, so sun_ui commands
-do not reformat the nested dependency.
+[sun-config.json](sun-config.json) declares build targets;
+[src/tools/build.sun](src/tools/build.sun) handles build order, XML generation, and
+native linker flags. Use the build script instead of invoking every configuration
+target directly. Keep formatting scoped to first-party paths to avoid changing
+independent checkouts.
 
 ## Examples
 
-To export and display a scientific plot:
+After building with `./build.sh --gtk`, run these examples in a graphical session:
+
+| Run | Source | Demonstrates |
+| --- | --- | --- |
+| `./build/counter` | [counter/main.sun](examples/counter/main.sun) | State updates and button labels |
+| `./build/tasks` | [tasks/main.sun](examples/tasks/main.sun) | Component composition, selection, and keyed reordering |
+
+Both accept `--self-test`; the GTK build runs these checks automatically.
+
+To export and display the four-panel scientific plotting example:
 
 ```sh
 ./build.sh
 ./build/plot-export                 # build/scientific-plot.svg
-./build.sh --plot-gtk               # native plot viewer and acceptance test
+./build.sh --plot-gtk               # native viewer and acceptance test
 ./build/plot-viewer
 ```
 
-Use **Export SVG…** in the plot window to save the current figure to a chosen file.
+The viewer needs the GTK dependency build and librsvg (`librsvg2-2` on Debian/Ubuntu).
+Use **Export SVG…** to save the current figure. See the
+[sun_plot documentation](src/plot/README.md) for its API and limitations.
 
-The plot viewer requires the sun_gobject build described above, GTK 4, and librsvg
-(`librsvg2-2` on Debian/Ubuntu). See [sun_plot](src/plot/README.md) for the plotting API and
-current limitations.
+Two independent applications also use sun_ui:
+[sun_video_editor](https://github.com/namo-robotics/sun_video_editor) and
+[sun_accent_popup](https://github.com/namo-robotics/sun_accent_popup). Their repositories
+provide application setup, build, and packaging instructions; toolkit builds do not
+require them.
 
-After building with `--gtk`:
-
-| Run | Source | Demonstrates |
-| --- | --- | --- |
-| `./build/counter` | [counter/main.sun](examples/counter/main.sun) | Click to increment state and update the same button's label. |
-| `./build/tasks` | [tasks/main.sun](examples/tasks/main.sun) | Add tasks, click to select, reverse their order, and remove the selected task. Stable keys preserve surviving controls and focus. |
-
-Both examples accept `--self-test`; the GTK build runs these checks automatically.
-The counter is the smallest complete example of a view function, event handler,
-and application loop. The task list adds component composition and task IDs in
-event payloads.
-
-## Architecture
+## High-level architecture
 
 ```mermaid
 flowchart LR
     State[Application state] --> View[View description]
     View --> Tree[Keyed reconciliation]
-    Tree --> GTK[GTK controls]
-    GTK --> Native[sun_gobject native event queue]
-    Native --> Queue[sun_ui semantic messages]
-    Queue --> Handler[State update handler]
+    Tree --> Backend[Backend controls]
+    Backend --> Events[Semantic messages]
+    Events --> Handler[State update handler]
     Handler --> State
 ```
 
 - **State and views:** `Session<State>` owns application state. View functions
-  borrow it read-only and produce owned descriptions. Components are ordinary
-  functions that append elements to a view; they never receive platform handles.
-- **Reconciliation:** `Tree` compares parent-scoped keys and node kinds to create, update, reorder, or
-  remove controls through a renderer. Reordering preserves control identity;
+  borrow it read-only and produce owned descriptions. Components are ordinary Sun
+  functions without platform handles.
+- **Reconciliation:** `Tree` compares parent-scoped keys and node kinds to create,
+  update, reorder, or remove controls. Stable keys preserve control identity;
   duplicate keys are rejected before changing the interface.
-- **Events:** The GTK backend translates `sun_gobject`'s FIFO native deliveries
-  into semantic messages in bounded batches. `Session.dispatch` owns mutable state
-  updates, handler failure policy, and rendering once per batch. Messages carry an
-  action number, integer application context, and an owned edit value.
-- **GTK backend:** Owns windows, boxes, controls, and subscriptions through checked
-  `sun_gobject` APIs. It chooses collection batches, keyed placement, focus requests,
-  and when to stop after window closure. GTK provides layout, text rendering,
-  keyboard activation, focus navigation, and native button accessibility.
-- **Dependency boundary:** `sun_gobject` owns native reference lifetimes, parenting
-  and thread checks, signal delivery, and GLib timeout sources. Its `gtk.EventQueue`
-  owns no application state and applies no render or window-lifetime policy.
-  `sun_ui` uses that queue directly rather than the optional imperative
-  `gtk.EventLoop<State>`. The platform-independent core imports neither GTK nor
-  `sun_gobject`.
+- **Events:** Backends translate native events into semantic messages.
+  `Session.dispatch` updates state and renders once per batch.
+- **Library boundaries:** The core imports neither GTK nor `sun_gobject`.
+  `sun_plot` builds on sun_ui's public APIs; sun_ui does not depend on sun_plot.
 
-| Path | Responsibility |
-| --- | --- |
-| [src/ui.sun](src/ui.sun) | Views, state sessions, event queues, and reconciliation |
-| [src/drawing.sun](src/drawing.sun) | Platform-independent vector drawings and SVG export |
-| [src/plot/](src/plot/) | Scientific plotting library, API documentation, and roadmap |
-| [src/adapters/gtk/drawing.sun](src/adapters/gtk/drawing.sun) | Resizable native vector drawing window |
-| [src/adapters/gtk/renderer.sun](src/adapters/gtk/renderer.sun) | Checked GTK widgets and native-to-semantic event translation |
-| [examples/](examples/) | Runnable applications and GTK acceptance scenarios |
-| [tests/](tests/) | Core tests using a recording renderer |
-| [src/tools/build.sun](src/tools/build.sun) | Build and test orchestration |
+The main implementation lives in [src/ui.sun](src/ui.sun), with vector drawings and
+SVG export in [src/drawing.sun](src/drawing.sun), plotting in [src/plot/](src/plot/),
+and platform adapters in [src/adapters/](src/adapters/). Core [tests](tests/) use a
+recording renderer.
 
-Applications import `sun_ui.moon`. GTK applications additionally import
-`sun_ui_gtk.moon`, `sun_gobject.moon`, and `sun_gtk.moon`, and link GTK and the
-`sun_gobject` native archive. See the examples for the manifests and application
-loop. Call `Tree.shutdown(renderer)` when a session ends to clear mounted resources.
+Call `Tree.shutdown(renderer)` when a session ends to clear mounted resources.
 Renderer or handler errors stop the affected tree; recreate the session to recover.
-
 The current implementation allocates view storage on each render and uses linear
 key searches, making it suitable for small applications. See the
 [XML view guide](docs/xml-views.md) for generation, forms, resource dictionaries,
