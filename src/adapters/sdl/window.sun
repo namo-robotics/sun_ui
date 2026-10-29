@@ -1,0 +1,103 @@
+using std;
+
+/** Hosts owned drawing frames in a separate SDL3 OpenGL window. */
+public module gpu_sdl {
+
+  /** Owns a separate graphics window without depending on GTK. */
+  public class Window {
+    var state: gpu.Surface;
+    var pointer: raw_ptr<u8> = null;
+
+    /** Opens a window and reports unsupported display/context configurations. */
+    init(title: ref String, width: i32, height: i32) SystemResult<void> {
+      try gpu.validate_text(title);
+      this.state = gpu.Surface();
+      this.pointer = unsafe { gu_window_new(this.state.raw_handle(), title.c_str(), width, height); };
+      if (this.pointer == null) {
+        return SystemResult.Error(Error(1, from_c_str(make_heap_allocator(), unsafe { gu_window_error(null); })));
+      }
+    }
+
+    /** Closes the native host before dropping the application's surface reference. */
+    deinit() {
+      if (this.pointer != null) {
+        unsafe { gu_window_free(this.pointer); };
+      }
+    }
+
+    /** Returns an explicitly retained view of this host's stable graphics state. */
+    public const method surface() gpu.Surface {
+      return gpu.Surface(this.state);
+    }
+
+    /** Replaces the submitted packet without executing GL commands immediately. */
+    public method submit(frame: const ref gpu.Frame) void {
+      this.state.submit(frame);
+    }
+
+    /** Draws and presents one frame, then releases SDL's cached current context. */
+    public method render() SystemResult<void> {
+      if (unsafe { gu_window_render(this.pointer); } == 0) {
+        var message = this.error();
+        return SystemResult.Error(Error(1, message));
+      }
+      return SystemResult.Ok;
+    }
+
+    /** Reports whether this particular window remains open. */
+    public const method running() bool {
+      return unsafe { gu_window_open(this.pointer); } != 0;
+    }
+
+    /** Copies host or rendering diagnostics for application reporting. */
+    public const method error() String {
+      var host = from_c_str(make_heap_allocator(), unsafe { gu_window_error(this.pointer); });
+      if (not host.is_empty()) {
+        return host;
+      }
+      return this.state.error();
+    }
+
+    /** Releases this window while leaving other hosts usable. */
+    public method close() void {
+      unsafe { gu_window_close(this.pointer); };
+    }
+
+    /** Requests relative pointer mode; failure is reported explicitly. */
+    public method capture(enabled: bool) SystemResult<void> {
+      if (unsafe { gu_window_capture(this.pointer, enabled ? 1 : 0); } == 0) {
+        return SystemResult.Error(Error(1, this.error()));
+      }
+      return SystemResult.Ok;
+    }
+
+    /** Reports whether relative mouse mode is currently requested. */
+    public const method captured() bool {
+      return unsafe { gu_window_captured(this.pointer); } != 0;
+    }
+
+    /** Changes the logical window size without replacing its context. */
+    public method resize(width: i32, height: i32) SystemResult<void> {
+      if (unsafe { gu_window_resize(this.pointer, width, height); } == 0) {
+        return SystemResult.Error(Error(1, this.error()));
+      }
+      return SystemResult.Ok;
+    }
+  }
+
+  /** Pumps a bounded batch for all SDL windows on the main thread. */
+  public function poll() void {
+    unsafe { gu_window_poll(); };
+  }
+
+  /** Waits briefly between frames without recursively pumping either GUI framework. */
+  public function delay(milliseconds: i32) void {
+    unsafe { gu_window_delay(milliseconds); };
+  }
+
+  /** Reads monotonic time in seconds for simulation and frame scheduling. */
+  public function time() f64 {
+    return unsafe { gu_window_time(); };
+  }
+}
+manifest {library_id:"namo-robotics/sun_ui_sdl",libraries:["stdlib.moon","sun_ui_graphics.moon"],source_files:["raw.sun"]}

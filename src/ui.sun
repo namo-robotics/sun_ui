@@ -46,7 +46,7 @@ public module ui {
   }
 
   /** Identifies layout containers, logical scopes, and native controls. */
-  public enum Kind { Group, Row, Column, Grid, Scroll, Label, Button, TextInput, Checkbox, Select, Video }
+  public enum Kind { Group, Row, Column, Grid, Scroll, Label, Button, TextInput, Checkbox, Select, Video, Viewport }
 
   /** Specifies placement within the space offered by a parent. */
   public enum Align { Fill, Start, Center, End }
@@ -92,6 +92,7 @@ public module ui {
     public var visible: bool = true;
     public var checked: bool = false;
     public var selected: i64 = -1;
+    public var viewport_id: i64 = 0;
     public var duration: i64 = 0;
     public var trim_start: i64 = 0;
     public var trim_end: i64 = 0;
@@ -133,7 +134,7 @@ public module ui {
 
     /** Compares native properties, excluding keys and semantic event routing. */
     public const method equals(other: const ref Element) bool {
-      if (this.duration != other.duration or this.trim_start != other.trim_start or this.trim_end != other.trim_end or this.position != other.position or not this.style.equals(other.style) or this.text.equals(other.text) == false or this.enabled != other.enabled or this.visible != other.visible or this.checked != other.checked or this.selected != other.selected or this.spacing != other.spacing or this.margin != other.margin or this.min_width != other.min_width or this.min_height != other.min_height or this.width != other.width or this.height != other.height or this.horizontal != other.horizontal or this.vertical != other.vertical or this.expand_x != other.expand_x or this.expand_y != other.expand_y or this.row != other.row or this.column != other.column or this.row_span != other.row_span or this.column_span != other.column_span) {
+      if (this.viewport_id != other.viewport_id or this.duration != other.duration or this.trim_start != other.trim_start or this.trim_end != other.trim_end or this.position != other.position or not this.style.equals(other.style) or this.text.equals(other.text) == false or this.enabled != other.enabled or this.visible != other.visible or this.checked != other.checked or this.selected != other.selected or this.spacing != other.spacing or this.margin != other.margin or this.min_width != other.min_width or this.min_height != other.min_height or this.width != other.width or this.height != other.height or this.horizontal != other.horizontal or this.vertical != other.vertical or this.expand_x != other.expand_x or this.expand_y != other.expand_y or this.row != other.row or this.column != other.column or this.row_span != other.row_span or this.column_span != other.column_span) {
         return false;
       }
       if (this.choices.size() != other.choices.size() or this.rows.size() != other.rows.size() or this.columns.size() != other.columns.size()) {
@@ -516,6 +517,16 @@ public module ui {
           var columns = grid.columns.size() == 0 ? 1 : grid.columns.size();
           if (_convert<i64>(node.row) + node.row_span > rows or _convert<i64>(node.column) + node.column_span > columns) {
             return SystemResult.Error(Error(1, "Grid child exceeds declared tracks"));
+          }
+        }
+        if (node.kind == Kind.Viewport) {
+          if (node.viewport_id <= 0) {
+            return SystemResult.Error(Error(1, "Viewport requires a positive identifier"));
+          }
+          for (var previous: i64 = 0; previous < i; previous += 1) {
+            if (view.elements[previous].kind == Kind.Viewport and view.elements[previous].viewport_id == node.viewport_id) {
+              return SystemResult.Error(Error(1, "Viewport is mounted more than once"));
+            }
           }
         }
         if (node.kind == Kind.Video and (node.duration < 0 or node.duration > 1000000000000000 or node.trim_start < 0 or node.trim_end < node.trim_start or node.trim_end > node.duration or node.position < 0 or node.position > node.duration or (node.duration > 0 and node.trim_start == node.trim_end))) {

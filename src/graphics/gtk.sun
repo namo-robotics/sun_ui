@@ -1,0 +1,58 @@
+using std;
+
+/** Connects owned graphics packets to GTK through its checked surface binding. */
+public module gpu_gtk {
+
+  /** Executes a packet only inside the host's current GL context. */
+  extern "C" function gu_surface_render(surface: raw_ptr<u8>, width: i32, height: i32) i32;
+
+  /** Releases context-local resources during native unrealization. */
+  extern "C" function gu_surface_reset(surface: raw_ptr<u8>, live: i32) void;
+
+  /** Retains stable callback storage independently of Sun object addresses. */
+  extern "C" function gu_surface_ref(surface: raw_ptr<u8>) void;
+
+  /** Releases the native host's reference. */
+  extern "C" function gu_surface_free(surface: raw_ptr<u8>) void;
+
+  /** Copies host input into the dedicated graphics queue. */
+  extern "C" function gu_surface_input(surface: raw_ptr<u8>, kind: i32, code: i32, x: f64, y: f64) void;
+
+  /** Owns a graphics surface and its independently retained GTK widget. */
+  public class Viewport {
+    var state: gpu.Surface;
+    var area: gtk.GLArea;
+
+    /** Creates an initially empty viewport with checked GTK ownership. */
+    init() SystemResult<void> {
+      this.state = gpu.Surface();
+      this.area = try gtk.GLArea(unsafe { this.state.raw_handle(); }, gu_surface_render, gu_surface_reset, gu_surface_ref, gu_surface_free, gu_surface_input);
+    }
+
+    /** Returns an explicitly retained widget for registration in the GTK adapter. */
+    public const method widget() gtk.GLArea {
+      return gtk.GLArea(this.area);
+    }
+
+    /** Returns an explicitly retained view of this host's stable graphics state. */
+    public const method surface() gpu.Surface {
+      return gpu.Surface(this.state);
+    }
+
+    /** Snapshots the frame and requests rendering at GTK's next paint boundary. */
+    public method submit(frame: const ref gpu.Frame) void {
+      this.state.submit(frame);
+      this.area.redraw();
+    }
+
+    /** Reports native context failures before renderer-specific diagnostics. */
+    public const method error() String {
+      var error = this.area.error();
+      if (not error.is_empty()) {
+        return error;
+      }
+      return this.state.error();
+    }
+  }
+}
+manifest {library_id:"namo-robotics/sun_ui_graphics_gtk",libraries:["stdlib.moon","sun_ui_graphics.moon","sun_gobject.moon","sun_gtk.moon"]}

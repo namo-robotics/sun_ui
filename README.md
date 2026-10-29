@@ -23,11 +23,25 @@ Download prebuilt bundles from the rolling
 [dev release](https://github.com/namo-robotics/sun_ui/releases/tag/dev), updated after
 CI passes on `main`:
 
-| Platform | Package |
-| --- | --- |
-| Ubuntu 26.04, amd64 | `sun-ui_0.dev_amd64.deb` |
-| Linux, x86_64 | Core, plotting, and GTK `.moon` bundles |
-| macOS, Apple Silicon | `sun_ui-arm64-apple-darwin.tar.gz` |
+After a successful GTK build and test run, create the package locally with
+`./scripts/package-linux.sh`. Packaging uses existing build outputs.
+
+### Build and test the core
+
+```sh
+./build.sh
+```
+
+This builds `build/sun_ui.moon`, `build/sun_plot.moon`, and the plot export example,
+then runs UI, plotting, and XML compiler tests and generates the XML examples
+without GTK or `sun_gobject`. The compiler version and test results are recorded in `build/`.
+For separate build, test, and formatting checks:
+
+```sh
+sun src/tools/build.sun -- build
+sun src/tools/build.sun -- test
+sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/graphics src/adapters src/tools examples tests
+```
 
 The Debian package depends on the published Sun compiler and `sun-gobject`
 packages. It installs bundles under `/usr/lib/sun` and the XML compiler at
@@ -168,21 +182,32 @@ Call `Tree.shutdown(renderer)` when a session ends to clear mounted resources.
 Renderer or handler errors stop the affected tree; recreate the session to recover.
 The current implementation allocates view storage on each render and uses linear
 key searches, making it suitable for small applications. See the
-[XML view guide](docs/xml-views.md) for forms, themes, templates, and generated views.
+[XML view guide](docs/xml-views.md) for generation, forms, resource dictionaries,
+themes, component scopes, templates, and renderer migration. XML tooling requires
+the current published compiler with XML source spans; the build checks this API.
+The [upstream notes](upstream/README.md) record the migration history.
+GTK applications require the corresponding changes in the separate sun_gobject
+checkout; additional rendering backends remain future work.
 
-## Backends
+## Optional OpenGL graphics
 
-GTK 4 is currently the only graphical backend. The core supports builds, tests, and
-SVG export without GTK; interactive interfaces require it. Additional graphical
-backends remain future work.
+`./build.sh --graphics` builds the owned-frame graphics API, embedded GTK viewport,
+separate SDL3 window, and their acceptance tests. Run `./build/graphics` for a
+shared 3D scene with GTK settings and an SDL FPS camera. See
+[graphics integration](docs/graphics.md) for dependencies, ownership, the combined
+event loop, and Wayland's Cairo decoration-plugin requirement. This requires the
+matching GLArea bindings in the separate sun_gobject checkout. macOS graphics
+compatibility is validated in CI.
 
-The [GTK renderer](src/adapters/gtk/renderer.sun) manages controls and translates
-native events through checked [sun_gobject](https://github.com/namo-robotics/sun_gobject)
-APIs. GTK provides layout, text rendering, keyboard interaction, focus navigation,
-and native button accessibility. `sun_gobject` owns native lifetimes, parenting,
-thread checks, and signal delivery. The
-[drawing adapter](src/adapters/gtk/drawing.sun) provides a resizable vector window.
+## Apple Silicon macOS releases
 
-GTK applications import `sun_ui.moon`, `sun_ui_gtk.moon`, `sun_gobject.moon`, and
-`sun_gtk.moon`, and link GTK and `native/libsun_gobject_native.a` from the dependency
-build. See the [examples](examples/) for manifests and application loops.
+The macOS job in the CI workflow builds and tests native bundles with the Homebrew Sun compiler
+and GTK, then publishes `sun_ui-arm64-apple-darwin.tar.gz` to the
+[dev release](https://github.com/namo-robotics/sun_ui/releases/tag/dev)
+alongside the Linux bundles after all CI jobs pass on main.
+Run `./scripts/build-macos.sh` on an Apple Silicon Mac
+with the dependencies listed in `.github/workflows/ci.yml`.
+
+Archives include the compiler version used to build the bundles. Consumers must
+use a compatible compiler and matching native dependencies; Linux bundles cannot
+be reused on macOS. Intel macOS is not covered by these releases.

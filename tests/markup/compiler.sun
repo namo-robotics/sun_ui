@@ -302,4 +302,13 @@ module markup_tests {
     try rejects_registry("<ComponentRegistry>unexpected text</ComponentRegistry>", "empty Source");
     try rejects_registry("<ComponentRegistry><Source></ComponentRegistry>", "Malformed registry XML");
   }
+
+  /** Generates a viewport identifier while retaining ordinary layout properties. */
+  test_function viewport_properties() TestResult<void> {
+    var compiler = markup.Compiler(String("viewport.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"State\"><Viewport key=\"scene\" viewportId=\"{state.viewport}\" width=\"640\" expandX=\"true\"/></View></Views>"));
+    try compiler.compile();
+    try std.test.assert(compiler.output.contains("ui.Kind.Viewport"));
+    try std.test.assert(compiler.output.contains(".viewport_id = state.viewport"));
+    try std.test.assert(compiler.output.contains(".expand_x = true"));
+  }
 }

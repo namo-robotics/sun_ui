@@ -148,7 +148,7 @@ public module markup {
 
   /** Tests whether a tag names a built-in UI node. */
   function builtin(name: const ref String) bool {
-    return name.equals_literal("Group") or name.equals_literal("Row") or name.equals_literal("Column") or name.equals_literal("Grid") or name.equals_literal("Scroll") or name.equals_literal("Label") or name.equals_literal("Button") or name.equals_literal("TextInput") or name.equals_literal("Checkbox") or name.equals_literal("Select") or name.equals_literal("Video");
+    return name.equals_literal("Group") or name.equals_literal("Row") or name.equals_literal("Column") or name.equals_literal("Grid") or name.equals_literal("Scroll") or name.equals_literal("Label") or name.equals_literal("Button") or name.equals_literal("TextInput") or name.equals_literal("Checkbox") or name.equals_literal("Select") or name.equals_literal("Video") or name.equals_literal("Viewport");
   }
 
   /** Owns a discovered component signature without retaining its source parser. */
@@ -723,7 +723,7 @@ public module markup {
         return SystemResult.Ok;
       }
       if (builtin(node.name)) {
-        try this.attributes(index, "key text value action changeAction payload enabled visible checked selected duration trimStart trimEnd position spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize borderWidth radius padding styleResource foregroundResource backgroundResource fontResource spacingResource marginResource");
+        try this.attributes(index, "key text value action changeAction payload enabled visible checked selected viewportId duration trimStart trimEnd position spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize borderWidth radius padding styleResource foregroundResource backgroundResource fontResource spacingResource marginResource");
         var activation = node.attr("action");
         var change = node.attr("changeAction");
         if (not activation.is_empty() and not change.is_empty()) {
@@ -798,6 +798,9 @@ public module markup {
           }
           if (field.equals_literal("changeAction")) {
             field = String("action");
+          }
+          if (field.equals_literal("viewportId")) {
+            field = String("viewport_id");
           }
           if (field.equals_literal("trimStart")) {
             field = String("trim_start");
@@ -1138,7 +1141,7 @@ public module markup {
             try this.attributes(state, "kind styleResource");
             var kind = appearance.attr("kind");
             var style = appearance.attr("styleResource");
-            var kinds = String("Row Column Grid Scroll Label Button TextInput Checkbox Select Video").split_whitespace(a);
+            var kinds = String("Row Column Grid Scroll Label Button TextInput Checkbox Select Video Viewport").split_whitespace(a);
             var known = false;
             for (var item: ref String in kinds) {
               if (item.equals(kind)) {

@@ -127,11 +127,103 @@ module build_tasks {
     if (platform_output.stdout().starts_with("Darwin")) {
       command.add_arg("export G_DEBUG=fatal-criticals GTK_A11Y=none GSK_RENDERER=cairo; gtimeout 30s \"$1\" --self-test");
     } else {
-      command.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test");
+      if (String(name).equals_literal("graphics-tests")) {
+        command.add_arg("export GDK_BACKEND=x11 SDL_VIDEO_DRIVER=x11 SDL_VIDEO_FORCE_EGL=1 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none; timeout -k 2s 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test");
+      } else {
+        command.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test");
+      }
     }
     command.add_arg("sun-ui-acceptance");
     command.add_arg(target.output);
     return run(command);
+  }
+
+  /** Links a named native archive using its configured directory and artifact name. */
+  function link_native(command: ref std.process.Command, name: static_ptr<u8>) SystemResult<void> {
+    var a = make_heap_allocator();
+    var target = try build_targets.load_native(name);
+    var parts = target.output.split(a, b'/');
+    var file = parts[parts.size() - 1];
+    if (not target.library or not file.starts_with("lib") or not file.ends_with(".a")) {
+      return SystemResult.Error(Error(1, "Native linker target must be a static archive"));
+    }
+    var directory = match target.output.substr(a, 0, target.output.length() - file.length()) {
+      AccessResult.Ok(value) => value,
+      AccessResult.OutOfBounds(_) => String("")
+    };
+    var library = match file.substr(a, 3, file.length() - 5) {
+      AccessResult.Ok(value) => value,
+      AccessResult.OutOfBounds(_) => String("")
+    };
+    var search = String("-L");
+    search.append(directory);
+    command.add_arg(search);
+    var flag = String("-l");
+    flag.append(library);
+    command.add_arg(flag);
+    return SystemResult.Ok;
+  }
+
+  /** Compiles one configured graphics target with its optional native dependencies. */
+  function compile_graphics(name: static_ptr<u8>) SystemResult<void> {
+    var target = try build_targets.load(name);
+    var command = try compiler(true);
+    if (String(name).equals_literal("graphics-tests")) {
+      try link_native(command, "graphics-test-input");
+    }
+    try link_native(command, "graphics-sdl");
+    try link_native(command, "graphics-executor");
+    command.add_arg("-lm");
+    var pkg = std.process.Command(make_heap_allocator(), "pkg-config");
+    // Sun accepts library names and search paths, not compiler-driver flags such as -Wl.
+    pkg.add_arg("--libs-only-L");
+    pkg.add_arg("--libs-only-l");
+    pkg.add_arg("sdl3");
+    pkg.add_arg("epoxy");
+    pkg.add_arg("glib-2.0");
+    var output = try pkg.output();
+    if (output.status() != 0) {
+      return SystemResult.Error(Error(1, "Install SDL3 and libepoxy development dependencies"));
+    }
+    var flags = output.stdout().split_whitespace(make_heap_allocator());
+    for (var flag: ref String in flags) {
+      command.add_arg(flag);
+    }
+    command.add_arg(target.library ? "--emit-moon" : "-c");
+    command.add_arg("-o");
+    command.add_arg(target.output);
+    command.add_arg(target.source);
+    return run(command);
+  }
+
+  /** Builds the shared executor, checked host bundles, and graphics programs. */
+  public function graphics() SystemResult<void> {
+    var a = make_heap_allocator();
+    var project = try build_targets.load_native("graphics-native");
+    var configure = std.process.Command(a, "cmake");
+    configure.add_arg("-S");
+    configure.add_arg(project.source);
+    configure.add_arg("-B");
+    configure.add_arg(project.output);
+    configure.add_arg("-DBUILD_SDL_HOST=ON");
+    configure.add_arg("-DBUILD_GRAPHICS_TESTS=ON");
+    try run(configure);
+    var native = std.process.Command(a, "cmake");
+    native.add_arg("--build");
+    native.add_arg(project.output);
+    native.add_arg("-j2");
+    try run(native);
+    try compile("sun_ui_gtk", true);
+    try compile_graphics("sun_ui_graphics");
+    try compile_graphics("sun_ui_graphics_gtk");
+    try compile_graphics("sun_ui_sdl");
+    try compile_graphics("graphics-tests");
+    return compile_graphics("graphics");
+  }
+
+  /** Runs the public graphics integration under the platform's available display host. */
+  public function test_graphics() SystemResult<void> {
+    return acceptance("graphics-tests");
   }
 
   /** Builds core products without requiring GTK or sun_gobject. */
@@ -274,6 +366,10 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   var result: SystemResult<void> = SystemResult.Ok;
   if (args.size() == 2 and args[1].equals_literal("build")) {
     result = build_tasks.build();
+  } else if (args.size() == 2 and args[1].equals_literal("graphics")) {
+    result = build_tasks.graphics();
+  } else if (args.size() == 2 and args[1].equals_literal("test-graphics")) {
+    result = build_tasks.test_graphics();
   } else if (args.size() == 2 and args[1].equals_literal("gtk")) {
     result = build_tasks.gtk();
   } else if (args.size() == 2 and args[1].equals_literal("test")) {
@@ -289,7 +385,7 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   } else if (args.size() == 2 and args[1].equals_literal("markup-gtk")) {
     result = build_tasks.markup_gtk();
   } else {
-    eprintln("Usage: sun src/tools/build.sun -- [build|test|gtk|test-gtk|plot-gtk|test-plot-gtk|markup|markup-gtk]");
+    eprintln("Usage: sun src/tools/build.sun -- [build|test|graphics|test-graphics|gtk|test-gtk|plot-gtk|test-plot-gtk|markup|markup-gtk]");
     return 1;
   }
   return match result {

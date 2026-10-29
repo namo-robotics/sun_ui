@@ -1,0 +1,323 @@
+using std;
+
+/** Exercises actual frame ownership, GTK reconciliation, and SDL presentation. */
+module graphics_checks {
+
+  /** Injects native SDL events through the ordinary host event dispatcher. */
+  extern "C" function graphics_test_event(kind: i32, code: i32, x: f64, y: f64) i32;
+
+  /** Reports a failed acceptance condition as a normal application error. */
+  function check(ok: bool, message: static_ptr<u8>) SystemResult<void> {
+    if (not ok) {
+      return SystemResult.Error(Error(1, message));
+    }
+    return SystemResult.Ok;
+  }
+
+  /** Constructs a keyed viewport and a clickable sibling in either order. */
+  function view(id: i64, reverse: bool, include: bool) ui.View {
+    var a = make_heap_allocator();
+    var v = ui.View(a);
+    if (reverse) {
+      v.button(2, String("Control"), 1, 0);
+    }
+    if (include) {
+      var e = ui.Element(ui.Key(1), ui.Kind.Viewport);
+      e.viewport_id = id;
+      e.width = 240;
+      e.height = 200;
+      e.expand_x = true;
+      e.expand_y = true;
+      v.append(-1, e);
+    }
+    if (not reverse) {
+      v.button(2, String("Control"), 1, 0);
+    }
+    return v;
+  }
+
+  /** Pumps both hosts without blocking either event source. */
+  function pump(renderer: ref ui_gtk.Renderer, tree: ref ui.Tree, queue: ref ui.EventQueue, window: ref gpu_sdl.Window) SystemResult<void> {
+    renderer.poll(tree, queue, false);
+    gpu_sdl.poll();
+    try window.render();
+    gpu_sdl.delay(5);
+    return SystemResult.Ok;
+  }
+
+  /** Waits for both surfaces to paint or reports a bounded timeout. */
+  function wait_frames(renderer: ref ui_gtk.Renderer, tree: ref ui.Tree, queue: ref ui.EventQueue, viewport: ref gpu_gtk.Viewport, window: ref gpu_sdl.Window, target: i32) SystemResult<void> {
+    var deadline = gpu_sdl.time() + 3.0;
+    while (gpu_sdl.time() < deadline and viewport.surface().frames() < target) {
+      try pump(renderer, tree, queue, window);
+      var error = viewport.error();
+      if (not error.is_empty()) {
+        return SystemResult.Error(Error(1, error));
+      }
+    }
+    return check(viewport.surface().frames() >= target, "GTK viewport did not draw in time");
+  }
+
+  /** Builds a screen-filling triangle to test real shader and vertex-buffer execution. */
+  function mesh() SystemResult<gpu.Mesh> {
+    var a = make_heap_allocator();
+    var vertices = Vec<f64>(a, 9);
+    var indices = Vec<i64>(a, 0);
+    vertices.push(-1.0);
+    vertices.push(-1.0);
+    vertices.push(0.0);
+    vertices.push(3.0);
+    vertices.push(-1.0);
+    vertices.push(0.0);
+    vertices.push(-1.0);
+    vertices.push(3.0);
+    vertices.push(0.0);
+    return gpu.Mesh(vertices, indices);
+  }
+
+  /** Submits a packet whose local shader, mesh, and packet owners then go out of scope. */
+  function submit_triangle(viewport: ref gpu_gtk.Viewport, window: ref gpu_sdl.Window) SystemResult<void> {
+    var a = make_heap_allocator();
+    var geometry = try mesh();
+    var vertex = String("#version 330 core\nlayout(location=0) in vec3 position; uniform mat4 transform; uniform float scale; uniform vec2 offset; void main(){gl_Position=transform*vec4(position.xy*scale+offset,position.z,1);}");
+    var fragment = String("#version 330 core\nuniform vec4 color; uniform vec3 tint; out vec4 result; void main(){result=color*vec4(tint,1);}");
+    var shader = try gpu.Shader(vertex, fragment);
+    var frame = try gpu.Frame(0.0, 0.0, 1.0, 1.0);
+    try frame.draw(geometry, shader, gpu.Primitive.Triangles, false, false);
+    var color = Vec<f64>(a, 4);
+    color.push(1.0);
+    color.push(0.0);
+    color.push(0.0);
+    color.push(1.0);
+    var name = String("color");
+    try frame.uniform(name, color);
+    var value = Vec<f64>(a, 16);
+    value.push(1.0);
+    var scale_name = String("scale");
+    try frame.uniform(scale_name, value);
+    value.clear();
+    value.push(0.0);
+    value.push(0.0);
+    var offset_name = String("offset");
+    try frame.uniform(offset_name, value);
+    value.clear();
+    value.push(1.0);
+    value.push(1.0);
+    value.push(1.0);
+    var tint_name = String("tint");
+    try frame.uniform(tint_name, value);
+    value.clear();
+    for (var i: i64 = 0; i < 16; i += 1) {
+      value.push(i % 5 == 0 ? 1.0 : 0.0);
+    }
+    var matrix_name = String("transform");
+    try frame.uniform(matrix_name, value);
+    viewport.submit(frame);
+    window.submit(frame);
+    // Subsequent packet edits must not change the submitted snapshot.
+    color[0] = 0.0;
+    color[1] = 1.0;
+    try frame.uniform(name, color);
+    return SystemResult.Ok;
+  }
+
+  /** Checks capture release and graphics input through native SDL event delivery. */
+  function input(window: ref gpu_sdl.Window) SystemResult<void> {
+    var surface = window.surface();
+    while (true) {
+      match surface.next() {
+        Option.None => {
+          break;
+        },
+        Option.Some(_) => {}
+      };
+    }
+    try window.capture(true);
+    try check(window.captured(), "Relative mouse mode was not enabled");
+    try check(unsafe { graphics_test_event(3, 0, 9.0, -4.0); } != 0, "Cannot inject relative motion");
+    try check(unsafe { graphics_test_event(1, 119, 1.0, 0.0); } != 0, "Cannot inject key press");
+    gpu_sdl.poll();
+    var motion = false;
+    var key = false;
+    while (true) {
+      match surface.next() {
+        Option.None => {
+          break;
+        },
+        Option.Some(e) => {
+          if (e.kind == gpu.InputKind.Relative and e.x == 9.0 and e.y == -4.0) {
+            motion = true;
+          }
+          if (e.kind == gpu.InputKind.Key and e.code == 119 and e.x == 1.0) {
+            key = true;
+          }
+        }
+      };
+    }
+    try check(motion and key, "Native graphics input was not delivered");
+    try check(unsafe { graphics_test_event(1, 27, 1.0, 0.0); } != 0, "Cannot inject Escape");
+    gpu_sdl.poll();
+    try check(not window.captured(), "Escape did not release capture");
+    try window.capture(true);
+    try check(unsafe { graphics_test_event(2, 0, 0.0, 0.0); } != 0, "Cannot inject focus loss");
+    gpu_sdl.poll();
+    try check(not window.captured(), "Focus loss did not release capture");
+    var reset = false;
+    while (true) {
+      match surface.next() {
+        Option.None => {
+          break;
+        },
+        Option.Some(e) => {
+          if (e.kind == gpu.InputKind.Focus and e.code == 0) {
+            reset = true;
+          }
+        }
+      };
+    }
+    return check(reset, "Focus loss did not reset application input");
+  }
+
+  /** Exercises one window pair, including reordering, replacement, and either close order. */
+  function scenario(close_sdl_first: bool) SystemResult<void> {
+    var a = make_heap_allocator();
+    var title = String("Graphics acceptance");
+    var renderer = try ui_gtk.Renderer(title, String(close_sdl_first ? "org.sunlang.Graphics.First" : "org.sunlang.Graphics.Second"));
+    var tree = ui.Tree(a);
+    var queue = ui.EventQueue(a);
+    var viewport = try gpu_gtk.Viewport();
+    viewport.surface().readback(true);
+    try renderer.register_viewport(1, viewport.widget());
+    match renderer.register_viewport(2, viewport.widget()) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        return SystemResult.Error(Error(1, "Duplicate surface registration was accepted"));
+      }
+    };
+    try tree.render(renderer, view(1, false, true));
+    var identity = tree.identity(1);
+    gtk.clear_gl_context();
+    var window = try gpu_sdl.Window(title, 240, 200);
+    window.surface().readback(true);
+    try submit_triangle(viewport, window);
+    try wait_frames(renderer, tree, queue, viewport, window, 1);
+    try check(viewport.surface().pixel(0) > 250 and viewport.surface().pixel(1) < 3, "GTK did not render retained red triangle");
+    try check(window.surface().pixel(0) > 250 and window.surface().pixel(1) < 3, "SDL did not render retained red triangle");
+    try tree.render(renderer, view(1, true, true));
+    try check(tree.identity(1) == identity, "Keyed reorder replaced viewport identity");
+    renderer.click(tree.identity(2));
+    try pump(renderer, tree, queue, window);
+    try check(queue.size() == 1, "GTK control event lost beside GPU viewport");
+    var before = viewport.surface().frames();
+    try renderer.set_default_size(640, 480);
+    try window.resize(360, 280);
+    var blue = try gpu.Frame(0.0, 0.0, 1.0, 1.0);
+    var pending = try gpu.Frame(0.0, 1.0, 0.0, 1.0);
+    viewport.submit(pending);
+    window.submit(pending);
+    viewport.submit(blue);
+    window.submit(blue);
+    try wait_frames(renderer, tree, queue, viewport, window, before + 1);
+    try check(viewport.surface().pixel(2) > 250 and window.surface().pixel(2) > 250, "Replacement frame was not rendered");
+    var replacement = try gpu_gtk.Viewport();
+    replacement.surface().readback(true);
+    try renderer.register_viewport(2, replacement.widget());
+    try tree.render(renderer, view(2, true, true));
+    try submit_triangle(replacement, window);
+    try wait_frames(renderer, tree, queue, replacement, window, 1);
+    try check(tree.identity(1) == identity, "Changing viewport identifier replaced keyed control identity");
+    try renderer.unregister_viewport(1);
+    // Removing and remounting must rebuild the context-local cache safely.
+    try tree.render(renderer, view(2, false, false));
+    try tree.render(renderer, view(2, false, true));
+    var remount = replacement.surface().frames();
+    var area = try renderer.viewport(2);
+    area.redraw();
+    try wait_frames(renderer, tree, queue, replacement, window, remount + 1);
+    try check(replacement.surface().pixel(0) > 250 and replacement.surface().pixel(1) < 3, "Remounted viewport lost its retained geometry");
+    // Exercise actual compiler diagnostics, then recover with a valid frame.
+    var bad_vertex = String("invalid GLSL");
+    var bad_fragment = String("invalid GLSL");
+    var bad_shader = try gpu.Shader(bad_vertex, bad_fragment);
+    var geometry = try mesh();
+    var bad = try gpu.Frame(0.0, 0.0, 0.0, 1.0);
+    try bad.draw(geometry, bad_shader, gpu.Primitive.Triangles, false, false);
+    window.submit(bad);
+    match window.render() {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        return SystemResult.Error(Error(1, "Invalid shader succeeded"));
+      }
+    };
+    var diagnostic = window.surface().error();
+    try check(not diagnostic.is_empty(), "Missing shader diagnostic");
+    window.submit(blue);
+    try window.render();
+    try input(window);
+    if (close_sdl_first) {
+      try check(unsafe { graphics_test_event(4, 0, 0.0, 0.0); } != 0, "Cannot inject close request");
+      gpu_sdl.poll();
+      try check(not window.running(), "Native close request did not close SDL window");
+      var last = replacement.surface().frames();
+      replacement.submit(blue);
+      try wait_frames(renderer, tree, queue, replacement, window, last + 1);
+      tree.shutdown(renderer);
+      renderer.close();
+    } else {
+      tree.shutdown(renderer);
+      renderer.close();
+      try window.render();
+      try check(window.surface().pixel(2) > 250, "SDL stopped after GTK tree shutdown");
+      window.close();
+    }
+    try renderer.unregister_viewport(2);
+    return SystemResult.Ok;
+  }
+
+  /** Checks invalid public inputs without executing OpenGL. */
+  function invalid_inputs() SystemResult<void> {
+    var frame = try gpu.Frame(0.0, 0.0, 0.0, 1.0);
+    var values = Vec<f64>(make_heap_allocator(), 1);
+    values.push(1.0);
+    var name = String("missing");
+    match frame.uniform(name, values) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        return SystemResult.Error(Error(1, "Uniform without draw was accepted"));
+      }
+    };
+    var title = String("Missing registration");
+    var renderer = try ui_gtk.Renderer(title, String("org.sunlang.Graphics.Missing"));
+    var tree = ui.Tree(make_heap_allocator());
+    match tree.render(renderer, view(99, false, true)) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        return SystemResult.Error(Error(1, "Unregistered viewport mounted"));
+      }
+    };
+    tree.shutdown(renderer);
+    gtk.clear_gl_context();
+    return SystemResult.Ok;
+  }
+
+  /** Runs bounded scenarios against the real public host APIs. */
+  public function run() SystemResult<void> {
+    try invalid_inputs();
+    try scenario(true);
+    try scenario(false);
+    println("Graphics acceptance passed");
+    return SystemResult.Ok;
+  }
+}
+
+/** Returns a failing process status for any graphics acceptance error. */
+function main() i32 {
+  return match graphics_checks.run() {
+    SystemResult.Ok => 0,
+    SystemResult.Error(error) => {
+      eprintln(error.message());
+      return 1;
+    }
+  };
+}
+manifest {libraries:["stdlib.moon","sun_ui.moon","sun_ui_gtk.moon","sun_gobject.moon","sun_gtk.moon","sun_ui_graphics.moon","sun_ui_graphics_gtk.moon","sun_ui_sdl.moon"]}

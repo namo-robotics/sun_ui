@@ -812,4 +812,58 @@ module core_tests {
       }
     };
   }
+
+  /** Rejects invalid viewport identities and duplicate mounts before touching a renderer. */
+  test_function viewport_validation_and_identity() TestResult<void> {
+    var a = make_heap_allocator();
+    var tree = ui.Tree(a);
+    var renderer = Recording();
+    var invalid = ui.View(a);
+    invalid.append(-1, ui.Element(ui.Key(1), ui.Kind.Viewport));
+    match tree.render(renderer, invalid) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "missing viewport identifier accepted");
+      }
+    };
+    try std.test.assert_eq(renderer.created, 0);
+    var duplicate = ui.View(a);
+    for (var i: i64 = 1; i <= 2; i += 1) {
+      var e = ui.Element(ui.Key(i), ui.Kind.Viewport);
+      e.viewport_id = 7;
+      duplicate.append(-1, e);
+    }
+    match tree.render(renderer, duplicate) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "duplicate viewport mount accepted");
+      }
+    };
+    try std.test.assert_eq(renderer.created, 0);
+    var initial = ui.View(a);
+    var e = ui.Element(ui.Key(1), ui.Kind.Viewport);
+    e.viewport_id = 7;
+    initial.append(-1, e);
+    try tree.render(renderer, initial);
+    var id = tree.identity(1);
+    var changed = ui.View(a);
+    var next = ui.Element(ui.Key(1), ui.Kind.Viewport);
+    next.viewport_id = 8;
+    changed.append(-1, next);
+    try tree.render(renderer, changed);
+    try std.test.assert_eq(tree.identity(1), id);
+    try std.test.assert_eq(renderer.updated, 1);
+    var children = ui.View(a);
+    var parent = ui.Element(ui.Key(1), ui.Kind.Viewport);
+    parent.viewport_id = 8;
+    var index = children.append(-1, parent);
+    children.append(index, ui.Element(ui.Key(2), ui.Kind.Label));
+    match tree.render(renderer, children) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "viewport accepted children");
+      }
+    };
+    tree.shutdown(renderer);
+  }
 }

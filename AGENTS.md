@@ -7,7 +7,7 @@ A file for guiding coding agents.
 - Never use git commands except readonly ones like `git status` and `git diff`.
 - Run all commands from the workspace root. Create any temp files in `${workspaceRoot}/tmp`.
 - `sun fmt` for formatting sun source files
-- Format only first-party paths: `sun fmt src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/adapters src/tools examples tests`. Do not recursively format `src/`, which includes the independently maintained sun_gobject and sun_video_editor checkouts.
+- Format only first-party paths: `sun fmt src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/graphics src/adapters src/tools examples tests`. Do not recursively format `src/`, which includes the independently maintained sun_gobject and sun_video_editor checkouts.
 - Core build and tests: `./build.sh`. Optional GTK build and acceptance tests: `./build.sh --gtk` with `SUN_GOBJECT_BUILD` pointing to a compatible dependency build.
 - Core build: `sun src/tools/build.sun -- build`.
 - Tests: `sun src/tools/build.sun -- test`; selected tests: `sun test tests/main.sun --test-filter <name>`.

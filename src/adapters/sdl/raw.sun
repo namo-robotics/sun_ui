@@ -1,0 +1,39 @@
+/** Declares the native SDL ownership boundary. */
+public module gpu_sdl {
+
+  /** Reads the host's requested relative mouse mode. */
+  extern "C" function gu_window_captured(window: raw_ptr<u8>) i32;
+
+  /** Creates a native SDL window and retains the graphics surface. */
+  extern "C" function gu_window_new(surface: raw_ptr<u8>, title: raw_ptr<u8>, width: i32, height: i32) raw_ptr<u8>;
+
+  /** Releases an SDL host. */
+  extern "C" function gu_window_free(window: raw_ptr<u8>) void;
+
+  /** Closes one native window. */
+  extern "C" function gu_window_close(window: raw_ptr<u8>) void;
+
+  /** Collects a bounded native event batch. */
+  extern "C" function gu_window_poll() void;
+
+  /** Renders and presents with explicit context ownership. */
+  extern "C" function gu_window_render(window: raw_ptr<u8>) i32;
+
+  /** Checks the native window lifetime. */
+  extern "C" function gu_window_open(window: raw_ptr<u8>) i32;
+
+  /** Borrows a native diagnostic. */
+  extern "C" function gu_window_error(window: raw_ptr<u8>) raw_ptr<u8>;
+
+  /** Sets relative pointer capture. */
+  extern "C" function gu_window_capture(window: raw_ptr<u8>, enabled: i32) i32;
+
+  /** Requests a logical window size. */
+  extern "C" function gu_window_resize(window: raw_ptr<u8>, width: i32, height: i32) i32;
+
+  /** Waits for a bounded frame interval. */
+  extern "C" function gu_window_delay(milliseconds: i32) void;
+
+  /** Reads monotonic time in seconds. */
+  extern "C" function gu_window_time() f64;
+}
