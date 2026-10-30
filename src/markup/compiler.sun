@@ -154,7 +154,8 @@ public module markup {
       name.equals_literal("Scroll") or name.equals_literal("Label") or
       name.equals_literal("Button") or name.equals_literal("TextInput") or
       name.equals_literal("Checkbox") or name.equals_literal("Select") or
-      name.equals_literal("Video") or name.equals_literal("Viewport");
+      name.equals_literal("Video") or name.equals_literal("Viewport") or
+      name.equals_literal("Image");
   }
 
   /** Owns a discovered component signature without retaining its source parser. */
@@ -817,7 +818,7 @@ public module markup {
       if (builtin(node.name)) {
         try this.attributes(
           index,
-          "key text value action changeAction payload enabled visible checked selected viewportId duration trimStart trimEnd position spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize borderWidth radius padding styleResource foregroundResource backgroundResource fontResource spacingResource marginResource"
+          "key text value action changeAction payload enabled visible checked selected viewportId duration trimControls trimStart trimEnd position spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize borderWidth radius padding styleResource foregroundResource backgroundResource fontResource spacingResource marginResource"
         );
         var activation = node.attr("action");
         var change = node.attr("changeAction");
@@ -905,6 +906,9 @@ public module markup {
           }
           if (field.equals_literal("viewportId")) {
             field = String("viewport_id");
+          }
+          if (field.equals_literal("trimControls")) {
+            field = String("trim_controls");
           }
           if (field.equals_literal("trimStart")) {
             field = String("trim_start");
@@ -1301,7 +1305,7 @@ public module markup {
             var kind = appearance.attr("kind");
             var style = appearance.attr("styleResource");
             var kinds = String(
-              "Row Column Grid Scroll Label Button TextInput Checkbox Select Video Viewport"
+              "Row Column Grid Scroll Label Button TextInput Checkbox Select Video Viewport Image"
             ).split_whitespace(
               a
             );

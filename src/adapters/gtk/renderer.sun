@@ -17,7 +17,8 @@ public module ui_gtk {
       ui.Kind.Checkbox => 8,
       ui.Kind.Select => 9,
       ui.Kind.Video => 10,
-      ui.Kind.Viewport => 11
+      ui.Kind.Viewport => 11,
+      ui.Kind.Image => 12
     };
   }
 
@@ -152,7 +153,12 @@ public module ui_gtk {
         var text = element.text.clone(a);
         try this.widget.set_text(text);
       }
+      if (element.kind == ui.Kind.Image) {
+        var path = element.text.clone(a);
+        try this.widget.image(path);
+      }
       if (element.kind == ui.Kind.Video) {
+        this.widget.media_trim_controls(element.trim_controls);
         var path = element.text.clone(a);
         try this.widget.media(
           path,
@@ -695,6 +701,12 @@ public module ui_gtk {
     public method media_status(identity: u64) i32 {
       var index = this.index(identity);
       return index < 0 ? -1 : this.controls[index].widget.media_status();
+    }
+
+    /** Reports decoded image availability for preview verification. */
+    public method image_status(identity: u64) i32 {
+      var index = this.index(identity);
+      return index < 0 ? -1 : this.controls[index].widget.image_status();
     }
 
     /** Reads the actual preview timestamp for acceptance checks. */

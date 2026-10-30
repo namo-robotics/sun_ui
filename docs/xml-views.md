@@ -428,3 +428,10 @@ Appearance resources and inline controls accept `borderWidth`, `radius`, and
 removes the native border, shadow, and transition delay. Use background fills to
 separate panels and retain a deliberate keyboard-focus appearance for controls.
 See [sun_video_editor/src/sun_video_editor.view.xml](https://github.com/namo-robotics/sun_video_editor/blob/main/src/sun_video_editor.view.xml) for the complete example.
+
+Image previews use `<Image text="{state.path.clone(a)}" height="360" expandX="true" />`.
+The GTK adapter fits the local image without distorting its aspect ratio. Empty
+paths clear the preview; unreadable images show an inline fallback message.
+
+Set `trimControls="false"` on `Video` to use standard video playback controls,
+without the custom trim timeline or its transport row. Trim controls default to enabled.
