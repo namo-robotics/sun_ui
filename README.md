@@ -211,3 +211,8 @@ with the dependencies listed in `.github/workflows/ci.yml`.
 Archives include the compiler version used to build the bundles. Consumers must
 use a compatible compiler and matching native dependencies; Linux bundles cannot
 be reused on macOS. Intel macOS is not covered by these releases.
+
+## Shared development container
+
+See [.devcontainer/README.md](.devcontainer/README.md) for the applied Sun template
+version, project-specific settings, and rebuild instructions.
