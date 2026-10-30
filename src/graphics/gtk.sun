@@ -16,7 +16,13 @@ public module gpu_gtk {
   extern "C" function gu_surface_free(surface: raw_ptr<u8>) void;
 
   /** Copies host input into the dedicated graphics queue. */
-  extern "C" function gu_surface_input(surface: raw_ptr<u8>, kind: i32, code: i32, x: f64, y: f64) void;
+  extern "C" function gu_surface_input(
+    surface: raw_ptr<u8>,
+    kind: i32,
+    code: i32,
+    x: f64,
+    y: f64
+  ) void;
 
   /** Owns a graphics surface and its independently retained GTK widget. */
   public class Viewport {
@@ -26,7 +32,14 @@ public module gpu_gtk {
     /** Creates an initially empty viewport with checked GTK ownership. */
     init() SystemResult<void> {
       this.state = gpu.Surface();
-      this.area = try gtk.GLArea(unsafe { this.state.raw_handle(); }, gu_surface_render, gu_surface_reset, gu_surface_ref, gu_surface_free, gu_surface_input);
+      this.area = try gtk.GLArea(
+        unsafe { this.state.raw_handle(); },
+        gu_surface_render,
+        gu_surface_reset,
+        gu_surface_ref,
+        gu_surface_free,
+        gu_surface_input
+      );
     }
 
     /** Returns an explicitly retained widget for registration in the GTK adapter. */
@@ -55,4 +68,11 @@ public module gpu_gtk {
     }
   }
 }
-manifest {library_id:"namo-robotics/sun_ui_graphics_gtk",libraries:["stdlib.moon","sun_ui_graphics.moon","sun_gobject.moon","sun_gtk.moon"]}
+manifest {
+  library_id:"namo-robotics/sun_ui_graphics_gtk",libraries:[
+    "stdlib.moon",
+    "sun_ui_graphics.moon",
+    "sun_gobject.moon",
+    "sun_gtk.moon"
+  ]
+}

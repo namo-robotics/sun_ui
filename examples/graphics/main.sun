@@ -34,7 +34,11 @@ module graphics_demo {
   }
 
   /** Applies UI actions without touching GPU resources or camera state. */
-  function handle(state: ref Settings, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+  function handle(
+    state: ref Settings,
+    event: const ref ui.Event,
+    queue: ref ui.EventQueue
+  ) SystemResult<void> {
     if (event.action == 1) {
       state.blue = not state.blue;
     }
@@ -209,7 +213,14 @@ module graphics_demo {
   }
 
   /** Copies one uniform vector into a packet. */
-  function uniform4(frame: ref gpu.Frame, name: static_ptr<u8>, x: f64, y: f64, z: f64, w: f64) SystemResult<void> {
+  function uniform4(
+    frame: ref gpu.Frame,
+    name: static_ptr<u8>,
+    x: f64,
+    y: f64,
+    z: f64,
+    w: f64
+  ) SystemResult<void> {
     var v = Vec<f64>(make_heap_allocator(), 4);
     v.push(x);
     v.push(y);
@@ -220,12 +231,34 @@ module graphics_demo {
   }
 
   /** Describes a camera-specific frame using shared immutable geometry and shaders. */
-  function frame(camera: const ref Camera, settings: const ref Settings, angle: f64, aspect: f64, cube_mesh: const ref gpu.Mesh, grid_mesh: const ref gpu.Mesh, shader: const ref gpu.Shader) SystemResult<gpu.Frame> {
+  function frame(
+    camera: const ref Camera,
+    settings: const ref Settings,
+    angle: f64,
+    aspect: f64,
+    cube_mesh: const ref gpu.Mesh,
+    grid_mesh: const ref gpu.Mesh,
+    shader: const ref gpu.Shader
+  ) SystemResult<gpu.Frame> {
     var f = try gpu.Frame(0.035, 0.045, 0.07, 1.0);
     try f.draw(cube_mesh, shader, gpu.Primitive.Triangles, true, false);
     try uniform4(f, "camera", _convert<f64>(camera.x), 0.6, _convert<f64>(camera.z), aspect);
-    try uniform4(f, "rotation", _convert<f64>(camera.yaw), _convert<f64>(camera.pitch), _convert<f64>(angle), 0.0);
-    try uniform4(f, "color", settings.blue ? 0.15 : 0.95, settings.blue ? 0.55 : 0.4, settings.blue ? 0.95 : 0.15, 1.0);
+    try uniform4(
+      f,
+      "rotation",
+      _convert<f64>(camera.yaw),
+      _convert<f64>(camera.pitch),
+      _convert<f64>(angle),
+      0.0
+    );
+    try uniform4(
+      f,
+      "color",
+      settings.blue ? 0.15 : 0.95,
+      settings.blue ? 0.55 : 0.4,
+      settings.blue ? 0.95 : 0.15,
+      1.0
+    );
     try f.draw(grid_mesh, shader, gpu.Primitive.Lines, true, false);
     try uniform4(f, "camera", _convert<f64>(camera.x), 0.6, _convert<f64>(camera.z), aspect);
     try uniform4(f, "rotation", _convert<f64>(camera.yaw), _convert<f64>(camera.pitch), 0.0, 0.0);
@@ -256,8 +289,12 @@ module graphics_demo {
     var fps = Camera();
     var cube_mesh = try cube();
     var grid_mesh = try grid();
-    var vertex = String("#version 330 core\nlayout(location=0) in vec3 position; uniform vec4 camera; uniform vec4 rotation; out float shade; void main(){vec3 p=position; float a=rotation.z; p.xz=mat2(cos(a),-sin(a),sin(a),cos(a))*p.xz; shade=0.65+0.25*clamp(p.y,-1.,1.); p-=camera.xyz; a=rotation.x; p.xz=mat2(cos(a),-sin(a),sin(a),cos(a))*p.xz; a=-rotation.y; p.yz=mat2(cos(a),-sin(a),sin(a),cos(a))*p.yz; gl_Position=vec4(p.x*1.7/camera.w,p.y*1.7,-1.002*p.z-0.2002,-p.z);}");
-    var fragment = String("#version 330 core\nuniform vec4 color; in float shade; out vec4 result; void main(){result=vec4(color.rgb*shade,color.a);}");
+    var vertex = String(
+      "#version 330 core\nlayout(location=0) in vec3 position; uniform vec4 camera; uniform vec4 rotation; out float shade; void main(){vec3 p=position; float a=rotation.z; p.xz=mat2(cos(a),-sin(a),sin(a),cos(a))*p.xz; shade=0.65+0.25*clamp(p.y,-1.,1.); p-=camera.xyz; a=rotation.x; p.xz=mat2(cos(a),-sin(a),sin(a),cos(a))*p.xz; a=-rotation.y; p.yz=mat2(cos(a),-sin(a),sin(a),cos(a))*p.yz; gl_Position=vec4(p.x*1.7/camera.w,p.y*1.7,-1.002*p.z-0.2002,-p.z);}"
+    );
+    var fragment = String(
+      "#version 330 core\nuniform vec4 color; in float shade; out vec4 result; void main(){result=vec4(color.rgb*shade,color.a);}"
+    );
     var shader = try gpu.Shader(vertex, fragment);
     var previous = gpu_sdl.time();
     var angle: f64 = 0.0;
@@ -280,7 +317,15 @@ module graphics_demo {
       embedded.update(embedded_state, dt);
       fps.update(fps_state, dt);
       if (renderer.running()) {
-        var f = try frame(embedded, session.state, angle, aspect(viewport.surface()), cube_mesh, grid_mesh, shader);
+        var f = try frame(
+          embedded,
+          session.state,
+          angle,
+          aspect(viewport.surface()),
+          cube_mesh,
+          grid_mesh,
+          shader
+        );
         viewport.submit(f);
         var error = viewport.error();
         if (not error.is_empty()) {
@@ -288,7 +333,15 @@ module graphics_demo {
         }
       }
       if (window.running()) {
-        var f = try frame(fps, session.state, angle, aspect(window.surface()), cube_mesh, grid_mesh, shader);
+        var f = try frame(
+          fps,
+          session.state,
+          angle,
+          aspect(window.surface()),
+          cube_mesh,
+          grid_mesh,
+          shader
+        );
         window.submit(f);
         try window.render();
         var error = window.error();
@@ -313,4 +366,15 @@ function main() i32 {
     }
   };
 }
-manifest {libraries:["stdlib.moon","sun_ui.moon","sun_ui_gtk.moon","sun_gobject.moon","sun_gtk.moon","sun_ui_graphics.moon","sun_ui_graphics_gtk.moon","sun_ui_sdl.moon"]}
+manifest {
+  libraries:[
+    "stdlib.moon",
+    "sun_ui.moon",
+    "sun_ui_gtk.moon",
+    "sun_gobject.moon",
+    "sun_gtk.moon",
+    "sun_ui_graphics.moon",
+    "sun_ui_graphics_gtk.moon",
+    "sun_ui_sdl.moon"
+  ]
+}

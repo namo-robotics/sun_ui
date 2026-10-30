@@ -32,13 +32,24 @@ public module gpu {
   extern "C" function gu_frame_free(frame: raw_ptr<u8>) void;
 
   /** Appends a validated draw command. */
-  extern "C" function gu_frame_draw(frame: raw_ptr<u8>, mesh: raw_ptr<u8>, shader: raw_ptr<u8>, mode: i32, depth: i32, blend: i32) i32;
+  extern "C" function gu_frame_draw(
+    frame: raw_ptr<u8>,
+    mesh: raw_ptr<u8>,
+    shader: raw_ptr<u8>,
+    mode: i32,
+    depth: i32,
+    blend: i32
+  ) i32;
 
   /** Stages a uniform component on the main thread. */
   extern "C" function gu_uniform_value(index: i32, value: f32) void;
 
   /** Copies the staged uniform into the packet. */
-  extern "C" function gu_frame_uniform_built(frame: raw_ptr<u8>, name: raw_ptr<u8>, count: i32) i32;
+  extern "C" function gu_frame_uniform_built(
+    frame: raw_ptr<u8>,
+    name: raw_ptr<u8>,
+    count: i32
+  ) i32;
 
   /** Creates an independent rendering surface. */
   extern "C" function gu_surface_new() raw_ptr<u8>;

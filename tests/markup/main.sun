@@ -2,4 +2,16 @@
 function main() i32 {
   return 0;
 }
-manifest { libraries: ["stdlib.moon"], source_files: ["../../src/markup/compiler.sun", "../../src/tools/diagnostics.sun", "../../src/tools/targets.sun"], test_files: ["compiler.sun", "pipeline.sun", "targets.sun"] }
+manifest {
+  libraries: [
+    "stdlib.moon"
+  ], source_files: [
+    "../../src/markup/compiler.sun",
+    "../../src/tools/diagnostics.sun",
+    "../../src/tools/targets.sun"
+  ], test_files: [
+    "compiler.sun",
+    "pipeline.sun",
+    "targets.sun"
+  ]
+}

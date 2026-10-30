@@ -29,9 +29,18 @@ public module ui_drawing {
     }
 
     /** Adds a stroked segment with an escaped CSS color. */
-    public method line(x1: f64, y1: f64, x2: f64, y2: f64, color: const ref String, width: f64) void {
+    public method line(
+      x1: f64,
+      y1: f64,
+      x2: f64,
+      y2: f64,
+      color: const ref String,
+      width: f64
+    ) void {
       var paint = escape(color);
-      this.body.append(`<path d="M ${x1} ${y1} L ${x2} ${y2}" fill="none" stroke="${paint}" stroke-width="${width}" stroke-linecap="round"/>\n`);
+      this.body.append(
+        `<path d="M ${x1} ${y1} L ${x2} ${y2}" fill="none" stroke="${paint}" stroke-width="${width}" stroke-linecap="round"/>\n`
+      );
     }
 
     /** Adds a filled circular marker. */
@@ -41,15 +50,26 @@ public module ui_drawing {
     }
 
     /** Adds selectable text, optionally centered and rotated about its baseline origin. */
-    public method text(x: f64, y: f64, value: const ref String, size: f64, centered: bool, angle: f64) void {
+    public method text(
+      x: f64,
+      y: f64,
+      value: const ref String,
+      size: f64,
+      centered: bool,
+      angle: f64
+    ) void {
       var content = escape(value);
       var anchor = String(centered ? "middle" : "start");
-      this.body.append(`<text x="${x}" y="${y}" font-family="DejaVu Sans, sans-serif" font-size="${size}" fill="#202735" text-anchor="${anchor}" transform="rotate(${angle} ${x} ${y})">${content}</text>\n`);
+      this.body.append(
+        `<text x="${x}" y="${y}" font-family="DejaVu Sans, sans-serif" font-size="${size}" fill="#202735" text-anchor="${anchor}" transform="rotate(${angle} ${x} ${y})">${content}</text>\n`
+      );
     }
 
     /** Opens a clipped data group; pair with end_clip before serializing. */
     public method begin_clip(x: f64, y: f64, width: f64, height: f64) void {
-      this.body.append(`<svg x="${x}" y="${y}" width="${width}" height="${height}" viewBox="${x} ${y} ${width} ${height}" overflow="hidden">\n`);
+      this.body.append(
+        `<svg x="${x}" y="${y}" width="${width}" height="${height}" viewBox="${x} ${y} ${width} ${height}" overflow="hidden">\n`
+      );
     }
 
     /** Closes the most recently opened clipping group. */
@@ -63,8 +83,16 @@ public module ui_drawing {
     }
 
     /** Fits a child into a clipped viewport while preserving its aspect ratio and vector content. */
-    public method place_scaled(x: f64, y: f64, width: f64, height: f64, child: const ref Drawing) void {
-      this.body.append(`<svg x="${x}" y="${y}" width="${width}" height="${height}" viewBox="0 0 ${child.width} ${child.height}" overflow="hidden">\n`);
+    public method place_scaled(
+      x: f64,
+      y: f64,
+      width: f64,
+      height: f64,
+      child: const ref Drawing
+    ) void {
+      this.body.append(
+        `<svg x="${x}" y="${y}" width="${width}" height="${height}" viewBox="0 0 ${child.width} ${child.height}" overflow="hidden">\n`
+      );
       this.body.append(child.body);
       this.body.append("</svg>\n");
     }
@@ -72,7 +100,9 @@ public module ui_drawing {
     /** Serializes a standalone vector image without touching the filesystem. */
     public const method svg() String {
       var result = String("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-      result.append(`<svg xmlns="http://www.w3.org/2000/svg" width="${this.width}" height="${this.height}" viewBox="0 0 ${this.width} ${this.height}">\n`);
+      result.append(
+        `<svg xmlns="http://www.w3.org/2000/svg" width="${this.width}" height="${this.height}" viewBox="0 0 ${this.width} ${this.height}">\n`
+      );
       result.append(this.body);
       result.append("</svg>\n");
       return result;

@@ -42,15 +42,25 @@ module release_package {
     try install(String("build/sun_ui.moon"), `${root}/usr/lib/sun/sun_ui.moon`, false);
     try install(String("build/sun_plot.moon"), `${root}/usr/lib/sun/sun_plot.moon`, false);
     try install(String("build/sun_ui_gtk.moon"), `${root}/usr/lib/sun/sun_ui_gtk.moon`, false);
-    try install(String("build/sun_ui_gtk_drawing.moon"), `${root}/usr/lib/sun/sun_ui_gtk_drawing.moon`, false);
+    try install(
+      String("build/sun_ui_gtk_drawing.moon"),
+      `${root}/usr/lib/sun/sun_ui_gtk_drawing.moon`,
+      false
+    );
     try install(String("build/sun-viewc"), `${root}/usr/bin/sun-viewc`, true);
     try install(String("LICENSE"), `${root}/usr/share/doc/sun-ui/copyright`, false);
-    try install(String("build/sun-version.txt"), `${root}/usr/share/doc/sun-ui/sun-version.txt`, false);
+    try install(
+      String("build/sun-version.txt"),
+      `${root}/usr/share/doc/sun-ui/sun-version.txt`,
+      false
+    );
     var mkdir = std.process.Command(a, "mkdir");
     mkdir.add_arg("-p");
     mkdir.add_arg(`${root}/DEBIAN`);
     try run(mkdir);
-    var control = String("Package: sun-ui\nVersion: 0.dev\nArchitecture: amd64\nMaintainer: David Brown <davidwbrwn@gmail.com>\nDepends: sun, sun-gobject, libc6\nSection: libdevel\nPriority: optional\nDescription: Sun development bundles and tools\n Built for Ubuntu 26.04 with the recorded Sun compiler.\n");
+    var control = String(
+      "Package: sun-ui\nVersion: 0.dev\nArchitecture: amd64\nMaintainer: David Brown <davidwbrwn@gmail.com>\nDepends: sun, sun-gobject, libc6\nSection: libdevel\nPriority: optional\nDescription: Sun development bundles and tools\n Built for Ubuntu 26.04 with the recorded Sun compiler.\n"
+    );
     var path = `${root}/DEBIAN/control`;
     try std.io.write_string(path, control);
     var archive = std.process.Command(a, "dpkg-deb");
@@ -72,4 +82,8 @@ function main() i32 {
     }
   };
 }
-manifest { libraries: ["stdlib.moon"] }
+manifest {
+  libraries: [
+    "stdlib.moon"
+  ]
+}

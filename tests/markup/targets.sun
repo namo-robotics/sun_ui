@@ -9,7 +9,10 @@ module build_targets {
   /** Keeps explicit library and test output names when selecting among multiple entries. */
   test_function configured_artifact_names() TargetTestResult<void> {
     var a = make_heap_allocator();
-    var document = try parse_json(a, "{\"entrypoints\":[{\"name\":\"other\"},{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"library\",\"output_name\":\"tmp/custom.moon\",\"test_binary_name\":\"tmp/custom-tests\"}]}");
+    var document = try parse_json(
+      a,
+      "{\"entrypoints\":[{\"name\":\"other\"},{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"library\",\"output_name\":\"tmp/custom.moon\",\"test_binary_name\":\"tmp/custom-tests\"}]}"
+    );
     var target = try select(document, "sample");
     try std.test.assert(target.library);
     try std.test.assert(target.source.equals_literal("src/example.sun"));
@@ -21,7 +24,10 @@ module build_targets {
   /** Derives a binary's default test artifact from its configured output. */
   test_function default_test_artifact() TargetTestResult<void> {
     var a = make_heap_allocator();
-    var document = try parse_json(a, "{\"entrypoints\":[{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"binary\",\"output_name\":\"tmp/custom\"}]}");
+    var document = try parse_json(
+      a,
+      "{\"entrypoints\":[{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"binary\",\"output_name\":\"tmp/custom\"}]}"
+    );
     var target = try select(document, "sample");
     try std.test.assert(target.library == false);
     try std.test.assert(target.tests.equals_literal("tmp/custom_test"));
@@ -31,7 +37,10 @@ module build_targets {
   /** Reports missing targets and invalid target types instead of compiling a fallback. */
   test_function invalid_targets() TargetTestResult<void> {
     var a = make_heap_allocator();
-    var document = try parse_json(a, "{\"entrypoints\":[{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"invalid\",\"output_name\":\"tmp/custom\"}]}");
+    var document = try parse_json(
+      a,
+      "{\"entrypoints\":[{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"invalid\",\"output_name\":\"tmp/custom\"}]}"
+    );
     var missing = match select(document, "absent") {
       JsonResult.Ok(_) => false,
       JsonResult.Error(_) => true

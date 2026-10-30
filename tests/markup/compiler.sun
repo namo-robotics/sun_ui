@@ -8,17 +8,33 @@ module markup_tests {
 
   /** Compiles a minimal view and retains a deterministic original source mapping. */
   test_function generates_owned_view() TestResult<void> {
-    var compiler = markup.Compiler(String("counter.view.xml"), String("<Views module=\"counter\"><View name=\"view\" state=\"i64\"><Button key=\"{1}\" text=\"A &amp; B\" action=\"1\"/></View></Views>"));
+    var compiler = markup.Compiler(
+      String("counter.view.xml"),
+      String(
+        "<Views module=\"counter\"><View name=\"view\" state=\"i64\"><Button key=\"{1}\" text=\"A &amp; B\" action=\"1\"/></View></Views>"
+      )
+    );
     try compiler.compile();
     try std.test.assert(compiler.output.contains("ui.Key(1)"), "numeric key stays numeric");
-    try std.test.assert(compiler.output.contains("String(\"A & B\")"), "XML entities are decoded once");
-    try std.test.assert(compiler.output.contains("state: const ref i64"), "state is borrowed only during construction");
+    try std.test.assert(
+      compiler.output.contains("String(\"A & B\")"),
+      "XML entities are decoded once"
+    );
+    try std.test.assert(
+      compiler.output.contains("state: const ref i64"),
+      "state is borrowed only during construction"
+    );
     try std.test.assert(compiler.source_map.contains("\t"), "generated lines map to source bytes");
   }
 
   /** Generates typed media fields and a captured edit action from XML. */
   test_function video_range_properties() TestResult<void> {
-    var compiler = markup.Compiler(String("video.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"State\"><Video key=\"preview\" text=\"{state.path.clone(a)}\" duration=\"4000000\" trimStart=\"500000\" trimEnd=\"2000000\" position=\"1000000\" changeAction=\"15\"/></View></Views>"));
+    var compiler = markup.Compiler(
+      String("video.view.xml"),
+      String(
+        "<Views module=\"app\"><View name=\"view\" state=\"State\"><Video key=\"preview\" text=\"{state.path.clone(a)}\" duration=\"4000000\" trimStart=\"500000\" trimEnd=\"2000000\" position=\"1000000\" changeAction=\"15\"/></View></Views>"
+      )
+    );
     try compiler.compile();
     try std.test.assert(compiler.output.contains("ui.Kind.Video"));
     try std.test.assert(compiler.output.contains(".trim_start = 500000"));
@@ -30,7 +46,12 @@ module markup_tests {
 
   /** Preserves borderless panel styling in both resources and inline XML properties. */
   test_function flat_panel_styles() TestResult<void> {
-    var compiler = markup.Compiler(String("panel.view.xml"), String("<Views module=\"app\"><Resources name=\"resources\"><Style name=\"panel\"><Normal borderWidth=\"0\" radius=\"16\" padding=\"18\"/></Style></Resources><View name=\"view\" state=\"State\"><Column borderWidth=\"0\" radius=\"8\" padding=\"12\"/></View></Views>"));
+    var compiler = markup.Compiler(
+      String("panel.view.xml"),
+      String(
+        "<Views module=\"app\"><Resources name=\"resources\"><Style name=\"panel\"><Normal borderWidth=\"0\" radius=\"16\" padding=\"18\"/></Style></Resources><View name=\"view\" state=\"State\"><Column borderWidth=\"0\" radius=\"8\" padding=\"12\"/></View></Views>"
+      )
+    );
     try compiler.compile();
     try std.test.assert(compiler.output.contains(".normal.border_width = 0"));
     try std.test.assert(compiler.output.contains(".normal.radius = 16"));
@@ -40,18 +61,34 @@ module markup_tests {
 
   /** Preserves explicit ownership expressions without inserting copies. */
   test_function expressions_and_conditions() TestResult<void> {
-    var compiler = markup.Compiler(String("conditional.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"State\"><If test=\"{state.visible}\"><Label text=\"{state.name.clone(a)}\"/><Else><Label text=\"Hidden\"/></Else></If></View></Views>"));
+    var compiler = markup.Compiler(
+      String("conditional.view.xml"),
+      String(
+        "<Views module=\"app\"><View name=\"view\" state=\"State\"><If test=\"{state.visible}\"><Label text=\"{state.name.clone(a)}\"/><Else><Label text=\"Hidden\"/></Else></If></View></Views>"
+      )
+    );
     try compiler.compile();
-    try std.test.assert(compiler.output.contains("state.name.clone(a)"), "explicit copy is retained");
+    try std.test.assert(
+      compiler.output.contains("state.name.clone(a)"),
+      "explicit copy is retained"
+    );
     try std.test.assert(compiler.output.contains("} else {"), "condition compiles to Sun");
   }
 
   /** Emits one collection evaluation and a stable per-item scope. */
   test_function keyed_repetition() TestResult<void> {
-    var compiler = markup.Compiler(String("loop.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"State\"><For each=\"id\" in=\"{state.ids}\" key=\"{id}\"><Button text=\"Item\"/></For></View></Views>"));
+    var compiler = markup.Compiler(
+      String("loop.view.xml"),
+      String(
+        "<Views module=\"app\"><View name=\"view\" state=\"State\"><For each=\"id\" in=\"{state.ids}\" key=\"{id}\"><Button text=\"Item\"/></For></View></Views>"
+      )
+    );
     try compiler.compile();
     try std.test.assert(compiler.output.contains(" = state.ids;"), "collection is captured once");
-    try std.test.assert(compiler.output.contains("ui.Key(id), ui.Kind.Group"), "stable keys scope repeated children");
+    try std.test.assert(
+      compiler.output.contains("ui.Key(id), ui.Kind.Group"),
+      "stable keys scope repeated children"
+    );
   }
 
   /** Rejects a bad document with its original filename and location. */
@@ -60,8 +97,14 @@ module markup_tests {
     match compiler.compile() {
       SystemResult.Error(error) => {
         var message = error.message();
-        try std.test.assert(message.contains("invalid.view.xml:"), "diagnostic contains source filename");
-        try std.test.assert(message.contains(expected), "diagnostic explains the invalid declaration");
+        try std.test.assert(
+          message.contains("invalid.view.xml:"),
+          "diagnostic contains source filename"
+        );
+        try std.test.assert(
+          message.contains(expected),
+          "diagnostic explains the invalid declaration"
+        );
       },
       SystemResult.Ok => {
         try std.test.assert(false, "invalid input was accepted");
@@ -77,41 +120,77 @@ module markup_tests {
 
   /** Rejects unknown vocabulary and misspelled properties. */
   test_function unknown_declarations() TestResult<void> {
-    try rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><Unknown/></View></Views>", "Unknown view declaration");
-    return rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><Label typo=\"x\"/></View></Views>", "Unknown attribute");
+    try rejects(
+      "<Views module=\"app\"><View name=\"view\" state=\"State\"><Unknown/></View></Views>",
+      "Unknown view declaration"
+    );
+    return rejects(
+      "<Views module=\"app\"><View name=\"view\" state=\"State\"><Label typo=\"x\"/></View></Views>",
+      "Unknown attribute"
+    );
   }
 
   /** Requires durable repetition keys instead of silently using item indexes. */
   test_function missing_loop_key() TestResult<void> {
-    return rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><For each=\"id\" in=\"{state.ids}\"/></View></Views>", "stable key");
+    return rejects(
+      "<Views module=\"app\"><View name=\"view\" state=\"State\"><For each=\"id\" in=\"{state.ids}\"/></View></Views>",
+      "stable key"
+    );
   }
 
   /** Rejects unstructured text so formatting whitespace cannot become UI content. */
   test_function unexpected_text() TestResult<void> {
-    return rejects("<Views module=\"app\"><View name=\"view\" state=\"State\">oops</View></Views>", "Unknown view declaration");
+    return rejects(
+      "<Views module=\"app\"><View name=\"view\" state=\"State\">oops</View></Views>",
+      "Unknown view declaration"
+    );
   }
 
   /** Keeps imported template declarations explicit and source-relative. */
   test_function imports_and_templates() TestResult<void> {
-    var compiler = markup.Compiler(String("app.view.xml"), String("<Views module=\"app\"><Import name=\"Card\" function=\"parts.Card\" source=\"parts/card.view.xml\"><Param name=\"title\" type=\"String\"/></Import><View name=\"view\" state=\"State\"><Card title=\"Hello\"/></View></Views>"));
+    var compiler = markup.Compiler(
+      String("app.view.xml"),
+      String(
+        "<Views module=\"app\"><Import name=\"Card\" function=\"parts.Card\" source=\"parts/card.view.xml\"><Param name=\"title\" type=\"String\"/></Import><View name=\"view\" state=\"State\"><Card title=\"Hello\"/></View></Views>"
+      )
+    );
     try compiler.compile();
     try std.test.assert_eq(compiler.imports.size(), 1);
-    try std.test.assert(compiler.output.contains("parts.Card(result,"), "import calls the qualified function");
-    try std.test.assert(compiler.output.contains("template_id"), "template identity participates in reconciliation");
+    try std.test.assert(
+      compiler.output.contains("parts.Card(result,"),
+      "import calls the qualified function"
+    );
+    try std.test.assert(
+      compiler.output.contains("template_id"),
+      "template identity participates in reconciliation"
+    );
   }
 
   /** Rejects child controls and property declarations in invalid locations. */
   test_function invalid_children() TestResult<void> {
-    try rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><Button><Label/></Button></View></Views>", "cannot contain");
-    return rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><Column><Param name=\"bad\"/></Column></View></Views>", "Unknown view declaration");
+    try rejects(
+      "<Views module=\"app\"><View name=\"view\" state=\"State\"><Button><Label/></Button></View></Views>",
+      "cannot contain"
+    );
+    return rejects(
+      "<Views module=\"app\"><View name=\"view\" state=\"State\"><Column><Param name=\"bad\"/></Column></View></Views>",
+      "Unknown view declaration"
+    );
   }
 
   /** Compiles generated Sun to prove invalid property expressions fail real type checking. */
   test_function generated_type_error() TestResult<void> {
     var a = make_heap_allocator();
-    var compiler = markup.Compiler(String("invalid-type.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"i64\"><Label text=\"{42}\"/></View></Views>"));
+    var compiler = markup.Compiler(
+      String("invalid-type.view.xml"),
+      String(
+        "<Views module=\"app\"><View name=\"view\" state=\"i64\"><Label text=\"{42}\"/></View></Views>"
+      )
+    );
     try compiler.compile();
-    compiler.output.append("\n/** Drives type checking of a deliberately invalid generated view. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n");
+    compiler.output.append(
+      "\n/** Drives type checking of a deliberately invalid generated view. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n"
+    );
     var path = String("tmp/markup-invalid-type.sun");
     try std.io.write_string(path, compiler.output);
     var env = std.env.Env(a);
@@ -128,16 +207,29 @@ module markup_tests {
     command.add_arg("tmp/markup-invalid-type");
     command.add_arg(path);
     var output = try command.output();
-    try std.test.assert(output.status() != 0, "Sun must reject integer text without an explicit conversion");
-    try std.test.assert(output.stderr().contains("String"), "diagnostic identifies the required type");
+    try std.test.assert(
+      output.status() != 0,
+      "Sun must reject integer text without an explicit conversion"
+    );
+    try std.test.assert(
+      output.stderr().contains("String"),
+      "diagnostic identifies the required type"
+    );
   }
 
   /** Ensures generated descriptions cannot silently move strings out of borrowed state. */
   test_function generated_ownership_error() TestResult<void> {
     var a = make_heap_allocator();
-    var compiler = markup.Compiler(String("invalid-ownership.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"String\"><Label text=\"{state}\"/></View></Views>"));
+    var compiler = markup.Compiler(
+      String("invalid-ownership.view.xml"),
+      String(
+        "<Views module=\"app\"><View name=\"view\" state=\"String\"><Label text=\"{state}\"/></View></Views>"
+      )
+    );
     try compiler.compile();
-    compiler.output.append("\n/** Forces generated ownership checking. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n");
+    compiler.output.append(
+      "\n/** Forces generated ownership checking. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n"
+    );
     var path = String("tmp/markup-invalid-ownership.sun");
     try std.io.write_string(path, compiler.output);
     var env = std.env.Env(a);
@@ -154,30 +246,61 @@ module markup_tests {
     command.add_arg("tmp/markup-invalid-ownership");
     command.add_arg(path);
     var output = try command.output();
-    try std.test.assert(output.status() != 0, "owned properties require an explicit clone of borrowed state");
-    try std.test.assert(output.stderr().contains("const ref String"), "failure concerns ownership");
+    try std.test.assert(
+      output.status() != 0,
+      "owned properties require an explicit clone of borrowed state"
+    );
+    try std.test.assert(
+      output.stderr().contains("const ref String"),
+      "failure concerns ownership"
+    );
   }
 
   /** Rejects contradictory or nested resource declarations rather than ignoring them. */
   test_function invalid_resources() TestResult<void> {
-    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Color name=\"x\" basedOn=\"base\"/></Resources></Views>", "Invalid property");
-    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Color name=\"x\" ref=\"base\" value=\"12\"/></Resources></Views>", "alias cannot");
-    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Style name=\"x\"><Normal/><Normal/></Style></Resources></Views>", "Duplicate style");
-    return rejects("<Views module=\"app\"><Resources name=\"resources\"><Style name=\"x\"><Normal><Label/></Normal></Style></Resources></Views>", "Appearance cannot");
+    try rejects(
+      "<Views module=\"app\"><Resources name=\"resources\"><Color name=\"x\" basedOn=\"base\"/></Resources></Views>",
+      "Invalid property"
+    );
+    try rejects(
+      "<Views module=\"app\"><Resources name=\"resources\"><Color name=\"x\" ref=\"base\" value=\"12\"/></Resources></Views>",
+      "alias cannot"
+    );
+    try rejects(
+      "<Views module=\"app\"><Resources name=\"resources\"><Style name=\"x\"><Normal/><Normal/></Style></Resources></Views>",
+      "Duplicate style"
+    );
+    return rejects(
+      "<Views module=\"app\"><Resources name=\"resources\"><Style name=\"x\"><Normal><Label/></Normal></Style></Resources></Views>",
+      "Appearance cannot"
+    );
   }
 
   /** Rejects invalid template resources even when no Use declaration instantiates them. */
   test_function invalid_template_resources() TestResult<void> {
-    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Template name=\"x\" value=\"Missing\"/></Resources></Views>", "declared component function");
-    return rejects("<Views module=\"app\"><Resources name=\"resources\"><Template name=\"a\" ref=\"b\"/><Template name=\"b\" ref=\"a\"/></Resources></Views>", "cycle");
+    try rejects(
+      "<Views module=\"app\"><Resources name=\"resources\"><Template name=\"x\" value=\"Missing\"/></Resources></Views>",
+      "declared component function"
+    );
+    return rejects(
+      "<Views module=\"app\"><Resources name=\"resources\"><Template name=\"a\" ref=\"b\"/><Template name=\"b\" ref=\"a\"/></Resources></Views>",
+      "cycle"
+    );
   }
 
   /** Ensures even unused template imports are checked against their declared parameter types. */
   test_function unused_template_signature() TestResult<void> {
     var a = make_heap_allocator();
-    var compiler = markup.Compiler(String("template-type.view.xml"), String("<Views module=\"app\"><Import name=\"Card\" function=\"foreign.Card\"><Param name=\"value\" type=\"i64\"/></Import><Resources name=\"resources\"><Template name=\"card\" value=\"Card\"/></Resources></Views>"));
+    var compiler = markup.Compiler(
+      String("template-type.view.xml"),
+      String(
+        "<Views module=\"app\"><Import name=\"Card\" function=\"foreign.Card\"><Param name=\"value\" type=\"i64\"/></Import><Resources name=\"resources\"><Template name=\"card\" value=\"Card\"/></Resources></Views>"
+      )
+    );
     try compiler.compile();
-    compiler.output.append("\n/** Provides a deliberately incompatible imported component. */\nmodule foreign { /** Takes owned text rather than the declared integer. */ public function Card(view: ref ui.View, parent: i64, value: String) void {} }\n/** Runs signature checking without invoking the resource. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n");
+    compiler.output.append(
+      "\n/** Provides a deliberately incompatible imported component. */\nmodule foreign { /** Takes owned text rather than the declared integer. */ public function Card(view: ref ui.View, parent: i64, value: String) void {} }\n/** Runs signature checking without invoking the resource. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n"
+    );
     var path = String("tmp/markup-template-type.sun");
     try std.io.write_string(path, compiler.output);
     var env = std.env.Env(a);
@@ -194,29 +317,74 @@ module markup_tests {
     command.add_arg("tmp/markup-template-type");
     command.add_arg(path);
     var output = try command.output();
-    try std.test.assert(output.status() != 0, "typed template accessor rejects the incompatible import");
-    try std.test.assert(output.stderr().contains("No overload") and output.stderr().contains("function"), "diagnostic identifies incompatible function signatures");
+    try std.test.assert(
+      output.status() != 0,
+      "typed template accessor rejects the incompatible import"
+    );
+    try std.test.assert(
+      output.stderr().contains("No overload") and output.stderr().contains("function"),
+      "diagnostic identifies incompatible function signatures"
+    );
   }
 
   /** Rejects ambiguous routing and state-dependent handlers in untyped reusable components. */
   test_function invalid_named_actions() TestResult<void> {
-    try rejects("<Views module=\"app\"><View name=\"view\" state=\"State\"><Button action=\"click\" changeAction=\"edit\"/></View></Views>", "not both");
-    return rejects("<Views module=\"app\"><Component name=\"Card\"><Button action=\"click\"/></Component></Views>", "Named actions require a View");
+    try rejects(
+      "<Views module=\"app\"><View name=\"view\" state=\"State\"><Button action=\"click\" changeAction=\"edit\"/></View></Views>",
+      "not both"
+    );
+    return rejects(
+      "<Views module=\"app\"><Component name=\"Card\"><Button action=\"click\"/></Component></Views>",
+      "Named actions require a View"
+    );
   }
 
   /** Rejects malformed slots, conflicting appearance inputs, and invalid theme declarations. */
   test_function content_and_theme_diagnostics() TestResult<void> {
-    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Slot name=\"unknown\"/></Component></Views>", "Unknown slot input");
-    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/></Component></Views>", "exactly one");
-    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/><Slot name=\"body\"/></Component></Views>", "exactly one");
-    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><If test=\"true\"><Slot name=\"body\"/></If></Component></Views>", "unconditional");
-    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Content name=\"body\"/><Slot name=\"body\"/></Component></Views>", "Duplicate component input");
-    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/></Component><View name=\"view\" state=\"i64\"><Panel/></View></Views>", "Missing content body");
-    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/></Component><View name=\"view\" state=\"i64\"><Panel><Panel.body/><Panel.body/></Panel></View></Views>", "Duplicate content body");
-    try rejects("<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/></Component><View name=\"view\" state=\"i64\"><Panel><Panel.body/><Panel.other/></Panel></View></Views>", "Unknown component content");
-    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Style name=\"bad\"><Normal padding=\"1\" paddingResource=\"space\"/></Style></Resources></Views>", "Conflicting");
-    try rejects("<Views module=\"app\"><Resources name=\"resources\"><Theme name=\"bad\"><Default kind=\"Missing\" styleResource=\"x\"/></Theme></Resources></Views>", "control kind");
-    try rejects("<Views module=\"app\"><View name=\"view\" state=\"i64\" theme=\"{ui.Style()}\" themeResource=\"x\"/></Views>", "either theme");
+    try rejects(
+      "<Views module=\"app\"><Component name=\"Panel\"><Slot name=\"unknown\"/></Component></Views>",
+      "Unknown slot input"
+    );
+    try rejects(
+      "<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/></Component></Views>",
+      "exactly one"
+    );
+    try rejects(
+      "<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/><Slot name=\"body\"/></Component></Views>",
+      "exactly one"
+    );
+    try rejects(
+      "<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><If test=\"true\"><Slot name=\"body\"/></If></Component></Views>",
+      "unconditional"
+    );
+    try rejects(
+      "<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Content name=\"body\"/><Slot name=\"body\"/></Component></Views>",
+      "Duplicate component input"
+    );
+    try rejects(
+      "<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/></Component><View name=\"view\" state=\"i64\"><Panel/></View></Views>",
+      "Missing content body"
+    );
+    try rejects(
+      "<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/></Component><View name=\"view\" state=\"i64\"><Panel><Panel.body/><Panel.body/></Panel></View></Views>",
+      "Duplicate content body"
+    );
+    try rejects(
+      "<Views module=\"app\"><Component name=\"Panel\"><Content name=\"body\"/><Slot name=\"body\"/></Component><View name=\"view\" state=\"i64\"><Panel><Panel.body/><Panel.other/></Panel></View></Views>",
+      "Unknown component content"
+    );
+    try rejects(
+      "<Views module=\"app\"><Resources name=\"resources\"><Style name=\"bad\"><Normal padding=\"1\" paddingResource=\"space\"/></Style></Resources></Views>",
+      "Conflicting"
+    );
+    try rejects(
+      "<Views module=\"app\"><Resources name=\"resources\"><Theme name=\"bad\"><Default kind=\"Missing\" styleResource=\"x\"/></Theme></Resources></Views>",
+      "control kind"
+    );
+    try rejects(
+      "<Views module=\"app\"><View name=\"view\" state=\"i64\" theme=\"{ui.Style()}\" themeResource=\"x\"/></Views>",
+      "either theme"
+    );
     try rejects("<Views module=\"app\"><Include source=\"../bad.view.xml\"/></Views>", "relative");
   }
 
@@ -224,16 +392,29 @@ module markup_tests {
   test_function application_component_registry() TestResult<void> {
     var a = make_heap_allocator();
     var registry = markup.Registry(a);
-    var parts = markup.Compiler(String("parts.view.xml"), String("<Views module=\"parts\"><Component name=\"Caption\"><Param name=\"text\" type=\"String\"/><Label text=\"{text}\"/></Component></Views>"));
+    var parts = markup.Compiler(
+      String("parts.view.xml"),
+      String(
+        "<Views module=\"parts\"><Component name=\"Caption\"><Param name=\"text\" type=\"String\"/><Label text=\"{text}\"/></Component></Views>"
+      )
+    );
     try parts.register_components(registry);
-    var consumer = markup.Compiler(String("app.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption text=\"Hello\"/></View></Views>"));
+    var consumer = markup.Compiler(
+      String("app.view.xml"),
+      String(
+        "<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption text=\"Hello\"/></View></Views>"
+      )
+    );
     try consumer.use_registry(registry);
     try consumer.compile();
     try std.test.assert(consumer.output.contains("parts.Caption(result,"));
     try std.test.assert(consumer.output.contains("String(\"Hello\")"));
     try parts.use_registry(registry);
     try parts.compile();
-    var missing = markup.Compiler(String("missing.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption/></View></Views>"));
+    var missing = markup.Compiler(
+      String("missing.view.xml"),
+      String("<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption/></View></Views>")
+    );
     try missing.use_registry(registry);
     match missing.compile() {
       SystemResult.Error(error) => {
@@ -243,7 +424,10 @@ module markup_tests {
         try std.test.assert(false, "registered inputs must be checked");
       }
     };
-    var duplicate = markup.Compiler(String("other.view.xml"), String("<Views module=\"other\"><Component name=\"Caption\"><Label/></Component></Views>"));
+    var duplicate = markup.Compiler(
+      String("other.view.xml"),
+      String("<Views module=\"other\"><Component name=\"Caption\"><Label/></Component></Views>")
+    );
     match duplicate.register_components(registry) {
       SystemResult.Error(error) => {
         try std.test.assert(error.message().contains("Duplicate registered component"));
@@ -253,7 +437,10 @@ module markup_tests {
         try std.test.assert(false, "duplicate registrations accepted");
       }
     };
-    var conflict = markup.Compiler(String("local.view.xml"), String("<Views module=\"local\"><Component name=\"Caption\"><Label/></Component></Views>"));
+    var conflict = markup.Compiler(
+      String("local.view.xml"),
+      String("<Views module=\"local\"><Component name=\"Caption\"><Label/></Component></Views>")
+    );
     match conflict.use_registry(registry) {
       SystemResult.Error(error) => {
         try std.test.assert(error.message().contains("conflicts"));
@@ -262,7 +449,10 @@ module markup_tests {
         try std.test.assert(false, "local collision accepted");
       }
     };
-    var reserved = markup.Compiler(String("reserved.view.xml"), String("<Views module=\"parts\"><Component name=\"Button\"><Label/></Component></Views>"));
+    var reserved = markup.Compiler(
+      String("reserved.view.xml"),
+      String("<Views module=\"parts\"><Component name=\"Button\"><Label/></Component></Views>")
+    );
     match reserved.register_components(registry) {
       SystemResult.Error(error) => {
         try std.test.assert(error.message().contains("reserved"));
@@ -290,22 +480,41 @@ module markup_tests {
 
   /** Accepts source lists and rejects malformed registry structure and unsafe paths. */
   test_function xml_component_registry() TestResult<void> {
-    var compiler = markup.Compiler(String("components.registry.xml"), String("<ComponentRegistry><!-- reusable parts --><Source path=\"parts/panel.view.xml\"/></ComponentRegistry>"));
+    var compiler = markup.Compiler(
+      String("components.registry.xml"),
+      String(
+        "<ComponentRegistry><!-- reusable parts --><Source path=\"parts/panel.view.xml\"/></ComponentRegistry>"
+      )
+    );
     var sources = try compiler.registry_sources();
     try std.test.assert_eq(sources.size(), 1);
     try std.test.assert(sources[0].equals_literal("parts/panel.view.xml"));
     try rejects_registry("<Views/>", "ComponentRegistry root");
     try rejects_registry("<ComponentRegistry extra=\"x\"/>", "Unknown attribute");
     try rejects_registry("<ComponentRegistry><Source/></ComponentRegistry>", "relative");
-    try rejects_registry("<ComponentRegistry><Source path=\"../parts.view.xml\"/></ComponentRegistry>", "relative");
-    try rejects_registry("<ComponentRegistry><Source path=\"parts.view.xml\"><Source path=\"nested.view.xml\"/></Source></ComponentRegistry>", "empty Source");
+    try rejects_registry(
+      "<ComponentRegistry><Source path=\"../parts.view.xml\"/></ComponentRegistry>",
+      "relative"
+    );
+    try rejects_registry(
+      "<ComponentRegistry><Source path=\"parts.view.xml\"><Source path=\"nested.view.xml\"/></Source></ComponentRegistry>",
+      "empty Source"
+    );
     try rejects_registry("<ComponentRegistry>unexpected text</ComponentRegistry>", "empty Source");
-    try rejects_registry("<ComponentRegistry><Source></ComponentRegistry>", "Malformed registry XML");
+    try rejects_registry(
+      "<ComponentRegistry><Source></ComponentRegistry>",
+      "Malformed registry XML"
+    );
   }
 
   /** Generates a viewport identifier while retaining ordinary layout properties. */
   test_function viewport_properties() TestResult<void> {
-    var compiler = markup.Compiler(String("viewport.view.xml"), String("<Views module=\"app\"><View name=\"view\" state=\"State\"><Viewport key=\"scene\" viewportId=\"{state.viewport}\" width=\"640\" expandX=\"true\"/></View></Views>"));
+    var compiler = markup.Compiler(
+      String("viewport.view.xml"),
+      String(
+        "<Views module=\"app\"><View name=\"view\" state=\"State\"><Viewport key=\"scene\" viewportId=\"{state.viewport}\" width=\"640\" expandX=\"true\"/></View></Views>"
+      )
+    );
     try compiler.compile();
     try std.test.assert(compiler.output.contains("ui.Kind.Viewport"));
     try std.test.assert(compiler.output.contains(".viewport_id = state.viewport"));

@@ -44,7 +44,11 @@ module forms {
   }
 
   /** Accepts edits through named actions and deliberately rejects one test value. */
-  function handle(state: ref State, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+  function handle(
+    state: ref State,
+    event: const ref ui.Event,
+    queue: ref ui.EventQueue
+  ) SystemResult<void> {
     var a = make_heap_allocator();
     if (event.action == 1 and event.value.kind == ui.ValueKind.Text) {
       state.edits += 1;
@@ -80,7 +84,10 @@ module forms {
   }
 
   /** Verifies native FIFO edits, controlled restoration, themes, and cleanup. */
-  function acceptance(renderer: ref ui_gtk.Renderer, session: ref ui.Session<State>) SystemResult<void> {
+  function acceptance(
+    renderer: ref ui_gtk.Renderer,
+    session: ref ui.Session<State>
+  ) SystemResult<void> {
     var name = control(session.tree, "name");
     var enabled = control(session.tree, "enabled");
     var choice = control(session.tree, "choice");
@@ -160,4 +167,14 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
     }
   };
 }
-manifest { source_files: ["../../build/generated/examples/forms/forms.view.sun"], libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon", "sun_ui_gtk.moon"] }
+manifest {
+  source_files: [
+    "../../build/generated/examples/forms/forms.view.sun"
+  ], libraries: [
+    "stdlib.moon",
+    "sun_ui.moon",
+    "sun_gobject.moon",
+    "sun_gtk.moon",
+    "sun_ui_gtk.moon"
+  ]
+}

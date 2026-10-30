@@ -44,12 +44,17 @@ public module ui {
 
     /** Compares resolved properties without allocating. */
     public const method equals(other: const ref Appearance) bool {
-      return this.foreground == other.foreground and this.background == other.background and this.font.equals(other.font) and this.font_size == other.font_size and this.border_width == other.border_width and this.radius == other.radius and this.padding == other.padding;
+      return this.foreground == other.foreground and this.background == other.background and
+        this.font.equals(other.font) and this.font_size == other.font_size and
+        this.border_width == other.border_width and this.radius == other.radius and
+        this.padding == other.padding;
     }
 
     /** Rejects invalid colors, sizes, or font text before rendering. */
     public const method valid() bool {
-      if (this.border_width < -1 or this.radius < -1 or this.padding < -1 or this.foreground < -1 or this.foreground > 16777215 or this.background < -1 or this.background > 16777215 or this.font_size < -1 or this.font_size == 0) {
+      if (this.border_width < -1 or this.radius < -1 or this.padding < -1 or this.foreground < -1 or
+        this.foreground > 16777215 or this.background < -1 or this.background > 16777215 or
+        this.font_size < -1 or this.font_size == 0) {
         return false;
       }
       for (var i: i64 = 0; i < this.font.length(); i += 1) {
@@ -85,12 +90,14 @@ public module ui {
 
     /** Compares all interaction states. */
     public const method equals(other: const ref Style) bool {
-      return this.normal.equals(other.normal) and this.hover.equals(other.hover) and this.focus.equals(other.focus) and this.disabled.equals(other.disabled);
+      return this.normal.equals(other.normal) and this.hover.equals(other.hover) and
+        this.focus.equals(other.focus) and this.disabled.equals(other.disabled);
     }
 
     /** Validates every appearance before renderer mutation. */
     public const method valid() bool {
-      return this.normal.valid() and this.hover.valid() and this.focus.valid() and this.disabled.valid();
+      return this.normal.valid() and this.hover.valid() and this.focus.valid() and
+        this.disabled.valid();
     }
   }
 
@@ -291,7 +298,11 @@ public module ui {
     }
 
     /** Resolves a color or spacing value without implicit conversion. */
-    public const method number(scope: i64, name: const ref String, kind: ResourceKind) SystemResult<i64> {
+    public const method number(
+      scope: i64,
+      name: const ref String,
+      kind: ResourceKind
+    ) SystemResult<i64> {
       if (kind != ResourceKind.Color and kind != ResourceKind.Spacing) {
         return SystemResult.Error(Error(1, "Resource is not numeric"));
       }
@@ -304,7 +315,11 @@ public module ui {
     }
 
     /** Explicitly copies a font or template name from a resolved resource. */
-    public const method text(scope: i64, name: const ref String, kind: ResourceKind) SystemResult<String> {
+    public const method text(
+      scope: i64,
+      name: const ref String,
+      kind: ResourceKind
+    ) SystemResult<String> {
       if (kind != ResourceKind.Font and kind != ResourceKind.Template) {
         return SystemResult.Error(Error(1, "Resource is not text"));
       }
@@ -314,7 +329,11 @@ public module ui {
     }
 
     /** Resolves a palette-backed appearance in the dictionary that defines it. */
-    const method appearance(scope: i64, value: const ref Appearance, references: const ref AppearanceReferences) SystemResult<Appearance> {
+    const method appearance(
+      scope: i64,
+      value: const ref Appearance,
+      references: const ref AppearanceReferences
+    ) SystemResult<Appearance> {
       var result = Appearance();
       result.overlay(value);
       if (not references.foreground.is_empty()) {
@@ -419,10 +438,26 @@ public module ui {
       for (var j = chain.size() - 1; j >= 0; j -= 1) {
         var resource = this.entries[chain[j]];
         var resolved = Style();
-        resolved.normal = try this.appearance(resource.scope, resource.style.normal, resource.normal_references);
-        resolved.hover = try this.appearance(resource.scope, resource.style.hover, resource.hover_references);
-        resolved.focus = try this.appearance(resource.scope, resource.style.focus, resource.focus_references);
-        resolved.disabled = try this.appearance(resource.scope, resource.style.disabled, resource.disabled_references);
+        resolved.normal = try this.appearance(
+          resource.scope,
+          resource.style.normal,
+          resource.normal_references
+        );
+        resolved.hover = try this.appearance(
+          resource.scope,
+          resource.style.hover,
+          resource.hover_references
+        );
+        resolved.focus = try this.appearance(
+          resource.scope,
+          resource.style.focus,
+          resource.focus_references
+        );
+        resolved.disabled = try this.appearance(
+          resource.scope,
+          resource.style.disabled,
+          resource.disabled_references
+        );
         result.overlay(resolved);
       }
       if (not result.valid()) {

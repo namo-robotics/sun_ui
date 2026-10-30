@@ -12,9 +12,13 @@ public module gpu_sdl {
     init(title: ref String, width: i32, height: i32) SystemResult<void> {
       try gpu.validate_text(title);
       this.state = gpu.Surface();
-      this.pointer = unsafe { gu_window_new(this.state.raw_handle(), title.c_str(), width, height); };
+      this.pointer = unsafe {
+        gu_window_new(this.state.raw_handle(), title.c_str(), width, height);
+      };
       if (this.pointer == null) {
-        return SystemResult.Error(Error(1, from_c_str(make_heap_allocator(), unsafe { gu_window_error(null); })));
+        return SystemResult.Error(
+          Error(1, from_c_str(make_heap_allocator(), unsafe { gu_window_error(null); }))
+        );
       }
     }
 
@@ -100,4 +104,11 @@ public module gpu_sdl {
     return unsafe { gu_window_time(); };
   }
 }
-manifest {library_id:"namo-robotics/sun_ui_sdl",libraries:["stdlib.moon","sun_ui_graphics.moon"],source_files:["raw.sun"]}
+manifest {
+  library_id:"namo-robotics/sun_ui_sdl",libraries:[
+    "stdlib.moon",
+    "sun_ui_graphics.moon"
+  ],source_files:[
+    "raw.sun"
+  ]
+}

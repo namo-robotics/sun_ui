@@ -36,7 +36,10 @@ public module ui_gtk_drawing {
       this.area.set_vexpand(true);
       try this.window.set_box(this.layout);
       try this.window.set_title(title);
-      try this.window.set_default_size(_convert<i32>(drawing.width), _convert<i32>(drawing.height));
+      try this.window.set_default_size(
+        _convert<i32>(drawing.width),
+        _convert<i32>(drawing.height)
+      );
       try this.update(drawing);
       try this.window.present();
     }
@@ -138,7 +141,8 @@ public module ui_gtk_drawing {
 
   /** Rejects invalid dimensions before converting them to native integers. */
   function validate(drawing: const ref ui_drawing.Drawing) SystemResult<void> {
-    if (drawing.width >= 1.0 and drawing.width <= 16384.0 and drawing.height >= 1.0 and drawing.height <= 16384.0) {
+    if (drawing.width >= 1.0 and drawing.width <= 16384.0 and drawing.height >= 1.0 and
+      drawing.height <= 16384.0) {
       return SystemResult.Ok;
     }
     return SystemResult.Error(Error(1, "Drawing dimensions must be between 1 and 16384"));
@@ -146,5 +150,10 @@ public module ui_gtk_drawing {
 }
 manifest {
   library_id: "namo-robotics/sun_ui_gtk_drawing"
-  libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon"]
+  libraries: [
+    "stdlib.moon",
+    "sun_ui.moon",
+    "sun_gobject.moon",
+    "sun_gtk.moon"
+  ]
 }

@@ -74,7 +74,9 @@ module build_tasks {
     command.add_arg(target.output);
     command.add_arg(target.source);
     var source_path = target.source.clone(make_heap_allocator());
-    if (source_path.equals_literal("examples/counter-xml/main.sun") or source_path.equals_literal("examples/tasks-xml/main.sun") or source_path.equals_literal("examples/forms/main.sun")) {
+    if (source_path.equals_literal("examples/counter-xml/main.sun") or
+      source_path.equals_literal("examples/tasks-xml/main.sun") or
+      source_path.equals_literal("examples/forms/main.sun")) {
       var result = try command.output();
       print(result.stdout());
       eprint(result.stderr());
@@ -106,7 +108,12 @@ module build_tasks {
     match compile("xml-probe", false) {
       SystemResult.Ok => {},
       SystemResult.Error(_) => {
-        return SystemResult.Error(Error(1, "XML reader and source-span APIs are required. Run ./scripts/bootstrap-sun.sh --update or set SUN_EXECUTABLE to a current compiler."));
+        return SystemResult.Error(
+          Error(
+            1,
+            "XML reader and source-span APIs are required. Run ./scripts/bootstrap-sun.sh --update or set SUN_EXECUTABLE to a current compiler."
+          )
+        );
       }
     };
     var target = try build_targets.load("xml-probe");
@@ -125,12 +132,18 @@ module build_tasks {
     platform.add_arg("-s");
     var platform_output = try platform.output();
     if (platform_output.stdout().starts_with("Darwin")) {
-      command.add_arg("export G_DEBUG=fatal-criticals GTK_A11Y=none GSK_RENDERER=cairo; gtimeout 30s \"$1\" --self-test");
+      command.add_arg(
+        "export G_DEBUG=fatal-criticals GTK_A11Y=none GSK_RENDERER=cairo; gtimeout 30s \"$1\" --self-test"
+      );
     } else {
       if (String(name).equals_literal("graphics-tests")) {
-        command.add_arg("export GDK_BACKEND=x11 SDL_VIDEO_DRIVER=x11 SDL_VIDEO_FORCE_EGL=1 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none; timeout -k 2s 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test");
+        command.add_arg(
+          "export GDK_BACKEND=x11 SDL_VIDEO_DRIVER=x11 SDL_VIDEO_FORCE_EGL=1 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none; timeout -k 2s 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test"
+        );
       } else {
-        command.add_arg("export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test");
+        command.add_arg(
+          "export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test"
+        );
       }
     }
     command.add_arg("sun-ui-acceptance");
@@ -385,7 +398,9 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   } else if (args.size() == 2 and args[1].equals_literal("markup-gtk")) {
     result = build_tasks.markup_gtk();
   } else {
-    eprintln("Usage: sun src/tools/build.sun -- [build|test|graphics|test-graphics|gtk|test-gtk|plot-gtk|test-plot-gtk|markup|markup-gtk]");
+    eprintln(
+      "Usage: sun src/tools/build.sun -- [build|test|graphics|test-graphics|gtk|test-gtk|plot-gtk|test-plot-gtk|markup|markup-gtk]"
+    );
     return 1;
   }
   return match result {
@@ -396,4 +411,11 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
     }
   };
 }
-manifest { libraries: ["stdlib.moon"], source_files: ["diagnostics.sun", "targets.sun"] }
+manifest {
+  libraries: [
+    "stdlib.moon"
+  ], source_files: [
+    "diagnostics.sun",
+    "targets.sun"
+  ]
+}

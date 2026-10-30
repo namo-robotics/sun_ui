@@ -37,7 +37,12 @@ module graphics_checks {
   }
 
   /** Pumps both hosts without blocking either event source. */
-  function pump(renderer: ref ui_gtk.Renderer, tree: ref ui.Tree, queue: ref ui.EventQueue, window: ref gpu_sdl.Window) SystemResult<void> {
+  function pump(
+    renderer: ref ui_gtk.Renderer,
+    tree: ref ui.Tree,
+    queue: ref ui.EventQueue,
+    window: ref gpu_sdl.Window
+  ) SystemResult<void> {
     renderer.poll(tree, queue, false);
     gpu_sdl.poll();
     try window.render();
@@ -46,7 +51,14 @@ module graphics_checks {
   }
 
   /** Waits for both surfaces to paint or reports a bounded timeout. */
-  function wait_frames(renderer: ref ui_gtk.Renderer, tree: ref ui.Tree, queue: ref ui.EventQueue, viewport: ref gpu_gtk.Viewport, window: ref gpu_sdl.Window, target: i32) SystemResult<void> {
+  function wait_frames(
+    renderer: ref ui_gtk.Renderer,
+    tree: ref ui.Tree,
+    queue: ref ui.EventQueue,
+    viewport: ref gpu_gtk.Viewport,
+    window: ref gpu_sdl.Window,
+    target: i32
+  ) SystemResult<void> {
     var deadline = gpu_sdl.time() + 3.0;
     while (gpu_sdl.time() < deadline and viewport.surface().frames() < target) {
       try pump(renderer, tree, queue, window);
@@ -76,11 +88,18 @@ module graphics_checks {
   }
 
   /** Submits a packet whose local shader, mesh, and packet owners then go out of scope. */
-  function submit_triangle(viewport: ref gpu_gtk.Viewport, window: ref gpu_sdl.Window) SystemResult<void> {
+  function submit_triangle(
+    viewport: ref gpu_gtk.Viewport,
+    window: ref gpu_sdl.Window
+  ) SystemResult<void> {
     var a = make_heap_allocator();
     var geometry = try mesh();
-    var vertex = String("#version 330 core\nlayout(location=0) in vec3 position; uniform mat4 transform; uniform float scale; uniform vec2 offset; void main(){gl_Position=transform*vec4(position.xy*scale+offset,position.z,1);}");
-    var fragment = String("#version 330 core\nuniform vec4 color; uniform vec3 tint; out vec4 result; void main(){result=color*vec4(tint,1);}");
+    var vertex = String(
+      "#version 330 core\nlayout(location=0) in vec3 position; uniform mat4 transform; uniform float scale; uniform vec2 offset; void main(){gl_Position=transform*vec4(position.xy*scale+offset,position.z,1);}"
+    );
+    var fragment = String(
+      "#version 330 core\nuniform vec4 color; uniform vec3 tint; out vec4 result; void main(){result=color*vec4(tint,1);}"
+    );
     var shader = try gpu.Shader(vertex, fragment);
     var frame = try gpu.Frame(0.0, 0.0, 1.0, 1.0);
     try frame.draw(geometry, shader, gpu.Primitive.Triangles, false, false);
@@ -134,7 +153,10 @@ module graphics_checks {
     }
     try window.capture(true);
     try check(window.captured(), "Relative mouse mode was not enabled");
-    try check(unsafe { graphics_test_event(3, 0, 9.0, -4.0); } != 0, "Cannot inject relative motion");
+    try check(
+      unsafe { graphics_test_event(3, 0, 9.0, -4.0); } != 0,
+      "Cannot inject relative motion"
+    );
     try check(unsafe { graphics_test_event(1, 119, 1.0, 0.0); } != 0, "Cannot inject key press");
     gpu_sdl.poll();
     var motion = false;
@@ -182,7 +204,10 @@ module graphics_checks {
   function scenario(close_sdl_first: bool) SystemResult<void> {
     var a = make_heap_allocator();
     var title = String("Graphics acceptance");
-    var renderer = try ui_gtk.Renderer(title, String(close_sdl_first ? "org.sunlang.Graphics.First" : "org.sunlang.Graphics.Second"));
+    var renderer = try ui_gtk.Renderer(
+      title,
+      String(close_sdl_first ? "org.sunlang.Graphics.First" : "org.sunlang.Graphics.Second")
+    );
     var tree = ui.Tree(a);
     var queue = ui.EventQueue(a);
     var viewport = try gpu_gtk.Viewport();
@@ -201,8 +226,14 @@ module graphics_checks {
     window.surface().readback(true);
     try submit_triangle(viewport, window);
     try wait_frames(renderer, tree, queue, viewport, window, 1);
-    try check(viewport.surface().pixel(0) > 250 and viewport.surface().pixel(1) < 3, "GTK did not render retained red triangle");
-    try check(window.surface().pixel(0) > 250 and window.surface().pixel(1) < 3, "SDL did not render retained red triangle");
+    try check(
+      viewport.surface().pixel(0) > 250 and viewport.surface().pixel(1) < 3,
+      "GTK did not render retained red triangle"
+    );
+    try check(
+      window.surface().pixel(0) > 250 and window.surface().pixel(1) < 3,
+      "SDL did not render retained red triangle"
+    );
     try tree.render(renderer, view(1, true, true));
     try check(tree.identity(1) == identity, "Keyed reorder replaced viewport identity");
     renderer.click(tree.identity(2));
@@ -218,14 +249,20 @@ module graphics_checks {
     viewport.submit(blue);
     window.submit(blue);
     try wait_frames(renderer, tree, queue, viewport, window, before + 1);
-    try check(viewport.surface().pixel(2) > 250 and window.surface().pixel(2) > 250, "Replacement frame was not rendered");
+    try check(
+      viewport.surface().pixel(2) > 250 and window.surface().pixel(2) > 250,
+      "Replacement frame was not rendered"
+    );
     var replacement = try gpu_gtk.Viewport();
     replacement.surface().readback(true);
     try renderer.register_viewport(2, replacement.widget());
     try tree.render(renderer, view(2, true, true));
     try submit_triangle(replacement, window);
     try wait_frames(renderer, tree, queue, replacement, window, 1);
-    try check(tree.identity(1) == identity, "Changing viewport identifier replaced keyed control identity");
+    try check(
+      tree.identity(1) == identity,
+      "Changing viewport identifier replaced keyed control identity"
+    );
     try renderer.unregister_viewport(1);
     // Removing and remounting must rebuild the context-local cache safely.
     try tree.render(renderer, view(2, false, false));
@@ -234,7 +271,10 @@ module graphics_checks {
     var area = try renderer.viewport(2);
     area.redraw();
     try wait_frames(renderer, tree, queue, replacement, window, remount + 1);
-    try check(replacement.surface().pixel(0) > 250 and replacement.surface().pixel(1) < 3, "Remounted viewport lost its retained geometry");
+    try check(
+      replacement.surface().pixel(0) > 250 and replacement.surface().pixel(1) < 3,
+      "Remounted viewport lost its retained geometry"
+    );
     // Exercise actual compiler diagnostics, then recover with a valid frame.
     var bad_vertex = String("invalid GLSL");
     var bad_fragment = String("invalid GLSL");
@@ -255,7 +295,10 @@ module graphics_checks {
     try window.render();
     try input(window);
     if (close_sdl_first) {
-      try check(unsafe { graphics_test_event(4, 0, 0.0, 0.0); } != 0, "Cannot inject close request");
+      try check(
+        unsafe { graphics_test_event(4, 0, 0.0, 0.0); } != 0,
+        "Cannot inject close request"
+      );
       gpu_sdl.poll();
       try check(not window.running(), "Native close request did not close SDL window");
       var last = replacement.surface().frames();
@@ -320,4 +363,15 @@ function main() i32 {
     }
   };
 }
-manifest {libraries:["stdlib.moon","sun_ui.moon","sun_ui_gtk.moon","sun_gobject.moon","sun_gtk.moon","sun_ui_graphics.moon","sun_ui_graphics_gtk.moon","sun_ui_sdl.moon"]}
+manifest {
+  libraries:[
+    "stdlib.moon",
+    "sun_ui.moon",
+    "sun_ui_gtk.moon",
+    "sun_gobject.moon",
+    "sun_gtk.moon",
+    "sun_ui_graphics.moon",
+    "sun_ui_graphics_gtk.moon",
+    "sun_ui_sdl.moon"
+  ]
+}

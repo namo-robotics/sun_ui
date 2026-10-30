@@ -6,7 +6,9 @@ public module gpu {
   /** Rejects embedded NUL bytes and invalid UTF-8 before a native string call. */
   public function validate_text(text: ref String) SystemResult<void> {
     if (unsafe { gu_text_valid(text.c_str(), _convert<u64>(text.length())); } == 0) {
-      return SystemResult.Error(Error(1, "Graphics text must be UTF-8 without embedded NUL bytes"));
+      return SystemResult.Error(
+        Error(1, "Graphics text must be UTF-8 without embedded NUL bytes")
+      );
     }
     return SystemResult.Ok;
   }
@@ -39,7 +41,8 @@ public module gpu {
 
     /** Copies position triples and optional indices after validating their bounds. */
     init(vertices: const ref Vec<f64>, indices: const ref Vec<i64>) SystemResult<void> {
-      if (vertices.size() == 0 or vertices.size() % 3 != 0 or vertices.size() > 16777216 or indices.size() > 16777216) {
+      if (vertices.size() == 0 or vertices.size() % 3 != 0 or vertices.size() > 16777216 or
+        indices.size() > 16777216) {
         return SystemResult.Error(Error(1, "Invalid mesh dimensions"));
       }
       for (var i: i64 = 0; i < vertices.size(); i += 1) {
@@ -53,7 +56,9 @@ public module gpu {
           return SystemResult.Error(Error(1, "Mesh index exceeds vertex count"));
         }
       }
-      this.pointer = unsafe { gu_mesh_new(_convert<i32>(vertices.size()), _convert<i32>(indices.size())); };
+      this.pointer = unsafe {
+        gu_mesh_new(_convert<i32>(vertices.size()), _convert<i32>(indices.size()));
+      };
       for (var i: i64 = 0; i < vertices.size(); i += 1) {
         unsafe { gu_mesh_vertex(this.pointer, _convert<i32>(i), _convert<f32>(vertices[i])); };
       }
@@ -98,10 +103,13 @@ public module gpu {
 
     /** Starts an empty frame with a normalized, finite clear color. */
     init(r: f64, g: f64, b: f64, a: f64) SystemResult<void> {
-      if (not (r >= 0.0 and r <= 1.0 and g >= 0.0 and g <= 1.0 and b >= 0.0 and b <= 1.0 and a >= 0.0 and a <= 1.0)) {
+      if (not (r >= 0.0 and r <= 1.0 and g >= 0.0 and g <= 1.0 and b >= 0.0 and b <= 1.0 and
+        a >= 0.0 and a <= 1.0)) {
         return SystemResult.Error(Error(1, "Invalid clear color"));
       }
-      this.pointer = unsafe { gu_frame_new(_convert<f32>(r), _convert<f32>(g), _convert<f32>(b), _convert<f32>(a)); };
+      this.pointer = unsafe {
+        gu_frame_new(_convert<f32>(r), _convert<f32>(g), _convert<f32>(b), _convert<f32>(a));
+      };
     }
 
     /** Releases the packet's CPU references. */
@@ -112,8 +120,23 @@ public module gpu {
     }
 
     /** Retains a shader and mesh with independent depth and alpha-blending settings. */
-    public method draw(mesh: const ref Mesh, shader: const ref Shader, primitive: Primitive, depth: bool, blend: bool) SystemResult<void> {
-      if (unsafe { gu_frame_draw(this.pointer, mesh.pointer, shader.pointer, primitive == Primitive.Lines ? 1 : 0, depth ? 1 : 0, blend ? 1 : 0); } == 0) {
+    public method draw(
+      mesh: const ref Mesh,
+      shader: const ref Shader,
+      primitive: Primitive,
+      depth: bool,
+      blend: bool
+    ) SystemResult<void> {
+      if (unsafe {
+        gu_frame_draw(
+          this.pointer,
+          mesh.pointer,
+          shader.pointer,
+          primitive == Primitive.Lines ? 1 : 0,
+          depth ? 1 : 0,
+          blend ? 1 : 0
+        );
+      } == 0) {
         return SystemResult.Error(Error(1, "Invalid draw primitive count"));
       }
       return SystemResult.Ok;
@@ -129,7 +152,8 @@ public module gpu {
       for (var i: i64 = 0; i < count; i += 1) {
         unsafe { gu_uniform_value(_convert<i32>(i), _convert<f32>(values[i])); };
       }
-      if (unsafe { gu_frame_uniform_built(this.pointer, name.c_str(), _convert<i32>(count)); } == 0) {
+      if (unsafe { gu_frame_uniform_built(this.pointer, name.c_str(), _convert<i32>(count)); } ==
+        0) {
         return SystemResult.Error(Error(1, "Invalid uniform or missing draw"));
       }
       return SystemResult.Ok;
@@ -192,8 +216,16 @@ public module gpu {
         return Option.None;
       }
       var k = _convert<i32>(unsafe { gu_surface_event(this.pointer, 0); });
-      var kind = k == 1 ? InputKind.Move : (k == 2 ? InputKind.Button : (k == 3 ? InputKind.Key : (k == 4 ? InputKind.Scroll : (k == 5 ? InputKind.Focus : (k == 6 ? InputKind.Relative : InputKind.Close)))));
-      return Option.Some(Input(kind, _convert<i32>(unsafe { gu_surface_event(this.pointer, 1); }), unsafe { gu_surface_event(this.pointer, 2); }, unsafe { gu_surface_event(this.pointer, 3); }));
+      var kind = k == 1 ? InputKind.Move : (k == 2 ? InputKind.Button : (k == 3 ? InputKind.Key : (k ==
+        4 ? InputKind.Scroll : (k == 5 ? InputKind.Focus : (k == 6 ? InputKind.Relative : InputKind.Close)))));
+      return Option.Some(
+        Input(
+          kind,
+          _convert<i32>(unsafe { gu_surface_event(this.pointer, 1); }),
+          unsafe { gu_surface_event(this.pointer, 2); },
+          unsafe { gu_surface_event(this.pointer, 3); }
+        )
+      );
     }
 
     /** Borrows the executor for host bindings that retain it before returning. */
@@ -202,4 +234,10 @@ public module gpu {
     }
   }
 }
-manifest { library_id: "namo-robotics/sun_ui_graphics", libraries: ["stdlib.moon"], source_files: ["raw.sun"] }
+manifest {
+  library_id: "namo-robotics/sun_ui_graphics", libraries: [
+    "stdlib.moon"
+  ], source_files: [
+    "raw.sun"
+  ]
+}

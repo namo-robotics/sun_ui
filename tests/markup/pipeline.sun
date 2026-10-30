@@ -30,36 +30,66 @@ module markup_pipeline_tests {
     mkdir.add_arg("-p");
     mkdir.add_arg("tmp/markup-pipeline/parts");
     try std.test.assert_eq(try mkdir.status(), 0);
-    try write("tmp/markup-pipeline/main.view.xml", "<Views module=\"pipeline\"><Import name=\"Footer\" function=\"parts.Footer\" source=\"parts/footer.view.xml\"/><View name=\"view\" state=\"i64\"><Footer/></View></Views>");
-    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"parts\"><Template name=\"Footer\"><Label text=\"Original\"/></Template></Views>");
+    try write(
+      "tmp/markup-pipeline/main.view.xml",
+      "<Views module=\"pipeline\"><Import name=\"Footer\" function=\"parts.Footer\" source=\"parts/footer.view.xml\"/><View name=\"view\" state=\"i64\"><Footer/></View></Views>"
+    );
+    try write(
+      "tmp/markup-pipeline/parts/footer.view.xml",
+      "<Views module=\"parts\"><Template name=\"Footer\"><Label text=\"Original\"/></Template></Views>"
+    );
     var first = try generate();
     try std.test.assert_eq(first.status(), 0);
     var path = String("build/generated/tests/pipeline/main.view.sun");
     var original = try std.io.read_to_string(a, path);
     var map_path = String("build/generated/tests/pipeline/main.view.sun.map");
     var original_map = try std.io.read_to_string(a, map_path);
-    try std.test.assert(original_map.contains("tmp/markup-pipeline/parts/footer.view.xml"), "import mappings retain their filenames");
+    try std.test.assert(
+      original_map.contains("tmp/markup-pipeline/parts/footer.view.xml"),
+      "import mappings retain their filenames"
+    );
     var repeated = try generate();
     try std.test.assert_eq(repeated.status(), 0);
     var repeated_source = try std.io.read_to_string(a, path);
     var repeated_map = try std.io.read_to_string(a, map_path);
     try std.test.assert(original.equals(repeated_source), "source generation is deterministic");
     try std.test.assert(original_map.equals(repeated_map), "mapping generation is deterministic");
-    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"parts\"><Template name=\"Footer\"><Label text=\"Changed\"/></Template></Views>");
+    try write(
+      "tmp/markup-pipeline/parts/footer.view.xml",
+      "<Views module=\"parts\"><Template name=\"Footer\"><Label text=\"Changed\"/></Template></Views>"
+    );
     var changed = try generate();
     try std.test.assert_eq(changed.status(), 0);
     var changed_source = try std.io.read_to_string(a, path);
-    try std.test.assert(changed_source.contains("Changed") and not changed_source.contains("Original"), "imported changes reach the consumer");
-    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"parts\"><Template name=\"Footer\"><Unknown/></Template></Views>");
+    try std.test.assert(
+      changed_source.contains("Changed") and not changed_source.contains("Original"),
+      "imported changes reach the consumer"
+    );
+    try write(
+      "tmp/markup-pipeline/parts/footer.view.xml",
+      "<Views module=\"parts\"><Template name=\"Footer\"><Unknown/></Template></Views>"
+    );
     var invalid = try generate();
     try std.test.assert(invalid.status() != 0, "invalid imports stop the build");
-    try std.test.assert(invalid.stderr().contains("footer.view.xml:"), "dependency error names its source");
-    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"parts\"><Import name=\"Again\" function=\"parts.Footer\" source=\"footer.view.xml\"/><Template name=\"Footer\"><Label text=\"Cycle\"/></Template></Views>");
+    try std.test.assert(
+      invalid.stderr().contains("footer.view.xml:"),
+      "dependency error names its source"
+    );
+    try write(
+      "tmp/markup-pipeline/parts/footer.view.xml",
+      "<Views module=\"parts\"><Import name=\"Again\" function=\"parts.Footer\" source=\"footer.view.xml\"/><Template name=\"Footer\"><Label text=\"Cycle\"/></Template></Views>"
+    );
     var cycle = try generate();
     try std.test.assert(cycle.status() != 0, "import cycles stop generation");
     try std.test.assert(cycle.stderr().contains("cycle"), "cycle diagnostic explains the failure");
-    try write("tmp/markup-pipeline/main.view.xml", "<Views module=\"pipeline\"><Include source=\"parts/footer.view.xml\"/><Include source=\"parts/footer.view.xml\"/></Views>");
-    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"palette\"><Resources name=\"resources\"><Color name=\"accent\" value=\"7\"/></Resources></Views>");
+    try write(
+      "tmp/markup-pipeline/main.view.xml",
+      "<Views module=\"pipeline\"><Include source=\"parts/footer.view.xml\"/><Include source=\"parts/footer.view.xml\"/></Views>"
+    );
+    try write(
+      "tmp/markup-pipeline/parts/footer.view.xml",
+      "<Views module=\"palette\"><Resources name=\"resources\"><Color name=\"accent\" value=\"7\"/></Resources></Views>"
+    );
     var included = try generate();
     try std.test.assert_eq(included.status(), 0);
     var included_source = try std.io.read_to_string(a, path);
@@ -71,7 +101,10 @@ module markup_pipeline_tests {
       }
     }
     try std.test.assert_eq(definitions, 1);
-    try write("tmp/markup-pipeline/parts/footer.view.xml", "<Views module=\"palette\"><Include source=\"footer.view.xml\"/></Views>");
+    try write(
+      "tmp/markup-pipeline/parts/footer.view.xml",
+      "<Views module=\"palette\"><Include source=\"footer.view.xml\"/></Views>"
+    );
     var include_cycle = try generate();
     try std.test.assert(include_cycle.status() != 0);
     try std.test.assert(include_cycle.stderr().contains("cycle"));
@@ -80,13 +113,22 @@ module markup_pipeline_tests {
   /** Maps compiler diagnostics to imported XML, counting CRLF and Unicode correctly. */
   test_function imported_diagnostic_locations() TestResult<void> {
     try write("tmp/markup-map-source.view.xml", "<Views>\r\n  é<Label/>\r\n</Views>");
-    try write("tmp/markup-map.sun.map", "1\t0\ttmp/markup-map-source.view.xml\n5\t13\ttmp/markup-map-source.view.xml\n");
+    try write(
+      "tmp/markup-map.sun.map",
+      "1\t0\ttmp/markup-map-source.view.xml\n5\t13\ttmp/markup-map-source.view.xml\n"
+    );
     var generated = String("tmp/markup-map.sun");
     var original = String("unused.view.xml");
     var diagnostic = String("/workspace/tmp/markup-map.sun:6:3: error: expected String\n");
     var messages = try build_diagnostics.mapped(diagnostic, generated, original);
-    try std.test.assert(messages.contains("tmp/markup-map-source.view.xml:2:4:"), "maps to original Unicode column across CRLF");
-    try std.test.assert(not messages.contains("unused.view.xml"), "uses imported source instead of root fallback");
+    try std.test.assert(
+      messages.contains("tmp/markup-map-source.view.xml:2:4:"),
+      "maps to original Unicode column across CRLF"
+    );
+    try std.test.assert(
+      not messages.contains("unused.view.xml"),
+      "uses imported source instead of root fallback"
+    );
   }
 
   /** Runs a registry fixture through either explicit selection or adjacent discovery. */
@@ -94,7 +136,9 @@ module markup_pipeline_tests {
     var a = make_heap_allocator();
     var target = try build_targets.load("viewc");
     var command = std.process.Command(a, target.output);
-    command.add_arg(explicit_registry ? "tmp/registry-pipeline/views/main.view.xml" : "tmp/registry-pipeline/main.view.xml");
+    command.add_arg(
+      explicit_registry ? "tmp/registry-pipeline/views/main.view.xml" : "tmp/registry-pipeline/main.view.xml"
+    );
     command.add_arg("build/generated/tests/registry/main.view.sun");
     if (explicit_registry) {
       command.add_arg("--registry");
@@ -110,10 +154,22 @@ module markup_pipeline_tests {
     mkdir.add_arg("-p");
     mkdir.add_arg("tmp/registry-pipeline/views");
     try std.test.assert_eq(try mkdir.status(), 0);
-    try write("tmp/registry-pipeline/main.view.xml", "<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption text=\"Hello\"/></View></Views>");
-    try write("tmp/registry-pipeline/views/main.view.xml", "<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption text=\"Nested\"/></View></Views>");
-    try write("tmp/registry-pipeline/components.registry.xml", "<ComponentRegistry><Source path=\"parts.view.xml\"/><Source path=\"parts.view.xml\"/></ComponentRegistry>");
-    try write("tmp/registry-pipeline/parts.view.xml", "<Views module=\"parts\"><Component name=\"Caption\"><Param name=\"text\" type=\"String\"/><Label text=\"{text}\"/></Component></Views>");
+    try write(
+      "tmp/registry-pipeline/main.view.xml",
+      "<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption text=\"Hello\"/></View></Views>"
+    );
+    try write(
+      "tmp/registry-pipeline/views/main.view.xml",
+      "<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption text=\"Nested\"/></View></Views>"
+    );
+    try write(
+      "tmp/registry-pipeline/components.registry.xml",
+      "<ComponentRegistry><Source path=\"parts.view.xml\"/><Source path=\"parts.view.xml\"/></ComponentRegistry>"
+    );
+    try write(
+      "tmp/registry-pipeline/parts.view.xml",
+      "<Views module=\"parts\"><Component name=\"Caption\"><Param name=\"text\" type=\"String\"/><Label text=\"{text}\"/></Component></Views>"
+    );
     var first = try generate_registered(false);
     try std.test.assert_eq(first.status(), 0);
     var output = String("build/generated/tests/registry/main.view.sun");
@@ -136,7 +192,10 @@ module markup_pipeline_tests {
     try std.test.assert(original.equals(repeated_source));
     var explicit_result = try generate_registered(true);
     try std.test.assert_eq(explicit_result.status(), 0);
-    try write("tmp/registry-pipeline/parts.view.xml", "<Views module=\"parts\"><Component name=\"Caption\"><Param name=\"text\" type=\"String\"/><Label text=\"Changed\"/></Component></Views>");
+    try write(
+      "tmp/registry-pipeline/parts.view.xml",
+      "<Views module=\"parts\"><Component name=\"Caption\"><Param name=\"text\" type=\"String\"/><Label text=\"Changed\"/></Component></Views>"
+    );
     var changed = try generate_registered(false);
     try std.test.assert_eq(changed.status(), 0);
     var changed_source = try std.io.read_to_string(a, output);
@@ -146,14 +205,26 @@ module markup_pipeline_tests {
     try std.test.assert(unknown.status() != 0);
     try std.test.assert(unknown.stderr().contains("main.view.xml:"));
     var preserved = try std.io.read_to_string(a, output);
-    try std.test.assert(changed_source.equals(preserved), "failed generation must not publish partial output");
-    try write("tmp/registry-pipeline/components.registry.xml", "<ComponentRegistry><Source path=\"parts.view.xml\"></ComponentRegistry>");
+    try std.test.assert(
+      changed_source.equals(preserved),
+      "failed generation must not publish partial output"
+    );
+    try write(
+      "tmp/registry-pipeline/components.registry.xml",
+      "<ComponentRegistry><Source path=\"parts.view.xml\"></ComponentRegistry>"
+    );
     var malformed = try generate_registered(false);
     try std.test.assert(malformed.status() != 0);
-    try write("tmp/registry-pipeline/components.registry.xml", "<ComponentRegistry><Source path=\"../parts.view.xml\"/></ComponentRegistry>");
+    try write(
+      "tmp/registry-pipeline/components.registry.xml",
+      "<ComponentRegistry><Source path=\"../parts.view.xml\"/></ComponentRegistry>"
+    );
     var traversal = try generate_registered(false);
     try std.test.assert(traversal.status() != 0);
-    try write("tmp/registry-pipeline/components.registry.xml", "<ComponentRegistry><Source path=\"missing.view.xml\"/></ComponentRegistry>");
+    try write(
+      "tmp/registry-pipeline/components.registry.xml",
+      "<ComponentRegistry><Source path=\"missing.view.xml\"/></ComponentRegistry>"
+    );
     var missing = try generate_registered(false);
     try std.test.assert(missing.status() != 0);
   }

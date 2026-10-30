@@ -44,7 +44,11 @@ module tasks {
   }
 
   /** Updates task state using a captured scalar message, never a platform handle. */
-  function handle(state: ref State, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+  function handle(
+    state: ref State,
+    event: const ref ui.Event,
+    queue: ref ui.EventQueue
+  ) SystemResult<void> {
     if (event.action == 1) {
       state.ids.push(state.next_id);
       state.next_id += 1;
@@ -68,14 +72,21 @@ module tasks {
   }
 
   /** Delivers a real native click through the framework's explicit dispatch boundary. */
-  function click(renderer: ref ui_gtk.Renderer, session: ref ui.Session<State>, key: i64) SystemResult<void> {
+  function click(
+    renderer: ref ui_gtk.Renderer,
+    session: ref ui.Session<State>,
+    key: i64
+  ) SystemResult<void> {
     renderer.click(session.tree.identity(key));
     renderer.poll(session.tree, session.queue, false);
     return session.dispatch(renderer);
   }
 
   /** Checks identity, native order, focus, targeted updates, and subscription cleanup. */
-  function acceptance(renderer: ref ui_gtk.Renderer, session: ref ui.Session<State>) SystemResult<void> {
+  function acceptance(
+    renderer: ref ui_gtk.Renderer,
+    session: ref ui.Session<State>
+  ) SystemResult<void> {
     var first = session.tree.identity(1);
     var second = session.tree.identity(2);
     try click(renderer, session, 2);
@@ -101,14 +112,17 @@ module tasks {
     }
     try click(renderer, session, -1);
     var third = session.tree.identity(3);
-    if (third == 0 or renderer.follows(second, third) == false or renderer.focused(second) == false) {
+    if (third == 0 or renderer.follows(second, third) == false or
+      renderer.focused(second) == false) {
       return SystemResult.Error(Error(1, "Insertion did not preserve focus or order"));
     }
-    if (session.tree.identity(1) != first or session.tree.identity(2) != second or renderer.creates != 6) {
+    if (session.tree.identity(1) != first or session.tree.identity(2) != second or
+      renderer.creates != 6) {
       return SystemResult.Error(Error(1, "Surviving tasks were remounted"));
     }
     try click(renderer, session, -3);
-    if (session.tree.identity(2) != 0 or renderer.removals != 1 or renderer.follows(first, third) == false) {
+    if (session.tree.identity(2) != 0 or renderer.removals != 1 or
+      renderer.follows(first, third) == false) {
       return SystemResult.Error(Error(1, "Removal did not clean up the selected task"));
     }
     session.tree.enqueue(second, session.queue);
@@ -155,4 +169,12 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
     }
   };
 }
-manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon", "sun_ui_gtk.moon"] }
+manifest {
+  libraries: [
+    "stdlib.moon",
+    "sun_ui.moon",
+    "sun_gobject.moon",
+    "sun_gtk.moon",
+    "sun_ui_gtk.moon"
+  ]
+}

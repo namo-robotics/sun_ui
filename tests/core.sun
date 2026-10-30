@@ -171,7 +171,11 @@ module core_tests {
   }
 
   /** Posts one follow-up event to verify handler execution never recurses. */
-  function handler(state: ref i64, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+  function handler(
+    state: ref i64,
+    event: const ref ui.Event,
+    queue: ref ui.EventQueue
+  ) SystemResult<void> {
     if (event.action != 7 or event.payload != 42) {
       return SystemResult.Error(Error(1, "Lost message payload"));
     }
@@ -230,7 +234,11 @@ module core_tests {
   }
 
   /** Simulates a handler failure after mutating explicitly owned state. */
-  function failing(state: ref i64, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+  function failing(
+    state: ref i64,
+    event: const ref ui.Event,
+    queue: ref ui.EventQueue
+  ) SystemResult<void> {
     state += 1;
     return SystemResult.Error(Error(1, "Handler failed"));
   }
@@ -315,7 +323,10 @@ module core_tests {
     for (var i: i64 = 0; i < 2; i += 1) {
       var key: i64 = reverse ? 2 - i : i + 1;
       var parent = view.append(-1, ui.Element(ui.Key(key), ui.Kind.Column));
-      var child = ui.Element(ui.Key(String("local")), changed and key == 1 ? ui.Kind.Label : ui.Kind.Button);
+      var child = ui.Element(
+        ui.Key(String("local")),
+        changed and key == 1 ? ui.Kind.Label : ui.Kind.Button
+      );
       child.text = String("Child");
       child.action = 7;
       child.payload = key;
@@ -385,7 +396,10 @@ module core_tests {
     try tree.render(renderer, view);
     var path = Vec<ui.Key>(a, 1);
     path.push(ui.Key(String("1")));
-    try std.test.assert(tree.identity(1) != tree.identity_path(path), "key types must not collide");
+    try std.test.assert(
+      tree.identity(1) != tree.identity_path(path),
+      "key types must not collide"
+    );
   }
 
   /** Checks flat style inheritance and media validation before any renderer changes. */
@@ -551,7 +565,10 @@ module core_tests {
     changed.focus_path.push(ui.Key(1));
     changed.focus_path.push(ui.Key(String("local")));
     try tree.render(renderer, changed);
-    try std.test.assert(child_identity(tree, 1) != first, "template replacement remounts descendants");
+    try std.test.assert(
+      child_identity(tree, 1) != first,
+      "template replacement remounts descendants"
+    );
     try std.test.assert_eq(child_identity(tree, 2), second);
     try std.test.assert_eq(renderer.focused, child_identity(tree, 1));
     var moved = nested(false, false);
@@ -562,7 +579,10 @@ module core_tests {
     try std.test.assert_eq(child_identity(tree, 2), second);
     var path = Vec<ui.Key>(a, 1);
     path.push(ui.Key(String("local")));
-    try std.test.assert(tree.identity_path(path) != renderer.focused, "moving between parents remounts");
+    try std.test.assert(
+      tree.identity_path(path) != renderer.focused,
+      "moving between parents remounts"
+    );
   }
 
   /** Applies Scroll's child limit through transparent component groups before mutation. */
@@ -621,7 +641,11 @@ module core_tests {
   }
 
   /** Checks that queued routing remains the snapshot captured before a later render. */
-  function routed_handler(state: ref i64, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+  function routed_handler(
+    state: ref i64,
+    event: const ref ui.Event,
+    queue: ref ui.EventQueue
+  ) SystemResult<void> {
     if (not event.action_scope.equals_literal("original-view") or event.action != 4) {
       return SystemResult.Error(Error(1, "Queued generated routing changed"));
     }
@@ -698,7 +722,10 @@ module core_tests {
       }
       try resources.add(1, style);
       if (scenario != 0) {
-        var value = ui.Resource(String("value"), scenario == 1 ? ui.ResourceKind.Color : ui.ResourceKind.Spacing);
+        var value = ui.Resource(
+          String("value"),
+          scenario == 1 ? ui.ResourceKind.Color : ui.ResourceKind.Spacing
+        );
         value.number = scenario == 3 ? 2147483648 : (scenario == 4 ? -1 : 4);
         try resources.add(1, value);
       }

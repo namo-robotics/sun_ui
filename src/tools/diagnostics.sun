@@ -39,7 +39,11 @@ module build_diagnostics {
   }
 
   /** Resolves generated diagnostics into additional original XML location messages. */
-  public function mapped(diagnostic: const ref String, generated: ref String, original: ref String) SystemResult<String> {
+  public function mapped(
+    diagnostic: const ref String,
+    generated: ref String,
+    original: ref String
+  ) SystemResult<String> {
     var a = make_heap_allocator();
     var result = String("");
     var map_path = generated.clone(a);
@@ -105,7 +109,11 @@ module build_diagnostics {
   }
 
   /** Prints additional XML locations without replacing the original compiler diagnostic. */
-  public function annotate(diagnostic: const ref String, generated: ref String, original: ref String) SystemResult<void> {
+  public function annotate(
+    diagnostic: const ref String,
+    generated: ref String,
+    original: ref String
+  ) SystemResult<void> {
     var messages = try mapped(diagnostic, generated, original);
     eprint(messages);
     return SystemResult.Ok;

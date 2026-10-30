@@ -127,7 +127,9 @@ module plot_tests {
   test_function xml_text_is_escaped() TestResult<void> {
     var text = String("A & B <tag> \"quoted\" 'single'");
     var escaped = ui_drawing.escape(text);
-    try std.test.assert(escaped.equals_literal("A &amp; B &lt;tag&gt; &quot;quoted&quot; &apos;single&apos;"));
+    try std.test.assert(
+      escaped.equals_literal("A &amp; B &lt;tag&gt; &quot;quoted&quot; &apos;single&apos;")
+    );
     return TestResult.Ok;
   }
 

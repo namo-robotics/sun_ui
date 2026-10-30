@@ -11,7 +11,10 @@ module tasks {
     var reversed: bool = false;
 
     /** Reverses display order when the generated dispatcher delivers the action. */
-    public method reverse_tasks(event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+    public method reverse_tasks(
+      event: const ref ui.Event,
+      queue: ref ui.EventQueue
+    ) SystemResult<void> {
       this.reversed = not this.reversed;
       return SystemResult.Ok;
     }
@@ -59,14 +62,22 @@ module tasks {
   }
 
   /** Appends a task when the generated action dispatcher calls this function. */
-  function add_task(state: ref State, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+  function add_task(
+    state: ref State,
+    event: const ref ui.Event,
+    queue: ref ui.EventQueue
+  ) SystemResult<void> {
     state.ids.push(state.next_id);
     state.next_id += 1;
     return SystemResult.Ok;
   }
 
   /** Removes the selected task while retaining the remaining items' stable keys. */
-  function remove_selected(state: ref State, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+  function remove_selected(
+    state: ref State,
+    event: const ref ui.Event,
+    queue: ref ui.EventQueue
+  ) SystemResult<void> {
     for (var i: i64 = 0; i < state.ids.size(); i += 1) {
       if (state.ids[i] == state.selected) {
         match state.ids.remove(i) {
@@ -81,7 +92,11 @@ module tasks {
   }
 
   /** Handles numeric actions from the handwritten task component. */
-  function handle(state: ref State, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+  function handle(
+    state: ref State,
+    event: const ref ui.Event,
+    queue: ref ui.EventQueue
+  ) SystemResult<void> {
     if (event.action == 4) {
       state.selected = event.payload;
     }
@@ -89,7 +104,11 @@ module tasks {
   }
 
   /** Delivers a real native click through the framework's explicit dispatch boundary. */
-  function click(renderer: ref ui_gtk.Renderer, session: ref ui.Session<State>, key: i64) SystemResult<void> {
+  function click(
+    renderer: ref ui_gtk.Renderer,
+    session: ref ui.Session<State>,
+    key: i64
+  ) SystemResult<void> {
     if (key < 0) {
       // Tests read generated toolbar keys instead of depending on their spelling.
       var a = make_heap_allocator();
@@ -105,7 +124,10 @@ module tasks {
   }
 
   /** Checks identity, native order, focus, targeted updates, and subscription cleanup. */
-  function acceptance(renderer: ref ui_gtk.Renderer, session: ref ui.Session<State>) SystemResult<void> {
+  function acceptance(
+    renderer: ref ui_gtk.Renderer,
+    session: ref ui.Session<State>
+  ) SystemResult<void> {
     var first = identity(session.tree, 1);
     var second = identity(session.tree, 2);
     try click(renderer, session, 2);
@@ -134,7 +156,8 @@ module tasks {
     if (third == 0 or renderer.focused(second) == false) {
       return SystemResult.Error(Error(1, "Insertion did not preserve focus or order"));
     }
-    if (identity(session.tree, 1) != first or identity(session.tree, 2) != second or renderer.creates != 12) {
+    if (identity(session.tree, 1) != first or identity(session.tree, 2) != second or
+      renderer.creates != 12) {
       return SystemResult.Error(Error(1, "Surviving tasks were remounted"));
     }
     try click(renderer, session, -3);
@@ -185,4 +208,14 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
     }
   };
 }
-manifest { source_files: ["../../build/generated/examples/tasks-xml/tasks.view.sun"], libraries: ["stdlib.moon", "sun_ui.moon", "sun_gobject.moon", "sun_gtk.moon", "sun_ui_gtk.moon"] }
+manifest {
+  source_files: [
+    "../../build/generated/examples/tasks-xml/tasks.view.sun"
+  ], libraries: [
+    "stdlib.moon",
+    "sun_ui.moon",
+    "sun_gobject.moon",
+    "sun_gtk.moon",
+    "sun_ui_gtk.moon"
+  ]
+}

@@ -21,4 +21,12 @@ function export_plot() SystemResult<void> {
   return SystemResult.Ok;
 }
 
-manifest { libraries: ["stdlib.moon", "sun_ui.moon", "sun_plot.moon"], source_files: ["data.sun"] }
+manifest {
+  libraries: [
+    "stdlib.moon",
+    "sun_ui.moon",
+    "sun_plot.moon"
+  ], source_files: [
+    "data.sun"
+  ]
+}

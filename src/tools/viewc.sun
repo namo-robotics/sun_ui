@@ -101,7 +101,12 @@ function publish(output: ref String, source: ref String, mapping: ref String) Sy
 }
 
 /** Parses the dependency graph before resolving registered component names. */
-function collect(input: ref String, output: ref String, generation: ref Generation, registered: bool) SystemResult<void> {
+function collect(
+  input: ref String,
+  output: ref String,
+  generation: ref Generation,
+  registered: bool
+) SystemResult<void> {
   var a = make_heap_allocator();
   for (var i: i64 = 0; i < generation.active.size(); i += 1) {
     if (generation.active[i].equals(input)) {
@@ -203,4 +208,10 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
     }
   };
 }
-manifest { libraries: ["stdlib.moon"], source_files: ["../markup/compiler.sun"] }
+manifest {
+  libraries: [
+    "stdlib.moon"
+  ], source_files: [
+    "../markup/compiler.sun"
+  ]
+}

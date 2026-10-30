@@ -5,7 +5,12 @@ public module gpu_sdl {
   extern "C" function gu_window_captured(window: raw_ptr<u8>) i32;
 
   /** Creates a native SDL window and retains the graphics surface. */
-  extern "C" function gu_window_new(surface: raw_ptr<u8>, title: raw_ptr<u8>, width: i32, height: i32) raw_ptr<u8>;
+  extern "C" function gu_window_new(
+    surface: raw_ptr<u8>,
+    title: raw_ptr<u8>,
+    width: i32,
+    height: i32
+  ) raw_ptr<u8>;
 
   /** Releases an SDL host. */
   extern "C" function gu_window_free(window: raw_ptr<u8>) void;
