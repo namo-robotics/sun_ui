@@ -818,7 +818,7 @@ public module markup {
       if (builtin(node.name)) {
         try this.attributes(
           index,
-          "key text value action changeAction payload enabled visible checked selected viewportId duration trimControls trimStart trimEnd position spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize borderWidth radius padding styleResource foregroundResource backgroundResource fontResource spacingResource marginResource"
+          "key text tooltip icon trimRanges activeRange value action changeAction payload enabled visible checked selected viewportId duration trimControls trimStart trimEnd position spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize borderWidth radius padding styleResource foregroundResource backgroundResource fontResource spacingResource marginResource"
         );
         var activation = node.attr("action");
         var change = node.attr("changeAction");
@@ -897,7 +897,8 @@ public module markup {
             continue;
           }
           var string_value = field.equals_literal("text") or field.equals_literal("value") or
-            field.equals_literal("font");
+            field.equals_literal("font") or field.equals_literal("tooltip") or
+            field.equals_literal("icon");
           if (field.equals_literal("value")) {
             field = String("text");
           }
@@ -906,6 +907,12 @@ public module markup {
           }
           if (field.equals_literal("viewportId")) {
             field = String("viewport_id");
+          }
+          if (field.equals_literal("trimRanges")) {
+            field = String("trim_ranges");
+          }
+          if (field.equals_literal("activeRange")) {
+            field = String("active_range");
           }
           if (field.equals_literal("trimControls")) {
             field = String("trim_controls");

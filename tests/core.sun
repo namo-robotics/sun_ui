@@ -6,6 +6,43 @@ module core_tests {
   /** Combines assertion and framework errors for readable test failures. */
   enum TestResult<T> { Ok(T), Assertion(std.test.AssertionError), System(Error) }
 
+  /** Requires ordered, nonoverlapping handle pairs and tracks icon and tooltip changes. */
+  test_function kept_ranges_and_button_hints() TestResult<void> {
+    var renderer = Recording();
+    var tree = ui.Tree(make_heap_allocator());
+    var view = ui.View(make_heap_allocator());
+    var node = ui.Element(ui.Key(1), ui.Kind.Video);
+    node.duration = 4000000;
+    node.trim_end = 1000000;
+    node.active_range = 1;
+    node.trim_ranges.push(ui.TrimRange(1, 0, 1000000));
+    node.trim_ranges.push(ui.TrimRange(2, 2000000, 4000000));
+    view.append(-1, node);
+    try tree.render(renderer, view);
+    var invalid = ui.View(make_heap_allocator());
+    var overlap = ui.Element(ui.Key(1), ui.Kind.Video);
+    overlap.duration = 4000000;
+    overlap.trim_end = 2000000;
+    overlap.active_range = 1;
+    overlap.trim_ranges.push(ui.TrimRange(1, 0, 2000000));
+    overlap.trim_ranges.push(ui.TrimRange(2, 1000000, 4000000));
+    invalid.append(-1, overlap);
+    match tree.render(renderer, invalid) {
+      SystemResult.Error(_) => {},
+      SystemResult.Ok => {
+        try std.test.assert(false, "overlapping ranges accepted");
+      }
+    };
+    var first = ui.Element(ui.Key(2), ui.Kind.Button);
+    var second = ui.Element(ui.Key(2), ui.Kind.Button);
+    second.tooltip = String("Split section at playhead");
+    try std.test.assert(not first.equals(second));
+    first.tooltip = String("Split section at playhead");
+    second.icon = String("edit-cut-symbolic");
+    try std.test.assert(not first.equals(second));
+    return TestResult.Ok;
+  }
+
   /** Records renderer operations and models live native subscriptions. */
   class Recording implements ui.Renderer {
     public var created: i64 = 0;

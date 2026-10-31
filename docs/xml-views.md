@@ -435,3 +435,25 @@ paths clear the preview; unreadable images show an inline fallback message.
 
 Set `trimControls="false"` on `Video` to use standard video playback controls,
 without the custom trim timeline or its transport row. Trim controls default to enabled.
+
+### Kept video sections and icon buttons
+
+Buttons accept `icon` (a themed icon name or local image filename) and `tooltip`.
+The tooltip also supplies the accessible name for icon-only buttons:
+
+```xml
+<Button icon="edit-cut-symbolic" tooltip="Split section at playhead" action="17" />
+```
+
+A `Video` can receive `trimRanges="{ranges(state)}"` and
+`activeRange="{state.active}"`. The expression returns an owned `Vec<ui.TrimRange>`;
+each `TrimRange(id, start, end)` holds a nonnegative stable ID and microsecond
+boundaries. Supply chronological, nonoverlapping ranges and an active ID present
+in the list. An empty list preserves the single-range API. Up to 64 ranges are
+supported. Adjacent ranges may share a boundary; dragging that boundary left
+moves the earlier end, and dragging right moves the later start.
+
+All inward-facing handle pairs mark kept sections. Playback skips the gaps.
+Range events include `value.range_id` so clients update the section that emitted
+the event; legacy single-range events use zero. Text fields can edit the active
+range, while clicking a different range or dragging its handle selects it.

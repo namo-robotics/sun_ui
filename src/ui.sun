@@ -79,10 +79,28 @@ public module ui {
     }
   }
 
+  /** Identifies one kept source interval, expressed in microseconds. */
+  public class TrimRange {
+    public var id: i64;
+    public var start: i64;
+    public var end: i64;
+
+    /** Stores a stable range identity and its source boundaries. */
+    init(id: i64, start: i64, end: i64) {
+      this.id = id;
+      this.start = start;
+      this.end = end;
+    }
+  }
+
   /** Owns one node's properties and its parent index; never retains state borrows. */
   public class Element {
     public var key: Key;
     public var kind: Kind;
+    public var tooltip: String = String("");
+    public var icon: String = String("");
+    public var trim_ranges: Vec<TrimRange>;
+    public var active_range: i64 = 0;
     public var template_id: String = String("");
     public var parent: i64 = -1;
     public var text: String = String("");
@@ -124,6 +142,7 @@ public module ui {
       var a = make_heap_allocator();
       this.key = key;
       this.kind = kind;
+      this.trim_ranges = Vec<TrimRange>(a, 4);
       this.choices = Vec<Choice>(a, 4);
       this.rows = Vec<Track>(a, 4);
       this.columns = Vec<Track>(a, 4);
@@ -137,6 +156,18 @@ public module ui {
 
     /** Compares native properties, excluding keys and semantic event routing. */
     public const method equals(other: const ref Element) bool {
+      if (not this.tooltip.equals(other.tooltip) or not this.icon.equals(other.icon) or
+        this.active_range != other.active_range or
+        this.trim_ranges.size() != other.trim_ranges.size()) {
+        return false;
+      }
+      for (var i: i64 = 0; i < this.trim_ranges.size(); i += 1) {
+        if (this.trim_ranges[i].id != other.trim_ranges[i].id or
+          this.trim_ranges[i].start != other.trim_ranges[i].start or
+          this.trim_ranges[i].end != other.trim_ranges[i].end) {
+          return false;
+        }
+      }
       if (this.viewport_id != other.viewport_id or this.duration != other.duration or
         this.trim_controls != other.trim_controls or this.trim_start != other.trim_start or
         this.trim_end != other.trim_end or this.position != other.position or
@@ -338,6 +369,7 @@ public module ui {
     public var kind: ValueKind = ValueKind.None;
     public var text: String = String("");
     public var boolean: bool = false;
+    public var range_id: i64 = 0;
     public var range_start: i64 = 0;
     public var range_end: i64 = 0;
     public var position: i64 = 0;
@@ -558,6 +590,28 @@ public module ui {
             node.position > node.duration or
             (node.duration > 0 and node.trim_start == node.trim_end))) {
           return SystemResult.Error(Error(1, "Invalid video range"));
+        }
+        if (node.trim_ranges.size() > 64 or
+          (not node.icon.is_empty() and node.kind != Kind.Button)) {
+          return SystemResult.Error(Error(1, "Invalid icon or excessive trim ranges"));
+        }
+        var active_found = node.trim_ranges.size() == 0;
+        for (var r: i64 = 0; r < node.trim_ranges.size(); r += 1) {
+          var range = node.trim_ranges[r];
+          if (node.kind != Kind.Video or range.id < 0 or range.start < 0 or
+            range.end <= range.start or range.end > node.duration or
+            (r > 0 and range.start < node.trim_ranges[r - 1].end)) {
+            return SystemResult.Error(Error(1, "Invalid or overlapping kept video ranges"));
+          }
+          for (var previous: i64 = 0; previous < r; previous += 1) {
+            if (node.trim_ranges[previous].id == range.id) {
+              return SystemResult.Error(Error(1, "Duplicate video range identifier"));
+            }
+          }
+          active_found = active_found or range.id == node.active_range;
+        }
+        if (not active_found) {
+          return SystemResult.Error(Error(1, "Unknown active video range"));
         }
         if (node.selected < -1 or
           (node.kind == Kind.Select and node.selected >= node.choices.size())) {

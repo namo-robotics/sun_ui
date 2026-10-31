@@ -153,6 +153,9 @@ public module ui_gtk {
         var text = element.text.clone(a);
         try this.widget.set_text(text);
       }
+      var tooltip = element.tooltip.clone(a);
+      var icon = element.icon.clone(a);
+      try this.widget.hint(tooltip, icon);
       if (element.kind == ui.Kind.Image) {
         var path = element.text.clone(a);
         try this.widget.image(path);
@@ -167,6 +170,16 @@ public module ui_gtk {
           element.trim_end,
           element.position
         );
+        var ranges = String("");
+        for (var i: i64 = 0; i < element.trim_ranges.size(); i += 1) {
+          if (i > 0) {
+            ranges.append(";");
+          }
+          ranges.append(
+            `${element.trim_ranges[i].id},${element.trim_ranges[i].start},${element.trim_ranges[i].end}`
+          );
+        }
+        try this.widget.media_ranges(ranges, element.active_range);
       }
       if (element.kind == ui.Kind.Checkbox) {
         try this.widget.set_value(element.checked ? 1 : 0);
@@ -567,7 +580,7 @@ public module ui_gtk {
                 if (event.kind() == gtk.EventKind.TextChanged) {
                   if (control.kind == ui.Kind.Video) {
                     var fields = event.text.split(a, b':');
-                    if (fields.size() == 3) {
+                    if (fields.size() == 3 or fields.size() == 4) {
                       var start = match fields[0].parse_i64() {
                         Option.Some(value) => value,
                         Option.None => -1
@@ -580,12 +593,17 @@ public module ui_gtk {
                         Option.Some(value) => value,
                         Option.None => -1
                       };
-                      if (start >= 0 and end > start and position >= 0) {
-                        tree.enqueue_value(
-                          control.identity,
-                          ui.EventValue(start, end, position),
-                          queue
-                        );
+                      var range_id: i64 = 0;
+                      if (fields.size() == 4) {
+                        range_id = match fields[3].parse_i64() {
+                          Option.Some(value) => value,
+                          Option.None => -1
+                        };
+                      }
+                      if (start >= 0 and end > start and position >= 0 and range_id >= 0) {
+                        var value = ui.EventValue(start, end, position);
+                        value.range_id = range_id;
+                        tree.enqueue_value(control.identity, value, queue);
                       }
                     }
                   } else {

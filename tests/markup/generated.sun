@@ -117,6 +117,8 @@ module action_checks {
     var state = State();
     var queue = ui.EventQueue(a);
     var description = view(state);
+    try std.test.assert(description.elements[0].tooltip.equals_literal("Increment the counter"));
+    try std.test.assert(description.elements[0].icon.equals_literal("list-add-symbolic"));
     try std.test.assert_eq(state.count, 0);
     var first = event(description.elements[0]);
     try view_handle(state, first, queue);
