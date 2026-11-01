@@ -818,7 +818,7 @@ public module markup {
       if (builtin(node.name)) {
         try this.attributes(
           index,
-          "key text tooltip icon trimRanges activeRange value action changeAction payload enabled visible checked selected viewportId duration trimControls trimStart trimEnd position spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize borderWidth radius padding styleResource foregroundResource backgroundResource fontResource spacingResource marginResource"
+          "key text tooltip icon trimRanges activeRange value action changeAction payload enabled visible checked selected viewportId duration frameRateNum frameRateDen trimControls trimStart trimEnd position spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize borderWidth radius padding styleResource foregroundResource backgroundResource fontResource spacingResource marginResource"
         );
         var activation = node.attr("action");
         var change = node.attr("changeAction");
@@ -916,6 +916,12 @@ public module markup {
           }
           if (field.equals_literal("trimControls")) {
             field = String("trim_controls");
+          }
+          if (field.equals_literal("frameRateNum")) {
+            field = String("frame_rate_num");
+          }
+          if (field.equals_literal("frameRateDen")) {
+            field = String("frame_rate_den");
           }
           if (field.equals_literal("trimStart")) {
             field = String("trim_start");

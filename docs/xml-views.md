@@ -306,6 +306,10 @@ and `fontSize` properties override the normal appearance. Precedence is native
 defaults, view theme, control style, then direct overrides. Theme changes update
 properties without replacing unchanged controls.
 
+In GTK, a button's `Focus` appearance is reserved for visible keyboard focus.
+Click focus does not leave a highlight after the pointer exits; `Hover` follows
+the pointer. Input fields retain their focus styling while being edited.
+
 Style appearances can reference palette entries using `foregroundResource`,
 `backgroundResource`, and `fontResource`. `fontSizeResource`, `borderWidthResource`,
 `radiusResource`, and `paddingResource` require `Spacing` entries. A property cannot
@@ -417,6 +421,19 @@ event with `range_start`, `range_end`, and `position`. Keep the range in owned
 application state and pass it back to the next view. An empty preview uses zero
 for all times. Loaded previews require a positive, ordered range within duration.
 
+Set `frameRateNum` and `frameRateDen` to the source's rational frames per second
+for frame-sized arrow-key edits (for example, `30000` and `1001`). A zero numerator
+keeps time-based scrubbing for clients without frame-rate metadata. Click a trim
+bar to select it, or the track to select the playhead. Left/Right moves the
+selection; a playhead at the selected bar moves with it. A bar also picks up the
+playhead when it crosses it. Keyboard stepping pauses
+playback. The selected bar is highlighted in gold. Clicking the video selects
+the playhead and gives it keyboard focus; arrows work throughout the player.
+Centered circular icon controls overlay the video for backward jump, Play/Pause,
+and forward jump. Jumps preserve playback state and trim bounds. The overlay
+stays visible while paused, hovered, or focused with the keyboard; it fades during
+playback when the pointer leaves. The clock and trim timeline remain below the video.
+
 ```xml
 <Video key="preview" text="{state.path.clone(a)}"
        duration="{state.duration}" trimStart="{state.start}" trimEnd="{state.end}"
@@ -433,8 +450,8 @@ Image previews use `<Image text="{state.path.clone(a)}" height="360" expandX="tr
 The GTK adapter fits the local image without distorting its aspect ratio. Empty
 paths clear the preview; unreadable images show an inline fallback message.
 
-Set `trimControls="false"` on `Video` to use standard video playback controls,
-without the custom trim timeline or its transport row. Trim controls default to enabled.
+Set `trimControls="false"` on `Video` to hide the custom trim timeline while
+retaining playback and jump buttons. Trim controls default to enabled.
 
 ### Kept video sections and icon buttons
 

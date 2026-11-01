@@ -113,6 +113,8 @@ public module ui {
     public var selected: i64 = -1;
     public var viewport_id: i64 = 0;
     public var duration: i64 = 0;
+    public var frame_rate_num: i64 = 0;
+    public var frame_rate_den: i64 = 1;
     public var trim_controls: bool = true;
     public var trim_start: i64 = 0;
     public var trim_end: i64 = 0;
@@ -169,6 +171,7 @@ public module ui {
         }
       }
       if (this.viewport_id != other.viewport_id or this.duration != other.duration or
+        this.frame_rate_num != other.frame_rate_num or this.frame_rate_den != other.frame_rate_den or
         this.trim_controls != other.trim_controls or this.trim_start != other.trim_start or
         this.trim_end != other.trim_end or this.position != other.position or
         not this.style.equals(other.style) or this.text.equals(other.text) == false or
@@ -585,7 +588,10 @@ public module ui {
           }
         }
         if (node.kind == Kind.Video and
-          (node.duration < 0 or node.duration > 1000000000000000 or node.trim_start < 0 or
+          (node.frame_rate_num < 0 or node.frame_rate_num > 1000000000 or node.frame_rate_den <= 0 or
+            node.frame_rate_den > 1000000000 or
+            node.frame_rate_num > node.frame_rate_den * 1000000 or node.duration < 0 or
+            node.duration > 1000000000000000 or node.trim_start < 0 or
             node.trim_end < node.trim_start or node.trim_end > node.duration or node.position < 0 or
             node.position > node.duration or
             (node.duration > 0 and node.trim_start == node.trim_end))) {

@@ -86,12 +86,16 @@ public module ui_gtk {
     output.append("}\n");
   }
 
-  /** Translates structured styles to fixed GTK interaction selectors. */
-  function stylesheet(style: const ref ui.Style) String {
+  /** Keeps button keyboard-focus feedback distinct from pointer hover and click focus. */
+  function stylesheet(style: const ref ui.Style, kind: ui.Kind) String {
     var css = String("");
     appearance(css, "*", style.normal);
     appearance(css, "*:hover", style.hover);
-    appearance(css, "*:focus, *:focus-within", style.focus);
+    appearance(
+      css,
+      kind == ui.Kind.Button ? "*:focus-visible" : "*:focus, *:focus-within",
+      style.focus
+    );
     appearance(css, "*:disabled", style.disabled);
     if (style.normal.border_width == 0) {
       css.append(
@@ -162,6 +166,7 @@ public module ui_gtk {
       }
       if (element.kind == ui.Kind.Video) {
         this.widget.media_trim_controls(element.trim_controls);
+        try this.widget.media_frame_rate(element.frame_rate_num, element.frame_rate_den);
         var path = element.text.clone(a);
         try this.widget.media(
           path,
@@ -237,7 +242,7 @@ public module ui_gtk {
         }
       }
       if (not this.styled or not this.applied_style.equals(element.style)) {
-        var css = stylesheet(element.style);
+        var css = stylesheet(element.style, element.kind);
         try this.widget.style(css);
         this.applied_style = ui.Style();
         this.applied_style.overlay(element.style);
@@ -716,6 +721,15 @@ public module ui_gtk {
         return SystemResult.Error(Error(1, "Unknown media control"));
       }
       return this.controls[index].widget.drag_media(start, end);
+    }
+
+    /** Exercises one arrow-key edit on the selected bar or playhead of a mounted video. */
+    public method step_media(identity: u64, direction: i32) SystemResult<void> {
+      var index = this.index(identity);
+      if (index < 0) {
+        return SystemResult.Error(Error(1, "Unknown media control"));
+      }
+      return this.controls[index].widget.step_media(direction);
     }
 
     /** Reports preview preparation or playback for acceptance checks. */

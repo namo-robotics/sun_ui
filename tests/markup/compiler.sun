@@ -32,11 +32,13 @@ module markup_tests {
     var compiler = markup.Compiler(
       String("video.view.xml"),
       String(
-        "<Views module=\"app\"><View name=\"view\" state=\"State\"><Video key=\"preview\" text=\"{state.path.clone(a)}\" duration=\"4000000\" trimStart=\"500000\" trimEnd=\"2000000\" position=\"1000000\" changeAction=\"15\"/></View></Views>"
+        "<Views module=\"app\"><View name=\"view\" state=\"State\"><Video key=\"preview\" text=\"{state.path.clone(a)}\" duration=\"4000000\" frameRateNum=\"30000\" frameRateDen=\"1001\" trimStart=\"500000\" trimEnd=\"2000000\" position=\"1000000\" changeAction=\"15\"/></View></Views>"
       )
     );
     try compiler.compile();
     try std.test.assert(compiler.output.contains("ui.Kind.Video"));
+    try std.test.assert(compiler.output.contains(".frame_rate_num = 30000"));
+    try std.test.assert(compiler.output.contains(".frame_rate_den = 1001"));
     try std.test.assert(compiler.output.contains(".trim_start = 500000"));
     try std.test.assert(compiler.output.contains(".trim_end = 2000000"));
     try std.test.assert(compiler.output.contains(".position = 1000000"));

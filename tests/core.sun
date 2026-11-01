@@ -6,6 +6,33 @@ module core_tests {
   /** Combines assertion and framework errors for readable test failures. */
   enum TestResult<T> { Ok(T), Assertion(std.test.AssertionError), System(Error) }
 
+  /** Rejects invalid video rates and detects rate changes during reconciliation. */
+  test_function video_frame_rates() TestResult<void> {
+    var first = ui.Element(ui.Key(1), ui.Kind.Video);
+    var second = ui.Element(ui.Key(1), ui.Kind.Video);
+    second.frame_rate_num = 30000;
+    second.frame_rate_den = 1001;
+    try std.test.assert(not first.equals(second));
+    first.frame_rate_num = 30000;
+    first.frame_rate_den = 1001;
+    try std.test.assert(first.equals(second));
+    var renderer = Recording();
+    var tree = ui.Tree(make_heap_allocator());
+    for (var rate: i64 = 0; rate < 3; rate += 1) {
+      var view = ui.View(make_heap_allocator());
+      var node = ui.Element(ui.Key(1), ui.Kind.Video);
+      node.frame_rate_num = rate == 0 ? -1 : (rate == 1 ? 30000 : 1000000001);
+      node.frame_rate_den = rate == 1 ? 0 : 1;
+      view.append(-1, node);
+      match tree.render(renderer, view) {
+        SystemResult.Error(_) => {},
+        SystemResult.Ok => {
+          try std.test.assert(false, "invalid frame rate accepted");
+        }
+      };
+    }
+  }
+
   /** Requires ordered, nonoverlapping handle pairs and tracks icon and tooltip changes. */
   test_function kept_ranges_and_button_hints() TestResult<void> {
     var renderer = Recording();
