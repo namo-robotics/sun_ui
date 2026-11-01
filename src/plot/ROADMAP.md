@@ -2,7 +2,6 @@
 
 ## UI integration and layout
 
-- Support drawing surfaces alongside controls in sun_ui's reconciled views.
 - Measure fonts when laying out labels, ticks, and legends; handle long labels
   and dense ticks without overlap.
 - Recompute layout for available space when desired, alongside fixed-size figure

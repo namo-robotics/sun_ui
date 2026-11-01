@@ -338,6 +338,7 @@ module build_tasks {
     try compile("sun_ui_gtk", true);
     try compile("counter", true);
     try compile("tasks", true);
+    try compile("drawing-controls", true);
     try plot_gtk();
     return SystemResult.Ok;
   }
@@ -369,6 +370,7 @@ module build_tasks {
     }
     try acceptance("counter");
     try acceptance("tasks");
+    try acceptance("drawing-controls");
     return test_plot_gtk();
   }
 }

@@ -162,6 +162,12 @@
       "path": "examples/graphics/main.sun",
       "type": "binary",
       "output_name": "build/graphics"
+    },
+    {
+      "name": "drawing-controls",
+      "path": "examples/drawing-controls/main.sun",
+      "type": "binary",
+      "output_name": "build/drawing-controls"
     }
   ]
 }

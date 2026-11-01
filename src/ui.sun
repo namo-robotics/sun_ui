@@ -47,7 +47,7 @@ public module ui {
   }
 
   /** Identifies layout containers, logical scopes, and native controls. */
-  public enum Kind { Group, Row, Column, Grid, Scroll, Label, Button, TextInput, Checkbox, Select, Video, Viewport, Image }
+  public enum Kind { Group, Row, Column, Grid, Scroll, Label, Button, TextInput, Checkbox, Select, Video, Viewport, Image, Drawing }
 
   /** Specifies placement within the space offered by a parent. */
   public enum Align { Fill, Start, Center, End }
@@ -112,6 +112,7 @@ public module ui {
     public var checked: bool = false;
     public var selected: i64 = -1;
     public var viewport_id: i64 = 0;
+    public var drawing_id: i64 = 0;
     public var duration: i64 = 0;
     public var frame_rate_num: i64 = 0;
     public var frame_rate_den: i64 = 1;
@@ -170,20 +171,20 @@ public module ui {
           return false;
         }
       }
-      if (this.viewport_id != other.viewport_id or this.duration != other.duration or
-        this.frame_rate_num != other.frame_rate_num or this.frame_rate_den != other.frame_rate_den or
-        this.trim_controls != other.trim_controls or this.trim_start != other.trim_start or
-        this.trim_end != other.trim_end or this.position != other.position or
-        not this.style.equals(other.style) or this.text.equals(other.text) == false or
-        this.enabled != other.enabled or this.visible != other.visible or
-        this.checked != other.checked or this.selected != other.selected or
-        this.spacing != other.spacing or this.margin != other.margin or
-        this.min_width != other.min_width or this.min_height != other.min_height or
-        this.width != other.width or this.height != other.height or
-        this.horizontal != other.horizontal or this.vertical != other.vertical or
-        this.expand_x != other.expand_x or this.expand_y != other.expand_y or
-        this.row != other.row or this.column != other.column or this.row_span != other.row_span or
-        this.column_span != other.column_span) {
+      if (this.drawing_id != other.drawing_id or this.viewport_id != other.viewport_id or
+        this.duration != other.duration or this.frame_rate_num != other.frame_rate_num or
+        this.frame_rate_den != other.frame_rate_den or this.trim_controls != other.trim_controls or
+        this.trim_start != other.trim_start or this.trim_end != other.trim_end or
+        this.position != other.position or not this.style.equals(other.style) or
+        this.text.equals(other.text) == false or this.enabled != other.enabled or
+        this.visible != other.visible or this.checked != other.checked or
+        this.selected != other.selected or this.spacing != other.spacing or
+        this.margin != other.margin or this.min_width != other.min_width or
+        this.min_height != other.min_height or this.width != other.width or
+        this.height != other.height or this.horizontal != other.horizontal or
+        this.vertical != other.vertical or this.expand_x != other.expand_x or
+        this.expand_y != other.expand_y or this.row != other.row or this.column != other.column or
+        this.row_span != other.row_span or this.column_span != other.column_span) {
         return false;
       }
       if (this.choices.size() != other.choices.size() or this.rows.size() != other.rows.size() or
@@ -584,6 +585,17 @@ public module ui {
             if (view.elements[previous].kind == Kind.Viewport and
               view.elements[previous].viewport_id == node.viewport_id) {
               return SystemResult.Error(Error(1, "Viewport is mounted more than once"));
+            }
+          }
+        }
+        if (node.kind == Kind.Drawing) {
+          if (node.drawing_id <= 0) {
+            return SystemResult.Error(Error(1, "Drawing requires a positive identifier"));
+          }
+          for (var previous: i64 = 0; previous < i; previous += 1) {
+            if (view.elements[previous].kind == Kind.Drawing and
+              view.elements[previous].drawing_id == node.drawing_id) {
+              return SystemResult.Error(Error(1, "Drawing is mounted more than once"));
             }
           }
         }

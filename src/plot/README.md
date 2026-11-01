@@ -121,8 +121,13 @@ API. `src/adapters/gtk/drawing.sun` composes safe `gtk.Label`, `gtk.DrawingArea`
 `gtk.SaveDialog`, and existing widget wrappers. Native declarations, references,
 callbacks, and thread checks live in sun_gobject's `sun_gtk` package; SVG ownership
 lives in its `svg` module. The adapter owns toolbar layout, export messages,
-filesystem writes, and polling policy. Composing drawings with reconciled controls
-remains on [the roadmap](ROADMAP.md).
+filesystem writes, and polling policy. Drawings can also be embedded alongside reconciled controls using
+`ui.Kind.Drawing`, a positive `drawing_id`, and
+`ui_gtk.Renderer.register_drawing(id, area)`. The application explicitly retains
+a `gtk.DrawingArea`, sets parsed SVG documents on it, and unregisters it after
+the tree removes its drawing leaf. Duplicate IDs, duplicate surfaces, and
+unregistering a mounted surface are rejected. See
+[the drawing controls example](../../examples/drawing-controls/main.sun).
 
 ## Numerical and layout limits
 
