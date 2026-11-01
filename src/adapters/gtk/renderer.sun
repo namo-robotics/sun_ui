@@ -285,11 +285,12 @@ public module ui_gtk {
     var events: gtk.EventQueue;
     var controls: Vec<Control>;
     var viewports: Vec<ViewportRegistration>;
+    var presented: bool = false;
     public var updates: i64 = 0;
     public var creates: i64 = 0;
     public var removals: i64 = 0;
 
-    /** Opens a window with a root vertical layout using the default application identifier. */
+    /** Prepares a window shown after its first completed render, using the default application identifier. */
     init(title: ref String) SystemResult<void> {
       var a = make_heap_allocator();
       var id = String("org.sunlang.UIPrototype");
@@ -303,10 +304,9 @@ public module ui_gtk {
       this.events = try gtk.EventQueue(this.app);
       try this.window.set_title(title);
       try this.window.set_default_size(440, 360);
-      try this.window.present();
     }
 
-    /** Opens a window with a root vertical layout and an owned application identifier. */
+    /** Prepares a window shown after its first completed render, with an owned application identifier. */
     init(title: ref String, id: String) SystemResult<void> {
       var a = make_heap_allocator();
       this.app = try gtk.Application(id);
@@ -319,7 +319,6 @@ public module ui_gtk {
       this.events = try gtk.EventQueue(this.app);
       try this.window.set_title(title);
       try this.window.set_default_size(440, 360);
-      try this.window.present();
     }
 
     /** Disconnects subscriptions before closing the window. */
@@ -520,9 +519,13 @@ public module ui_gtk {
       return SystemResult.Ok(native_previous);
     }
 
-    /** Completes native placement after all logical scopes have been recorded. */
+    /** Completes native placement and presents the initial tree with its configured window size. */
     public method finish() SystemResult<void> {
       try this.layout(0, 0, 0);
+      if (not this.presented) {
+        try this.window.present();
+        this.presented = true;
+      }
       return SystemResult.Ok;
     }
 
