@@ -288,7 +288,7 @@ module build_tasks {
     for (var name: ref String in names) {
       var generate = std.process.Command(a, viewc.output);
       var example = name.clone(a);
-      if (name.equals_literal("forms_xml") == false) {
+      if (name.equals_literal("forms") == false) {
         example.append("-xml");
       }
       var input = String("examples/");
