@@ -98,7 +98,10 @@ bash src/sun_gobject/build.sh
 
 The GTK build also runs acceptance tests under a virtual display. The default
 dependency build is `src/sun_gobject/build`; set `SUN_GOBJECT_BUILD` to use another
-location. Dependencies are independent checkouts with their own development
+location. The build stages these artifacts as a validated local package under
+`build/dependencies/sun_gobject/package`. The dependency cache defaults to
+`build/dependencies/cache`; set `SUN_DEPENDENCY_CACHE` to override it.
+Dependencies are independent checkouts with their own development
 instructions. The import preserves existing checkouts; builds never fetch or reset
 them. Toolkit CI imports only `sun_gobject` from [deps.repos](deps.repos).
 

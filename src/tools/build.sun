@@ -34,6 +34,13 @@ module build_tasks {
     command.add_arg("build");
     if (gtk) {
       var dependency = setting("SUN_GOBJECT_BUILD", "src/sun_gobject/build");
+      var env = std.env.Env(a);
+      var cache = setting("SUN_DEPENDENCY_CACHE", "build/dependencies/cache");
+      try env.set("SUN_DEPENDENCY_CACHE", cache);
+      var stage = std.process.Command(a, "python3");
+      stage.add_arg("scripts/stage-gtk-dependency.py");
+      stage.add_arg(dependency);
+      try run(stage);
       command.add_arg("--lib-path");
       command.add_arg(dependency);
       var native = String("-L");
