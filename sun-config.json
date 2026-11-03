@@ -16,7 +16,10 @@
       "name": "sun_ui",
       "path": "src/ui.sun",
       "type": "library",
-      "export": true
+      "export": true,
+      "compile_args": [
+        "--dynamic"
+      ]
     },
     {
       "name": "sun_plot",
@@ -25,6 +28,9 @@
       "export": true,
       "requires": [
         "sun_ui"
+      ],
+      "compile_args": [
+        "--dynamic"
       ]
     },
     {
@@ -46,6 +52,9 @@
       "export": true,
       "requires": [
         "sun_ui"
+      ],
+      "compile_args": [
+        "--dynamic"
       ]
     },
     {
@@ -56,6 +65,9 @@
       "requires": [
         "sun_ui",
         "sun_ui_gtk"
+      ],
+      "compile_args": [
+        "--dynamic"
       ]
     },
     {
@@ -89,6 +101,9 @@
       "export": true,
       "requires": [
         "sun_ui"
+      ],
+      "compile_args": [
+        "--dynamic"
       ]
     },
     {
@@ -143,19 +158,37 @@
       "name": "sun_ui_graphics",
       "path": "src/graphics/graphics.sun",
       "type": "library",
-      "export": false
+      "export": true,
+      "compile_args": [
+        "--dynamic"
+      ],
+      "steps": [
+        "graphics_native"
+      ]
     },
     {
       "name": "sun_ui_graphics_gtk",
       "path": "src/graphics/gtk.sun",
       "type": "library",
-      "export": false
+      "export": true,
+      "compile_args": [
+        "--dynamic"
+      ],
+      "requires": [
+        "sun_ui_graphics"
+      ]
     },
     {
       "name": "sun_ui_sdl",
       "path": "src/adapters/sdl/window.sun",
       "type": "library",
-      "export": false
+      "export": true,
+      "compile_args": [
+        "--dynamic"
+      ],
+      "requires": [
+        "sun_ui_graphics"
+      ]
     },
     {
       "name": "graphics_tests",
@@ -211,6 +244,75 @@
     {
       "path": "LICENSE",
       "destination": "share/sun_ui/LICENSE"
+    }
+  ],
+  "steps": [
+    {
+      "name": "graphics_configure",
+      "command": [
+        "cmake",
+        "-S",
+        "src/graphics/native",
+        "-B",
+        "${SUN_BUILD}/graphics-native",
+        "-DBUILD_SDL_HOST=ON"
+      ],
+      "inputs": [
+        "src/graphics/native/CMakeLists.txt"
+      ],
+      "outputs": [
+        "${SUN_BUILD}/graphics-native/CMakeCache.txt"
+      ]
+    },
+    {
+      "name": "graphics_native",
+      "requires": [
+        "graphics_configure"
+      ],
+      "command": [
+        "cmake",
+        "--build",
+        "${SUN_BUILD}/graphics-native",
+        "--parallel",
+        "1"
+      ],
+      "inputs": [
+        "src/graphics/native",
+        "src/adapters/sdl/native.c"
+      ],
+      "outputs": [
+        "${SUN_BUILD}/graphics-native/libsun_ui_graphics.a",
+        "${SUN_BUILD}/graphics-native/libsun_ui_sdl.a"
+      ]
+    }
+  ],
+  "packages": [
+    {
+      "name": "sun_ui",
+      "entrypoints": [
+        "sun_ui",
+        "sun_plot",
+        "sun_ui_gtk",
+        "sun_ui_gtk_drawing",
+        "sun_ui_graphics",
+        "sun_ui_graphics_gtk",
+        "sun_ui_sdl",
+        "sun_viewc"
+      ],
+      "resources": [
+        {
+          "path": "LICENSE",
+          "destination": "share/sun_ui/LICENSE"
+        },
+        {
+          "path": "${SUN_BUILD}/graphics-native/libsun_ui_graphics.a",
+          "destination": "lib/native/libsun_ui_graphics.a"
+        },
+        {
+          "path": "${SUN_BUILD}/graphics-native/libsun_ui_sdl.a",
+          "destination": "lib/native/libsun_ui_sdl.a"
+        }
+      ]
     }
   ]
 }

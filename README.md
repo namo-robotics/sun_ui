@@ -26,6 +26,21 @@ CI passes on `main`:
 After a successful GTK build and test run, create the package locally with
 `./scripts/package-linux.sh`. Packaging uses existing build outputs.
 
+### Sun package archives
+
+`sun build --config sun-config.json --no-test` builds the exported libraries and
+XML compiler and generates `packages/sun_ui.tar.gz` under the directory reported
+by `sun describe --field build_root`. The archive includes all seven moons,
+`bin/sun_viewc`, graphics native libraries, the license, and a verified
+`package.json`. GTK, librsvg, SDL3, libepoxy, CMake, and the Sun compiler are
+required to build the complete package.
+
+After tests, CI collects this archive as `sun_ui-<platform>.sun.tar.gz` and
+publishes every moon as `<name>-<platform>.moon`, plus `sun_viewc-<platform>`.
+Platforms are `x86_64-linux-gnu` and `arm64-apple-darwin`. These assets can be
+used directly as Sun URL dependencies; existing Debian packages, macOS install
+archives, and unqualified Linux moon URLs remain available.
+
 ### Build and test the core
 
 ```sh
