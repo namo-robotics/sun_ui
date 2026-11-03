@@ -47,7 +47,7 @@ module release_package {
       `${root}/usr/lib/sun/sun_ui_gtk_drawing.moon`,
       false
     );
-    try install(String("build/sun-viewc"), `${root}/usr/bin/sun-viewc`, true);
+    try install(String("build/sun_viewc"), `${root}/usr/bin/sun_viewc`, true);
     try install(String("LICENSE"), `${root}/usr/share/doc/sun-ui/copyright`, false);
     try install(
       String("build/sun-version.txt"),

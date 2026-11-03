@@ -1,8 +1,5 @@
 {
   "root": true,
-  "sun_path": [
-    "$SUN_UI_BUILD"
-  ],
   "path_variables": {
     "SUN_UI_BUILD": "build",
     "GRAPHICS_NATIVE_SOURCE": "src/graphics/native",
@@ -19,155 +16,177 @@
       "name": "sun_ui",
       "path": "src/ui.sun",
       "type": "library",
-      "output_name": "build/sun_ui.moon"
+      "export": true
     },
     {
       "name": "sun_plot",
       "path": "src/plot/plot.sun",
       "type": "library",
-      "output_name": "build/sun_plot.moon"
+      "export": true,
+      "requires": [
+        "sun_ui"
+      ]
     },
     {
-      "name": "tests",
+      "name": "sun_ui_tests",
       "path": "tests/main.sun",
       "type": "binary",
-      "output_name": "build/sun-ui-tests",
-      "test_binary_name": "build/sun-ui-tests_test"
+      "export": false
     },
     {
-      "name": "plot-tests",
+      "name": "sun_plot_tests",
       "path": "tests/plot/main.sun",
       "type": "binary",
-      "output_name": "build/sun-plot-tests",
-      "test_binary_name": "build/sun-plot-tests_test"
+      "export": false
     },
     {
       "name": "sun_ui_gtk",
       "path": "src/adapters/gtk/renderer.sun",
       "type": "library",
-      "output_name": "build/sun_ui_gtk.moon"
+      "export": true,
+      "requires": [
+        "sun_ui"
+      ]
     },
     {
       "name": "sun_ui_gtk_drawing",
       "path": "src/adapters/gtk/drawing.sun",
       "type": "library",
-      "output_name": "build/sun_ui_gtk_drawing.moon"
+      "export": true,
+      "requires": [
+        "sun_ui",
+        "sun_ui_gtk"
+      ]
     },
     {
       "name": "counter",
       "path": "examples/counter/main.sun",
       "type": "binary",
-      "output_name": "build/counter"
+      "export": false
     },
     {
       "name": "tasks",
       "path": "examples/tasks/main.sun",
       "type": "binary",
-      "output_name": "build/tasks"
+      "export": false
     },
     {
-      "name": "plot-export",
+      "name": "plot_export",
       "path": "examples/plot-export/main.sun",
       "type": "binary",
-      "output_name": "build/plot-export"
+      "export": false
     },
     {
-      "name": "plot-viewer",
+      "name": "plot_viewer",
       "path": "examples/plot-viewer/main.sun",
       "type": "binary",
-      "output_name": "build/plot-viewer"
+      "export": false
     },
     {
-      "name": "viewc",
+      "name": "sun_viewc",
       "path": "src/tools/viewc.sun",
       "type": "binary",
-      "output_name": "build/sun-viewc"
+      "export": true,
+      "requires": [
+        "sun_ui"
+      ]
     },
     {
-      "name": "xml-probe",
+      "name": "xml_probe",
       "path": "src/tools/xml_probe.sun",
       "type": "binary",
-      "output_name": "build/xml-probe"
+      "export": false
     },
     {
-      "name": "markup-tests",
+      "name": "markup_tests",
       "path": "tests/markup/main.sun",
       "type": "binary",
-      "output_name": "build/markup-tests",
-      "test_binary_name": "build/markup-tests_test"
+      "export": false
     },
     {
-      "name": "generated-view-tests",
+      "name": "generated_view_tests",
       "path": "tests/markup/generated.sun",
       "type": "binary",
-      "output_name": "build/generated-view-tests",
-      "test_binary_name": "build/generated-view-tests_test"
+      "export": false
     },
     {
-      "name": "counter-xml",
+      "name": "counter_xml",
       "path": "examples/counter-xml/main.sun",
       "type": "binary",
-      "output_name": "build/counter-xml"
+      "export": false
     },
     {
-      "name": "tasks-xml",
+      "name": "tasks_xml",
       "path": "examples/tasks-xml/main.sun",
       "type": "binary",
-      "output_name": "build/tasks-xml"
+      "export": false
     },
     {
-      "name": "forms",
+      "name": "forms_xml",
       "path": "examples/forms/main.sun",
       "type": "binary",
-      "output_name": "build/forms-xml"
+      "export": false
     },
     {
-      "name": "build-tool",
+      "name": "sun_ui_build",
       "path": "src/tools/build.sun",
       "type": "binary",
-      "output_name": "build/sun-ui-build"
+      "export": false
     },
     {
-      "name": "package-tool",
+      "name": "release_package_tool",
       "path": "src/tools/package.sun",
       "type": "binary",
-      "output_name": "build/release-package-tool"
+      "export": false
     },
     {
       "name": "sun_ui_graphics",
       "path": "src/graphics/graphics.sun",
       "type": "library",
-      "output_name": "build/sun_ui_graphics.moon"
+      "export": false
     },
     {
       "name": "sun_ui_graphics_gtk",
       "path": "src/graphics/gtk.sun",
       "type": "library",
-      "output_name": "build/sun_ui_graphics_gtk.moon"
+      "export": false
     },
     {
       "name": "sun_ui_sdl",
       "path": "src/adapters/sdl/window.sun",
       "type": "library",
-      "output_name": "build/sun_ui_sdl.moon"
+      "export": false
     },
     {
-      "name": "graphics-tests",
+      "name": "graphics_tests",
       "path": "tests/graphics/main.sun",
       "type": "binary",
-      "output_name": "build/graphics-tests"
+      "export": false
     },
     {
       "name": "graphics",
       "path": "examples/graphics/main.sun",
       "type": "binary",
-      "output_name": "build/graphics"
+      "export": false
     },
     {
-      "name": "drawing-controls",
+      "name": "drawing_controls",
       "path": "examples/drawing-controls/main.sun",
       "type": "binary",
-      "output_name": "build/drawing-controls"
+      "export": false
+    }
+  ],
+  "package_id": "namo-robotics/sun_ui",
+  "dependencies": [
+    {
+      "package": "namo-robotics/sun_gobject",
+      "path": "build/dependencies/sun_gobject/package"
+    }
+  ],
+  "exports": [
+    {
+      "path": "LICENSE",
+      "destination": "share/sun_ui/LICENSE"
     }
   ]
 }

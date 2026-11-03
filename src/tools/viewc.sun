@@ -186,7 +186,7 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   var env = std.env.Env(a);
   var args = env.args(argc, argv);
   if (args.size() != 3 and args.size() != 5) {
-    eprintln("Usage: sun-viewc INPUT.view.xml OUTPUT.sun [--registry COMPONENTS.xml]");
+    eprintln("Usage: sun_viewc INPUT.view.xml OUTPUT.sun [--registry COMPONENTS.xml]");
     return 1;
   }
   var registry_path = directory(args[1]);
@@ -209,6 +209,7 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
   };
 }
 manifest {
+  id: "namo-robotics/sun_viewc"
   libraries: [
     "stdlib.moon"
   ], source_files: [

@@ -11,11 +11,11 @@ From the repository root:
 
 ```sh
 ./build.sh
-./build/plot-export                 # writes build/scientific-plot.svg
+./build/plot_export                 # writes build/scientific-plot.svg
 vcs import --skip-existing --input deps.repos .
 bash src/sun_gobject/build.sh
 ./build.sh --plot-gtk               # builds and tests the GTK vector viewer
-./build/plot-viewer
+./build/plot_viewer
 ```
 
 In the viewer, click **Export SVG…** to choose a filename and destination in the

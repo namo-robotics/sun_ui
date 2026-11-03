@@ -235,7 +235,7 @@ public module gpu {
   }
 }
 manifest {
-  library_id: "namo-robotics/sun_ui_graphics", libraries: [
+  id: "namo-robotics/sun_ui_graphics", libraries: [
     "stdlib.moon"
   ], source_files: [
     "raw.sun"

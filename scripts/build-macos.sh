@@ -11,12 +11,12 @@ if [[ ${1:-} == --bundles ]]; then
   mkdir -p build
   "$compiler" --dynamic --emit-moon -o build/sun_ui.moon src/ui.sun
   "$compiler" --dynamic --lib-path build --lib-path "$SUN_GOBJECT_BUILD" --emit-moon -o build/sun_ui_gtk.moon src/adapters/gtk/renderer.sun
-  "$compiler" --dynamic --lib-path build -c -o build/sun-viewc src/tools/viewc.sun
+  "$compiler" --dynamic --lib-path build -c -o build/sun_viewc src/tools/viewc.sun
   exit 0
 fi
 ./build.sh --gtk
 mkdir -p build/macos/lib/sun build/macos/bin build/macos/share/sun_ui
 cp build/sun_ui.moon build/sun_plot.moon build/sun_ui_gtk.moon build/sun_ui_gtk_drawing.moon build/macos/lib/sun/
-cp build/sun-viewc build/macos/bin/
+cp build/sun_viewc build/macos/bin/
 cp LICENSE build/sun-version.txt build/macos/share/sun_ui/
 tar -C build/macos -czf build/sun_ui-arm64-apple-darwin.tar.gz .

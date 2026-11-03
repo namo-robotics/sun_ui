@@ -149,7 +149,7 @@ create an appropriate installation-time link or set the runtime directory.
 The Linux SDL host uses EGL for OpenGL context creation; the tested Xvfb GLX path
 could not find a matching visual. This does not force an X11 session. The Linux
 automated acceptance command explicitly selects X11/Xvfb with software OpenGL.
-Run the actual `build/graphics-tests` binary in a Wayland session to test Wayland.
+Run the actual `build/graphics_tests` binary in a Wayland session to test Wayland.
 
 ## Validation and dependency rollout
 

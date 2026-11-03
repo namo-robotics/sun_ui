@@ -149,11 +149,11 @@ public module ui_gtk_drawing {
   }
 }
 manifest {
-  library_id: "namo-robotics/sun_ui_gtk_drawing"
+  id: "namo-robotics/sun_ui_gtk_drawing"
   libraries: [
     "stdlib.moon",
     "sun_ui.moon",
-    "sun_gobject.moon",
-    "sun_gtk.moon"
+    "${namo-robotics/sun_gobject}/lib/sun_gobject.moon",
+    "${namo-robotics/sun_gobject}/lib/sun_gtk.moon"
   ]
 }

@@ -25,7 +25,7 @@ function run(automated: bool) SystemResult<void> {
     try window.update(updated);
     try window.resize(1280, 1000);
     try await_frame(window);
-    var export_path = String("build/plot-viewer-export.svg");
+    var export_path = String("build/plot_viewer-export.svg");
     try window.export_svg(export_path);
     var allocator = make_heap_allocator();
     var exported = try std.io.read_to_string(allocator, export_path);

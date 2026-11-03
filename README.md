@@ -45,7 +45,7 @@ sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot sr
 
 The Debian package depends on the published Sun compiler and `sun-gobject`
 packages. It installs bundles under `/usr/lib/sun` and the XML compiler at
-`/usr/bin/sun-viewc`. For downloaded bundles, add their directory with `--lib-path`.
+`/usr/bin/sun_viewc`. For downloaded bundles, add their directory with `--lib-path`.
 GTK applications also require the native dependencies described under [Backends](#backends).
 
 Use the compiler version recorded in the release's `sun-version.txt` and matching
@@ -135,9 +135,9 @@ To export and display the four-panel scientific plotting example:
 
 ```sh
 ./build.sh
-./build/plot-export                 # build/scientific-plot.svg
+./build/plot_export                 # build/scientific-plot.svg
 ./build.sh --plot-gtk               # native viewer and acceptance test
-./build/plot-viewer
+./build/plot_viewer
 ```
 
 The viewer needs the GTK dependency build and librsvg (`librsvg2-2` on Debian/Ubuntu).

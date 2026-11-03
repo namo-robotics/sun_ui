@@ -916,7 +916,7 @@ public module ui {
   }
 }
 manifest {
-  library_id: "namo-robotics/sun_ui"
+  id: "namo-robotics/sun_ui"
   libraries: [
     "stdlib.moon"
   ]

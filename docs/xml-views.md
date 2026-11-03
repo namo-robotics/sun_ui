@@ -14,7 +14,7 @@ older compiler. No separate stdlib bundle is needed.
 ./scripts/bootstrap-sun.sh --update  # if the installed compiler is older
 ./build.sh                         # core, plotting, XML generation and tests
 ./build.sh --gtk                   # also handwritten and XML GTK acceptance
-./build/forms-xml
+./build/forms_xml
 ```
 
 For focused work, `sun src/tools/build.sun -- markup` builds the compiler, runs compiler
@@ -26,7 +26,7 @@ Both are included in the corresponding normal build and CI workflows.
 To generate another view:
 
 ```sh
-build/sun-viewc examples/forms/forms.view.xml build/generated/examples/forms/forms.view.sun
+build/sun_viewc examples/forms/forms.view.xml build/generated/examples/forms/forms.view.sun
 ```
 
 Include the generated `.sun` file in the application's `source_files` manifest.
@@ -242,11 +242,11 @@ Registered components can use other registered components regardless of source
 listing order. Registration is local to one generation invocation, not a process
 or runtime global.
 
-`sun-viewc` automatically reads an adjacent `components.registry.xml`. For views
+`sun_viewc` automatically reads an adjacent `components.registry.xml`. For views
 in another directory, select the application registry explicitly:
 
 ```sh
-build/sun-viewc examples/app/views/main.view.xml build/generated/app/main.view.sun \
+build/sun_viewc examples/app/views/main.view.xml build/generated/app/main.view.sun \
   --registry examples/app/components.registry.xml
 ```
 

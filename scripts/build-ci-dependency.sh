@@ -10,4 +10,4 @@ cmake -S src/native --preset "${CMAKE_PRESET:-dev-fast}"
 cmake --build build/native -j "$parallel_jobs"
 "${SUN_EXECUTABLE:-sun}" tools/build.sun -- build
 # The dependency's test task does not forward arguments to its test executable.
-build/sun-gobject-tests_test --test-sequential 2>&1 | tee build/test-results.log
+build/sun_gobject_tests_test --test-sequential 2>&1 | tee build/test-results.log
