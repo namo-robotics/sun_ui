@@ -150,8 +150,21 @@ module build_targets {
         return SystemResult.Error(Error(1, "Cannot parse sun-config.json"));
       }
     };
-    return match select_group(document, name, native) {
-      JsonResult.Ok(value) => SystemResult.Ok(value),
+    match select_group(document, name, native) {
+      JsonResult.Ok(value) => {
+        if (not native) {
+          var root = match property(document, "build_root") {
+            JsonResult.Ok(path) => path,
+            JsonResult.Error(_) => {
+              return SystemResult.Error(Error(1, "Missing compiler build directory"));
+            }
+          };
+          // Keep compiler-selected filenames in the custom driver's build directory.
+          value.output.replace(root, String("build"));
+          value.tests.replace(root, String("build"));
+        }
+        return SystemResult.Ok(value);
+      },
       JsonResult.Error(error) => {
         eprintln(name);
         eprintln(error.message());

@@ -16,7 +16,7 @@ module markup_pipeline_tests {
   /** Runs the already-built generator and captures structural diagnostics. */
   function generate() SystemResult<std.process.Output> {
     var a = make_heap_allocator();
-    var target = try build_targets.load("viewc");
+    var target = try build_targets.load("sun_viewc");
     var command = std.process.Command(a, target.output);
     command.add_arg("tmp/markup-pipeline/main.view.xml");
     command.add_arg("build/generated/tests/pipeline/main.view.sun");
@@ -134,7 +134,7 @@ module markup_pipeline_tests {
   /** Runs a registry fixture through either explicit selection or adjacent discovery. */
   function generate_registered(explicit_registry: bool) SystemResult<std.process.Output> {
     var a = make_heap_allocator();
-    var target = try build_targets.load("viewc");
+    var target = try build_targets.load("sun_viewc");
     var command = std.process.Command(a, target.output);
     command.add_arg(
       explicit_registry ? "tmp/registry-pipeline/views/main.view.xml" : "tmp/registry-pipeline/main.view.xml"
