@@ -33,21 +33,9 @@ module build_tasks {
     command.add_arg("--lib-path");
     command.add_arg("build");
     if (gtk) {
-      var dependency = setting("SUN_GOBJECT_BUILD", "src/sun_gobject/build");
       var env = std.env.Env(a);
       var cache = setting("SUN_DEPENDENCY_CACHE", "build/dependencies/cache");
       try env.set("SUN_DEPENDENCY_CACHE", cache);
-      var stage = std.process.Command(a, "python3");
-      stage.add_arg("scripts/stage-gtk-dependency.py");
-      stage.add_arg(dependency);
-      try run(stage);
-      command.add_arg("--lib-path");
-      command.add_arg(dependency);
-      var native = String("-L");
-      native.append(dependency);
-      native.append("/native");
-      command.add_arg(native);
-      command.add_arg("-lsun_gobject_native");
       // The native media bindings require the system math library.
       command.add_arg("-lm");
       var pkg = std.process.Command(a, "pkg-config");
@@ -72,8 +60,6 @@ module build_tasks {
       if (not darwin) {
         command.add_arg("-l:librsvg-2.so.2");
       }
-      // External native archives are outside the compiler's source cache.
-      command.add_arg("--force-rebuild");
     }
     return SystemResult.Ok(command);
   }

@@ -41,8 +41,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build development image
         run: docker build -t sun-ui-dev .
-      - name: Build dependency and run native acceptance tests
-        # Keep SSH in the development manifest; fetch the public dependency over HTTPS in CI.
+      - name: Download dependency and run native acceptance tests
         # D-Bus needs a passwd entry for the runner's UID inside the container.
         run: >-
           docker run --rm --user "$(id -u):$(id -g)"
@@ -51,17 +50,13 @@ jobs:
           -e XDG_DATA_HOME=/workspaces/sun_ui/tmp/ci/data
           -e XDG_CACHE_HOME=/workspaces/sun_ui/tmp/ci/cache
           -e XDG_CONFIG_HOME=/workspaces/sun_ui/tmp/ci/config
-          -e GIT_CONFIG_COUNT=1
-          -e GIT_CONFIG_KEY_0=url.https://github.com/namo-robotics/sun_gobject.git.insteadOf
-          -e GIT_CONFIG_VALUE_0=git@github.com:namo-robotics/sun_gobject.git
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
-          bash -o pipefail -c 'mkdir -p "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && bash scripts/import-ci-dependencies.sh && bash scripts/build-ci-dependency.sh && ./build.sh --gtk'
+          bash -o pipefail -c 'mkdir -p "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && ./build.sh --gtk'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: gtk-tests
           path: |
-            src/sun_gobject/build/test-results.log
             build/sun-version.txt
             build/test-results.log
             build/markup-test-results.log
@@ -86,16 +81,6 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install toolchain and GTK dependencies
         run: brew install namo-robotics/sun/sun gtk4 sdl3 libepoxy librsvg gstreamer coreutils cmake ninja pkgconf gobject-introspection
-      - name: Import and build GTK dependency
-        env:
-          GIT_CONFIG_COUNT: 1
-          GIT_CONFIG_KEY_0: url.https://github.com/.insteadOf
-          GIT_CONFIG_VALUE_0: 'git@github.com:'
-        run: |
-          python3 -m venv .toolchain/vcs
-          .toolchain/vcs/bin/pip install vcs2l==1.1.7
-          PATH="$PWD/.toolchain/vcs/bin:$PATH" bash scripts/import-ci-dependencies.sh
-          ./src/sun_gobject/scripts/build-macos.sh
       - name: Build and test native bundles
         run: ./scripts/build-macos.sh
       - name: Build and test GTK and SDL graphics integration
@@ -124,18 +109,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build development image
         run: docker build -t sun-ui-dev .
-      - name: Build dependency and exercise public graphics APIs
+      - name: Download dependency and exercise public graphics APIs
         run: >-
           docker run --rm --user "$(id -u):$(id -g)"
           -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro
           -e XDG_DATA_HOME=/workspaces/sun_ui/tmp/ci/data
           -e XDG_CACHE_HOME=/workspaces/sun_ui/tmp/ci/cache
           -e XDG_CONFIG_HOME=/workspaces/sun_ui/tmp/ci/config
-          -e GIT_CONFIG_COUNT=1
-          -e GIT_CONFIG_KEY_0=url.https://github.com/namo-robotics/sun_gobject.git.insteadOf
-          -e GIT_CONFIG_VALUE_0=git@github.com:namo-robotics/sun_gobject.git
           -v "$PWD:/workspaces/sun_ui" sun-ui-dev
-          bash -o pipefail -c 'mkdir -p "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && bash scripts/import-ci-dependencies.sh && bash scripts/build-ci-dependency.sh && ./build.sh --graphics'
+          bash -o pipefail -c 'mkdir -p "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" && ./build.sh --graphics'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -192,4 +174,4 @@ jobs:
 
             sun_ui.moon and sun_plot.moon do not require GTK.
             The optional GTK bundles also require compatible sun_gobject.moon,
-            sun_gtk.moon, the sun_gobject native archive, GTK 4, and librsvg.
+            sun_gtk.moon, GTK 4, and librsvg.

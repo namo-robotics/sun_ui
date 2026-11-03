@@ -5,14 +5,12 @@ cd "$(dirname "$0")/.."
 [[ $(uname -s) == Darwin && $(uname -m) == arm64 ]] || { echo 'Requires Apple Silicon macOS' >&2; exit 1; }
 export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
 export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
-export SUN_GOBJECT_BUILD="${SUN_GOBJECT_BUILD:-$PWD/src/sun_gobject/build}"
 export SUN_DEPENDENCY_CACHE="${SUN_DEPENDENCY_CACHE:-$PWD/build/dependencies/cache}"
 compiler=${SUN_EXECUTABLE:-sun}
 if [[ ${1:-} == --bundles ]]; then
-  python3 scripts/stage-gtk-dependency.py "$SUN_GOBJECT_BUILD"
   mkdir -p build
   "$compiler" --dynamic --emit-moon -o build/sun_ui.moon src/ui.sun
-  "$compiler" --dynamic --lib-path build --lib-path "$SUN_GOBJECT_BUILD" --emit-moon -o build/sun_ui_gtk.moon src/adapters/gtk/renderer.sun
+  "$compiler" --dynamic --lib-path build --emit-moon -o build/sun_ui_gtk.moon src/adapters/gtk/renderer.sun
   "$compiler" --dynamic --lib-path build -c -o build/sun_viewc src/tools/viewc.sun
   exit 0
 fi

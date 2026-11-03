@@ -88,22 +88,22 @@ tmp/vcs2l/bin/pip install vcs2l==1.1.7
 export PATH="$PWD/tmp/vcs2l/bin:$PATH"
 ```
 
-Import dependencies and build them with the same Sun compiler:
+Build against the published GTK bundles:
 
 ```sh
-vcs import --skip-existing --input deps.repos .
-bash src/sun_gobject/build.sh
 ./build.sh --gtk
 ```
 
-The GTK build also runs acceptance tests under a virtual display. The default
-dependency build is `src/sun_gobject/build`; set `SUN_GOBJECT_BUILD` to use another
-location. The build stages these artifacts as a validated local package under
-`build/dependencies/sun_gobject/package`. The dependency cache defaults to
-`build/dependencies/cache`; set `SUN_DEPENDENCY_CACHE` to override it.
-Dependencies are independent checkouts with their own development
-instructions. The import preserves existing checkouts; builds never fetch or reset
-them. Toolkit CI imports only `sun_gobject` from [deps.repos](deps.repos).
+`sun-config.json` selects the `sun_gobject` and `sun_gtk` Moon URLs for Linux
+x86_64 or Apple Silicon macOS. Sun downloads them directly; `sun_gtk.moon`
+contains its native adapter archive. GTK and librsvg remain system dependencies.
+No Debian extraction or dependency source build is needed.
+
+These rolling `dev` URLs require a compiler that supports optional dependency
+hashes and the target-qualified assets published by sun_gobject. Unpinned URLs
+refresh during dependency resolution. The dependency cache defaults to
+`build/dependencies/cache`; override it with `SUN_DEPENDENCY_CACHE`.
+GTK acceptance tests run under a virtual display on Linux.
 
 On Apple Silicon macOS, use `./scripts/build-macos.sh` with the Homebrew dependencies
 listed in [.github/workflows/ci.yml](.github/workflows/ci.yml). To package an existing
