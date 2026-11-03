@@ -371,8 +371,8 @@ manifest {
     "stdlib.moon",
     "sun_ui.moon",
     "sun_ui_gtk.moon",
-    "sun_gobject.moon",
-    "sun_gtk.moon",
+    "${namo-robotics/sun_gobject}/lib/sun_gobject.moon",
+    "${namo-robotics/sun_gobject}/lib/sun_gtk.moon",
     "sun_ui_graphics.moon",
     "sun_ui_graphics_gtk.moon",
     "sun_ui_sdl.moon"

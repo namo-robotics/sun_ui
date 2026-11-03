@@ -72,7 +72,7 @@ manifest {
   id:"namo-robotics/sun_ui_graphics_gtk",libraries:[
     "stdlib.moon",
     "sun_ui_graphics.moon",
-    "sun_gobject.moon",
-    "sun_gtk.moon"
+    "${namo-robotics/sun_gobject}/lib/sun_gobject.moon",
+    "${namo-robotics/sun_gobject}/lib/sun_gtk.moon"
   ]
 }
