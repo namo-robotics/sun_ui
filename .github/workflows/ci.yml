@@ -1,4 +1,9 @@
 name: CI
+# Public CI fetches Git dependencies without SSH credentials.
+env:
+  GIT_CONFIG_COUNT: '1'
+  GIT_CONFIG_KEY_0: url.https://github.com/.insteadOf
+  GIT_CONFIG_VALUE_0: 'git@github.com:'
 on:
   push:
   pull_request:
@@ -18,7 +23,7 @@ jobs:
       - name: Build and test without sun_gobject
         # Make the runner's UID and GID resolvable inside the container.
         run: >-
-          docker run --rm --user "$(id -u):$(id -g)"
+          docker run --rm -e GIT_CONFIG_COUNT -e GIT_CONFIG_KEY_0 -e GIT_CONFIG_VALUE_0 --user "$(id -u):$(id -g)"
           -v /etc/passwd:/etc/passwd:ro
           -v /etc/group:/etc/group:ro
           -e XDG_DATA_HOME=/workspaces/sun_ui/tmp/ci/data
@@ -44,7 +49,7 @@ jobs:
       - name: Download dependency and run native acceptance tests
         # D-Bus needs a passwd entry for the runner's UID inside the container.
         run: >-
-          docker run --rm --user "$(id -u):$(id -g)"
+          docker run --rm -e GIT_CONFIG_COUNT -e GIT_CONFIG_KEY_0 -e GIT_CONFIG_VALUE_0 --user "$(id -u):$(id -g)"
           -v /etc/passwd:/etc/passwd:ro
           -v /etc/group:/etc/group:ro
           -e XDG_DATA_HOME=/workspaces/sun_ui/tmp/ci/data
@@ -62,7 +67,7 @@ jobs:
             build/markup-test-results.log
             build/gtk-test-results.log
       - name: Package Linux development tools and bundles
-        run: docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspaces/sun_ui" sun-ui-dev sun src/tools/package.sun
+        run: docker run --rm -e GIT_CONFIG_COUNT -e GIT_CONFIG_KEY_0 -e GIT_CONFIG_VALUE_0 --user "$(id -u):$(id -g)" -v "$PWD:/workspaces/sun_ui" sun-ui-dev sun src/tools/package.sun
       - name: Upload development bundles
         uses: actions/upload-artifact@v4
         with:
@@ -118,7 +123,7 @@ jobs:
         run: docker build -t sun-ui-dev .
       - name: Download dependency and exercise public graphics APIs
         run: >-
-          docker run --rm --user "$(id -u):$(id -g)"
+          docker run --rm -e GIT_CONFIG_COUNT -e GIT_CONFIG_KEY_0 -e GIT_CONFIG_VALUE_0 --user "$(id -u):$(id -g)"
           -v /etc/passwd:/etc/passwd:ro -v /etc/group:/etc/group:ro
           -e XDG_DATA_HOME=/workspaces/sun_ui/tmp/ci/data
           -e XDG_CACHE_HOME=/workspaces/sun_ui/tmp/ci/cache

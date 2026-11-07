@@ -214,28 +214,28 @@
     {
       "target": {
         "x86_64-linux-gnu": {
-          "package": "namo-robotics/sun_gobject",
-          "library": "namo-robotics/sun_gobject",
-          "url": "https://github.com/namo-robotics/sun_gobject/releases/download/dev/sun_gobject-x86_64-linux-gnu.moon"
+          "git": "git@github.com:namo-robotics/sun_gobject.git",
+          "version": "main",
+          "packages": {
+            "namo-robotics/sun_gobject": {
+              "entrypoints": [
+                "sun_gobject",
+                "sun_gtk"
+              ]
+            }
+          }
         },
         "arm64-apple-darwin": {
-          "package": "namo-robotics/sun_gobject",
-          "library": "namo-robotics/sun_gobject",
-          "url": "https://github.com/namo-robotics/sun_gobject/releases/download/dev/sun_gobject-arm64-apple-darwin.moon"
-        }
-      }
-    },
-    {
-      "target": {
-        "x86_64-linux-gnu": {
-          "package": "namo-robotics/sun_gobject",
-          "library": "namo-robotics/sun_gtk",
-          "url": "https://github.com/namo-robotics/sun_gobject/releases/download/dev/sun_gtk-x86_64-linux-gnu.moon"
-        },
-        "arm64-apple-darwin": {
-          "package": "namo-robotics/sun_gobject",
-          "library": "namo-robotics/sun_gtk",
-          "url": "https://github.com/namo-robotics/sun_gobject/releases/download/dev/sun_gtk-arm64-apple-darwin.moon"
+          "git": "git@github.com:namo-robotics/sun_gobject.git",
+          "version": "main",
+          "packages": {
+            "namo-robotics/sun_gobject": {
+              "entrypoints": [
+                "sun_gobject",
+                "sun_gtk"
+              ]
+            }
+          }
         }
       }
     }

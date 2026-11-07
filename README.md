@@ -103,21 +103,20 @@ tmp/vcs2l/bin/pip install vcs2l==1.1.7
 export PATH="$PWD/tmp/vcs2l/bin:$PATH"
 ```
 
-Build against the published GTK bundles:
+Build the GTK adapter and its Git dependencies:
 
 ```sh
 ./build.sh --gtk
 ```
 
-`sun-config.json` selects the `sun_gobject` and `sun_gtk` Moon URLs for Linux
-x86_64 or Apple Silicon macOS. Sun downloads them directly; `sun_gtk.moon`
-contains its native adapter archive. GTK and librsvg remain system dependencies.
-No Debian extraction or dependency source build is needed.
+`sun-config.json` selects `sun_gobject` and `sun_gtk` from the sun_gobject Git
+repository. Sun builds them with the current compiler, including GIR generation
+and native archives. GTK, GIR metadata, CMake, and the native development
+libraries remain system dependencies.
 
-These rolling `dev` URLs require a compiler that supports optional dependency
-hashes and the target-qualified assets published by sun_gobject. Unpinned URLs
-refresh during dependency resolution. The dependency cache defaults to
-`build/dependencies/cache`; override it with `SUN_DEPENDENCY_CACHE`.
+The repository uses SSH and `main`; `version` can also select a tag or commit.
+Use `sun build --refresh-sources` to refresh cached revisions explicitly.
+Git artifacts live under `.sun/cache/git` (or `SUN_GIT_CACHE`). Public CI uses HTTPS.
 GTK acceptance tests run under a virtual display on Linux.
 
 On Apple Silicon macOS, use `./scripts/build-macos.sh` with the Homebrew dependencies
