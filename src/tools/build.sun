@@ -28,8 +28,6 @@ module build_tasks {
     var executable = setting("SUN_EXECUTABLE", "sun");
     var command = std.process.Command(a, executable);
     command.add_arg("--dynamic");
-    command.add_arg("--path-var");
-    command.add_arg("SUN_BUILD=build");
     command.add_arg("--lib-path");
     command.add_arg("build");
     if (gtk) {
