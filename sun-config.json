@@ -212,32 +212,37 @@
   "package_id": "namo-robotics/sun_ui",
   "dependencies": [
     {
+      "type": "system",
+      "check": {
+        "type": "pkg-config",
+        "name": "sdl3",
+        "version": ">=3.2"
+      },
       "target": {
-        "x86_64-linux-gnu": {
-          "git": "git@github.com:namo-robotics/sun_gobject.git",
-          "version": "main",
-          "packages": {
-            "namo-robotics/sun_gobject": {
-              "entrypoints": [
-                "sun_gobject",
-                "sun_gtk"
-              ]
-            }
-          }
+        "linux": {
+          "apt": ["libsdl3-dev"]
         },
-        "arm64-apple-darwin": {
-          "git": "git@github.com:namo-robotics/sun_gobject.git",
-          "version": "main",
-          "packages": {
-            "namo-robotics/sun_gobject": {
-              "entrypoints": [
-                "sun_gobject",
-                "sun_gtk"
-              ]
-            }
-          }
+        "macos": {
+          "brew": ["sdl3"]
         }
       }
+    },
+    {
+      "type": "git",
+      "url": "git@github.com:namo-robotics/sun_gobject.git",
+      "version": "main",
+      "packages": {
+        "namo-robotics/sun_gobject": {
+          "entrypoints": [
+            "sun_gobject",
+            "sun_gtk"
+          ]
+        }
+      },
+      "supported_targets": [
+        "x86_64-linux-gnu",
+        "arm64-apple-darwin"
+      ]
     }
   ],
   "exports": [
