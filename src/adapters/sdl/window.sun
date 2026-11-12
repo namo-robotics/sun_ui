@@ -17,7 +17,7 @@ public module gpu_sdl {
       };
       if (this.pointer == null) {
         return SystemResult.Error(
-          Error(1, from_c_str(make_heap_allocator(), unsafe { gu_window_error(null); }))
+          try Error(1, from_c_str(make_heap_allocator(), unsafe { gu_window_error(null); }))
         );
       }
     }
@@ -43,7 +43,7 @@ public module gpu_sdl {
     public method render() SystemResult<void> {
       if (unsafe { gu_window_render(this.pointer); } == 0) {
         var message = this.error();
-        return SystemResult.Error(Error(1, message));
+        return SystemResult.Error(try Error(1, message));
       }
       return SystemResult.Ok;
     }
@@ -70,7 +70,7 @@ public module gpu_sdl {
     /** Requests relative pointer mode; failure is reported explicitly. */
     public method capture(enabled: bool) SystemResult<void> {
       if (unsafe { gu_window_capture(this.pointer, enabled ? 1 : 0); } == 0) {
-        return SystemResult.Error(Error(1, this.error()));
+        return SystemResult.Error(try Error(1, this.error()));
       }
       return SystemResult.Ok;
     }
@@ -83,7 +83,7 @@ public module gpu_sdl {
     /** Changes the logical window size without replacing its context. */
     public method resize(width: i32, height: i32) SystemResult<void> {
       if (unsafe { gu_window_resize(this.pointer, width, height); } == 0) {
-        return SystemResult.Error(Error(1, this.error()));
+        return SystemResult.Error(try Error(1, this.error()));
       }
       return SystemResult.Ok;
     }

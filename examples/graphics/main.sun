@@ -19,18 +19,18 @@ module graphics_demo {
   }
 
   /** Describes ordinary controls surrounding the registered viewport. */
-  function view(state: const ref Settings) ui.View {
-    var v = ui.View(make_heap_allocator());
-    v.button(1, String(state.blue ? "Use warm color" : "Use blue color"), 1, 0);
-    v.button(2, String(state.animated ? "Pause rotation" : "Resume rotation"), 2, 0);
-    var e = ui.Element(ui.Key(3), ui.Kind.Viewport);
+  function view(state: const ref Settings) AllocationResult<ui.View> {
+    var v = try ui.View(make_heap_allocator());
+    v.button(1, try String(state.blue ? "Use warm color" : "Use blue color"), 1, 0);
+    v.button(2, try String(state.animated ? "Pause rotation" : "Resume rotation"), 2, 0);
+    var e = try ui.Element(try ui.Key(3), ui.Kind.Viewport);
     e.viewport_id = 1;
     e.min_width = 480;
     e.min_height = 320;
     e.expand_x = true;
     e.expand_y = true;
-    v.append(-1, e);
-    return v;
+    try v.append(-1, e);
+    return AllocationResult.Ok(v);
   }
 
   /** Applies UI actions without touching GPU resources or camera state. */
@@ -139,75 +139,77 @@ module graphics_demo {
   }
 
   /** Appends one XYZ position into an explicitly allocated mesh builder. */
-  function point(v: ref Vec<f64>, x: f64, y: f64, z: f64) void {
-    v.push(x);
-    v.push(y);
-    v.push(z);
+  function point(v: ref Vec<f64>, x: f64, y: f64, z: f64) AllocationResult<void> {
+    try v.push(x);
+    try v.push(y);
+    try v.push(z);
+
+    return AllocationResult.Ok;
   }
 
   /** Builds immutable indexed cube geometry. */
   function cube() SystemResult<gpu.Mesh> {
     var a = make_heap_allocator();
-    var v = Vec<f64>(a, 24);
-    var indices = Vec<i64>(a, 36);
-    point(v, -1.0, -1.0, -1.0);
-    point(v, 1.0, -1.0, -1.0);
-    point(v, 1.0, 1.0, -1.0);
-    point(v, -1.0, 1.0, -1.0);
-    point(v, -1.0, -1.0, 1.0);
-    point(v, 1.0, -1.0, 1.0);
-    point(v, 1.0, 1.0, 1.0);
-    point(v, -1.0, 1.0, 1.0);
-    indices.push(0);
-    indices.push(1);
-    indices.push(2);
-    indices.push(0);
-    indices.push(2);
-    indices.push(3);
-    indices.push(4);
-    indices.push(6);
-    indices.push(5);
-    indices.push(4);
-    indices.push(7);
-    indices.push(6);
-    indices.push(0);
-    indices.push(4);
-    indices.push(5);
-    indices.push(0);
-    indices.push(5);
-    indices.push(1);
-    indices.push(3);
-    indices.push(2);
-    indices.push(6);
-    indices.push(3);
-    indices.push(6);
-    indices.push(7);
-    indices.push(0);
-    indices.push(3);
-    indices.push(7);
-    indices.push(0);
-    indices.push(7);
-    indices.push(4);
-    indices.push(1);
-    indices.push(5);
-    indices.push(6);
-    indices.push(1);
-    indices.push(6);
-    indices.push(2);
+    var v = try Vec<f64>(a, 24);
+    var indices = try Vec<i64>(a, 36);
+    try point(v, -1.0, -1.0, -1.0);
+    try point(v, 1.0, -1.0, -1.0);
+    try point(v, 1.0, 1.0, -1.0);
+    try point(v, -1.0, 1.0, -1.0);
+    try point(v, -1.0, -1.0, 1.0);
+    try point(v, 1.0, -1.0, 1.0);
+    try point(v, 1.0, 1.0, 1.0);
+    try point(v, -1.0, 1.0, 1.0);
+    try indices.push(0);
+    try indices.push(1);
+    try indices.push(2);
+    try indices.push(0);
+    try indices.push(2);
+    try indices.push(3);
+    try indices.push(4);
+    try indices.push(6);
+    try indices.push(5);
+    try indices.push(4);
+    try indices.push(7);
+    try indices.push(6);
+    try indices.push(0);
+    try indices.push(4);
+    try indices.push(5);
+    try indices.push(0);
+    try indices.push(5);
+    try indices.push(1);
+    try indices.push(3);
+    try indices.push(2);
+    try indices.push(6);
+    try indices.push(3);
+    try indices.push(6);
+    try indices.push(7);
+    try indices.push(0);
+    try indices.push(3);
+    try indices.push(7);
+    try indices.push(0);
+    try indices.push(7);
+    try indices.push(4);
+    try indices.push(1);
+    try indices.push(5);
+    try indices.push(6);
+    try indices.push(1);
+    try indices.push(6);
+    try indices.push(2);
     return gpu.Mesh(v, indices);
   }
 
   /** Builds a ground grid to make camera translation and perspective visible. */
   function grid() SystemResult<gpu.Mesh> {
     var a = make_heap_allocator();
-    var v = Vec<f64>(a, 252);
-    var indices = Vec<i64>(a, 0);
+    var v = try Vec<f64>(a, 252);
+    var indices = try Vec<i64>(a, 0);
     for (var i: i32 = -10; i <= 10; i += 1) {
       var t = _convert<f64>(i);
-      point(v, t, -1.1, -10.0);
-      point(v, t, -1.1, 10.0);
-      point(v, -10.0, -1.1, t);
-      point(v, 10.0, -1.1, t);
+      try point(v, t, -1.1, -10.0);
+      try point(v, t, -1.1, 10.0);
+      try point(v, -10.0, -1.1, t);
+      try point(v, 10.0, -1.1, t);
     }
     return gpu.Mesh(v, indices);
   }
@@ -221,12 +223,12 @@ module graphics_demo {
     z: f64,
     w: f64
   ) SystemResult<void> {
-    var v = Vec<f64>(make_heap_allocator(), 4);
-    v.push(x);
-    v.push(y);
-    v.push(z);
-    v.push(w);
-    var key = String(name);
+    var v = try Vec<f64>(make_heap_allocator(), 4);
+    try v.push(x);
+    try v.push(y);
+    try v.push(z);
+    try v.push(w);
+    var key = try String(name);
     return frame.uniform(key, v);
   }
 
@@ -274,14 +276,14 @@ module graphics_demo {
 
   /** Runs both hosts with one bounded main-thread loop and independent cameras. */
   public function run() SystemResult<void> {
-    var title = String("Sun UI graphics — drag to look");
+    var title = try String("Sun UI graphics — drag to look");
     var renderer = try ui_gtk.Renderer(title);
     var viewport = try gpu_gtk.Viewport();
     try renderer.register_viewport(1, viewport.widget());
     var session = ui.Session<Settings>(Settings(), view, handle);
     try session.render(renderer);
     gtk.clear_gl_context();
-    var game_title = String("Sun graphics — click to capture, WASD, Escape to release");
+    var game_title = try String("Sun graphics — click to capture, WASD, Escape to release");
     var window = try gpu_sdl.Window(game_title, 900, 600);
     var embedded_state = viewport.surface();
     var fps_state = window.surface();
@@ -289,10 +291,10 @@ module graphics_demo {
     var fps = Camera();
     var cube_mesh = try cube();
     var grid_mesh = try grid();
-    var vertex = String(
+    var vertex = try String(
       "#version 330 core\nlayout(location=0) in vec3 position; uniform vec4 camera; uniform vec4 rotation; out float shade; void main(){vec3 p=position; float a=rotation.z; p.xz=mat2(cos(a),-sin(a),sin(a),cos(a))*p.xz; shade=0.65+0.25*clamp(p.y,-1.,1.); p-=camera.xyz; a=rotation.x; p.xz=mat2(cos(a),-sin(a),sin(a),cos(a))*p.xz; a=-rotation.y; p.yz=mat2(cos(a),-sin(a),sin(a),cos(a))*p.yz; gl_Position=vec4(p.x*1.7/camera.w,p.y*1.7,-1.002*p.z-0.2002,-p.z);}"
     );
-    var fragment = String(
+    var fragment = try String(
       "#version 330 core\nuniform vec4 color; in float shade; out vec4 result; void main(){result=vec4(color.rgb*shade,color.a);}"
     );
     var shader = try gpu.Shader(vertex, fragment);
@@ -329,7 +331,7 @@ module graphics_demo {
         viewport.submit(f);
         var error = viewport.error();
         if (not error.is_empty()) {
-          return SystemResult.Error(Error(1, error));
+          return SystemResult.Error(try Error(1, error));
         }
       }
       if (window.running()) {
@@ -346,7 +348,7 @@ module graphics_demo {
         try window.render();
         var error = window.error();
         if (not error.is_empty()) {
-          return SystemResult.Error(Error(1, error));
+          return SystemResult.Error(try Error(1, error));
         }
       }
       gpu_sdl.delay(8);
@@ -357,14 +359,16 @@ module graphics_demo {
 }
 
 /** Reports graphics initialization or rendering failures without hiding unsupported hosts. */
-function main() i32 {
-  return match graphics_demo.run() {
-    SystemResult.Ok => 0,
-    SystemResult.Error(error) => {
-      eprintln(error.message());
-      return 1;
+function main() AllocationResult<i32> {
+  return AllocationResult.Ok(
+    match graphics_demo.run() {
+      SystemResult.Ok => 0,
+      SystemResult.Error(error) => {
+        std.io.eprintln(try error.message());
+        return AllocationResult.Ok(1);
+      }
     }
-  };
+  );
 }
 manifest {
   libraries:[

@@ -4,16 +4,22 @@ using std;
 module build_diagnostics {
 
   /** Copies a validated substring or returns an empty value. */
-  function slice(text: const ref String, start: i64, length: i64) String {
+  function slice(text: const ref String, start: i64, length: i64) AllocationResult<String> {
     var a = make_heap_allocator();
-    return match text.substr(a, start, length) {
-      AccessResult.Ok(value) => value,
-      AccessResult.OutOfBounds(_) => String("")
-    };
+    return AllocationResult.Ok(
+      match try sun_ui_results.access(text.substr(a, start, length)) {
+        AccessResult.Ok(value) => value,
+        AccessResult.OutOfBounds(_) => try String("")
+      }
+    );
   }
 
   /** Converts an original byte offset to a filename, Unicode column, and line. */
-  function location(path: const ref String, input: const ref String, offset: i64) String {
+  function location(
+    path: const ref String,
+    input: const ref String,
+    offset: i64
+  ) AllocationResult<String> {
     var line: i64 = 1;
     var column: i64 = 1;
     var previous: u8 = 0;
@@ -35,7 +41,7 @@ module build_diagnostics {
       }
       previous = c;
     }
-    return `${path}:${line}:${column}`;
+    return AllocationResult.Ok(try `${path}:${line}:${column}`);
   }
 
   /** Resolves generated diagnostics into additional original XML location messages. */
@@ -45,14 +51,14 @@ module build_diagnostics {
     original: ref String
   ) SystemResult<String> {
     var a = make_heap_allocator();
-    var result = String("");
-    var map_path = generated.clone(a);
-    map_path.append(".map");
+    var result = try String("");
+    var map_path = try generated.clone(a);
+    try map_path.append(".map");
     var mapping = try std.io.read_to_string(a, map_path);
     var records = mapping.split(a, b'\n');
     var lines = diagnostic.split(a, b'\n');
-    var needle = generated.clone(a);
-    needle.append(":");
+    var needle = try generated.clone(a);
+    try needle.append(":");
     for (var line: ref String in lines) {
       var begin = match line.find(needle) {
         Option.Some(index) => index + needle.length(),
@@ -72,13 +78,13 @@ module build_diagnostics {
         }
         end += 1;
       }
-      var digits = slice(line, begin, end - begin);
+      var digits = try slice(line, begin, end - begin);
       var generated_line = match digits.parse_i64() {
         Option.Some(value) => value,
         Option.None => 0
       };
       var offset: i64 = -1;
-      var mapped_file = original.clone(a);
+      var mapped_file = try original.clone(a);
       for (var record: ref String in records) {
         var fields = record.split(a, b'\t');
         if (fields.size() < 2) {
@@ -96,13 +102,15 @@ module build_diagnostics {
           Option.None => -1
         };
         if (fields.size() >= 3) {
-          mapped_file = fields[2].clone(a);
+          mapped_file = try fields[2].clone(a);
         }
       }
       if (offset >= 0) {
         var input = try std.io.read_to_string(a, mapped_file);
-        var source = location(mapped_file, input, offset);
-        result.append(`${source}: generated Sun diagnostic above refers to this declaration\n`);
+        var source = try location(mapped_file, input, offset);
+        try result.append(
+          try `${source}: generated Sun diagnostic above refers to this declaration\n`
+        );
       }
     }
     return SystemResult.Ok(result);
@@ -115,7 +123,7 @@ module build_diagnostics {
     original: ref String
   ) SystemResult<void> {
     var messages = try mapped(diagnostic, generated, original);
-    eprint(messages);
+    std.io.eprint(messages);
     return SystemResult.Ok;
   }
 }

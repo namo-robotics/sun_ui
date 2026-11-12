@@ -20,45 +20,52 @@ module tasks {
     }
 
     /** Seeds two tasks with stable keys. */
-    init() {
+    init() AllocationResult<void> {
       var a = make_heap_allocator();
-      this.ids = Vec<i64>(a, 8);
-      this.ids.push(1);
-      this.ids.push(2);
+      this.ids = try Vec<i64>(a, 8);
+      try this.ids.push(1);
+      try this.ids.push(2);
     }
   }
 
   /** Composes a task button using its durable ID as both key and event payload. */
-  function task(view: ref ui.View, parent: i64, id: i64, selected: bool) void {
-    var label = `Task ${id}`;
+  function task(
+    view: ref ui.View,
+    parent: i64,
+    id: i64,
+    selected: bool
+  ) AllocationResult<void> {
+    var label = try `Task ${id}`;
     if (selected) {
-      label.append(" — selected");
+      try label.append(" — selected");
     }
-    var node = ui.Element(ui.Key(id), ui.Kind.Button);
+    var node = try ui.Element(try ui.Key(id), ui.Kind.Button);
     node.text = label;
     node.action = 4;
     node.payload = id;
-    view.append(parent, node);
+    try view.append(parent, node);
+
+    return AllocationResult.Ok;
   }
 
   /** Copies visible IDs in display order for a keyed XML repetition. */
-  function visible_ids(state: const ref State) Vec<i64> {
+  function visible_ids(state: const ref State) AllocationResult<Vec<i64>> {
     var a = make_heap_allocator();
-    var result = Vec<i64>(a, state.ids.size());
+    var result = try Vec<i64>(a, state.ids.size());
     for (var i: i64 = 0; i < state.ids.size(); i += 1) {
-      result.push(state.ids[state.reversed ? state.ids.size() - 1 - i : i]);
+      try result.push(state.ids[state.reversed ? state.ids.size() - 1 - i : i]);
     }
-    return result;
+    return AllocationResult.Ok(result);
   }
 
   /** Resolves a task's scoped button using its durable application key. */
-  function identity(tree: const ref ui.Tree, key: i64) u64 {
+  function identity(tree: const ref ui.Tree, key: i64) AllocationResult<u64> {
     var a = make_heap_allocator();
-    var path = Vec<ui.Key>(a, 3);
-    path.push(ui.Key(key));
-    path.push(ui.Key(String("task")));
-    path.push(ui.Key(key));
-    return tree.identity_path(path);
+    var path = try Vec<ui.Key>(a, 3);
+    try path.push(try ui.Key(key));
+    try path.push(try ui.Key(try String("task")));
+    try path.push(try ui.Key(key));
+    return AllocationResult.Ok(tree.identity_path(path));
   }
 
   /** Appends a task when the generated action dispatcher calls this function. */
@@ -67,7 +74,7 @@ module tasks {
     event: const ref ui.Event,
     queue: ref ui.EventQueue
   ) SystemResult<void> {
-    state.ids.push(state.next_id);
+    try state.ids.push(state.next_id);
     state.next_id += 1;
     return SystemResult.Ok;
   }
@@ -113,8 +120,9 @@ module tasks {
       // Tests read generated toolbar keys instead of depending on their spelling.
       var a = make_heap_allocator();
       var description = view(session.state);
-      var path = Vec<ui.Key>(a, 1);
-      path.push(description.elements[-key - 1].key.clone(a));
+      var path = try Vec<ui.Key>(a, 1);
+      try path.push(try description.elements[-key - 1].key.clone(a));
+
       renderer.click(session.tree.identity_path(path));
     } else {
       renderer.click(identity(session.tree, key));
@@ -172,15 +180,15 @@ module tasks {
     if (renderer.removals != renderer.creates) {
       return SystemResult.Error(Error(1, "Subscriptions survived shutdown"));
     }
-    println("Task list acceptance passed");
+    std.io.println("Task list acceptance passed");
     return SystemResult.Ok;
   }
 
   /** Runs the native task list with explicitly owned state and bounded dispatch turns. */
   public function run(automated: bool) SystemResult<void> {
-    var title = String("Sun UI — Keyed tasks");
+    var title = try String("Sun UI — Keyed tasks");
     var renderer = try ui_gtk.Renderer(title);
-    var state = State();
+    var state = try State();
     var session = ui.Session<State>(state, view, view_handle);
     try session.render(renderer);
     if (automated) {
@@ -196,17 +204,19 @@ module tasks {
 }
 
 /** Runs the interactive demo or its display-backed acceptance scenario. */
-function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) AllocationResult<i32> {
   var a = make_heap_allocator();
-  var env = std.env.Env(a);
-  var args = env.args(argc, argv);
-  return match tasks.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
-    SystemResult.Ok => 0,
-    SystemResult.Error(error) => {
-      eprintln(error.message());
-      return 1;
+  var env = try std.env.Env(a);
+  var args = try env.args(argc, argv);
+  return AllocationResult.Ok(
+    match tasks.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
+      SystemResult.Ok => 0,
+      SystemResult.Error(error) => {
+        std.io.eprintln(try error.message());
+        return AllocationResult.Ok(1);
+      }
     }
-  };
+  );
 }
 manifest {
   source_files: [

@@ -5,13 +5,22 @@ module plot_tests {
 
   /** Places four independent figures in distinct viewports without losing their labels. */
   test_function subplot_grid_composes_panels() TestResult<void> {
-    var grid = plot.Grid(2, 2, String("Study & results"), String("Four panels"));
+    var grid = try plot.Grid(
+      2,
+      2,
+      try String("Study & results"),
+      try String("Four panels")
+    );
     for (var i: i64 = 0; i < 4; i += 1) {
-      var figure = plot.Figure(`Panel ${i}`, String("x"), String("y"));
+      var figure = try plot.Figure(
+        try `Panel ${i}`,
+        try String("x"),
+        try String("y")
+      );
       grid.add(try figure.draw(684.0, 471.0));
     }
     var drawing = try grid.draw(1440.0, 1100.0);
-    var svg = drawing.svg();
+    var svg = try drawing.svg();
     try std.test.assert(svg.contains("Study &amp; results"));
     try std.test.assert(svg.contains("Panel 0"));
     try std.test.assert(svg.contains("Panel 3"));
@@ -25,14 +34,23 @@ module plot_tests {
 
   /** Rejects missing panels, invalid dimensions, and cells too small for readable axes. */
   test_function subplot_grid_rejects_invalid_layout() TestResult<void> {
-    var grid = plot.Grid(1, 1, String("Study"), String(""));
+    var grid = try plot.Grid(
+      1,
+      1,
+      try String("Study"),
+      try String("")
+    );
     match grid.draw(800.0, 600.0) {
       SystemResult.Ok(_) => {
         try std.test.assert(false);
       },
       SystemResult.Error(_) => {}
     };
-    var figure = plot.Figure(String("Panel"), String("x"), String("y"));
+    var figure = try plot.Figure(
+      try String("Panel"),
+      try String("x"),
+      try String("y")
+    );
     grid.add(try figure.draw(400.0, 300.0));
     match grid.draw(400.0, 300.0) {
       SystemResult.Ok(_) => {
@@ -40,7 +58,12 @@ module plot_tests {
       },
       SystemResult.Error(_) => {}
     };
-    var invalid = plot.Grid(0, 2, String("Study"), String(""));
+    var invalid = try plot.Grid(
+      0,
+      2,
+      try String("Study"),
+      try String("")
+    );
     match invalid.draw(1440.0, 1100.0) {
       SystemResult.Ok(_) => {
         try std.test.assert(false);
@@ -68,10 +91,10 @@ module plot_tests {
     try std.test.assert_eq(plot.tick_step(10.0), 2.0);
     try std.test.assert_eq(plot.tick_step(23.0), 5.0);
     try std.test.assert_eq(plot.tick_step(0.01), 0.002);
-    var zero = plot.tick_label(-1e-16, 0.2);
-    var small = plot.tick_label(0.000002, 0.000001);
-    var large = plot.tick_label(2000000.0, 1000000.0);
-    var offset = plot.tick_label(1000000.2, 0.2);
+    var zero = try plot.tick_label(-1e-16, 0.2);
+    var small = try plot.tick_label(0.000002, 0.000001);
+    var large = try plot.tick_label(2000000.0, 1000000.0);
+    var offset = try plot.tick_label(1000000.2, 0.2);
     try std.test.assert(zero.equals_literal("0"));
     try std.test.assert(small.equals_literal("2e-6"));
     try std.test.assert(large.equals_literal("2e6"));
@@ -81,11 +104,19 @@ module plot_tests {
 
   /** Verifies deterministic limits for empty and constant samples. */
   test_function empty_and_constant_ranges() TestResult<void> {
-    var figure = plot.Figure(String("Empty"), String("x"), String("y"));
+    var figure = try plot.Figure(
+      try String("Empty"),
+      try String("x"),
+      try String("y")
+    );
     var empty = figure.bounds(true);
     try std.test.assert_eq(empty.min, 0.0);
     try std.test.assert_eq(empty.max, 1.0);
-    var series = plot.Series(String("Constant"), String("blue"), false);
+    var series = try plot.Series(
+      try String("Constant"),
+      try String("blue"),
+      false
+    );
     series.add(4.0, -3.0);
     figure.add(series);
     var x = figure.bounds(true);
@@ -99,7 +130,11 @@ module plot_tests {
 
   /** Rejects unusable ranges and dimensions before producing a drawing. */
   test_function invalid_layout_is_rejected() TestResult<void> {
-    var figure = plot.Figure(String("Invalid"), String("x"), String("y"));
+    var figure = try plot.Figure(
+      try String("Invalid"),
+      try String("x"),
+      try String("y")
+    );
     match figure.draw(0.0, 480.0) {
       SystemResult.Ok(_) => {
         try std.test.assert(false);
@@ -125,8 +160,8 @@ module plot_tests {
 
   /** Ensures user labels cannot become markup or escape XML attributes. */
   test_function xml_text_is_escaped() TestResult<void> {
-    var text = String("A & B <tag> \"quoted\" 'single'");
-    var escaped = ui_drawing.escape(text);
+    var text = try String("A & B <tag> \"quoted\" 'single'");
+    var escaped = try ui_drawing.escape(text);
     try std.test.assert(
       escaped.equals_literal("A &amp; B &lt;tag&gt; &quot;quoted&quot; &apos;single&apos;")
     );
@@ -141,8 +176,16 @@ module plot_tests {
     try std.test.assert(plot.finite(infinity) == false);
     try std.test.assert(plot.finite(nan) == false);
     try std.test.assert_eq(plot.tick_step(infinity), 0.0);
-    var figure = plot.Figure(String("Gaps"), String("x"), String("y"));
-    var series = plot.Series(String(""), String("#123456"), false);
+    var figure = try plot.Figure(
+      try String("Gaps"),
+      try String("x"),
+      try String("y")
+    );
+    var series = try plot.Series(
+      try String(""),
+      try String("#123456"),
+      false
+    );
     series.add(0.0, 0.0);
     series.add(999.0, nan);
     series.add(1.0, 1.0);
@@ -150,22 +193,30 @@ module plot_tests {
     var bounds = figure.bounds(true);
     try std.test.assert_eq(bounds.max, 1.0);
     var drawing = try figure.draw(640.0, 480.0);
-    var svg = drawing.svg();
+    var svg = try drawing.svg();
     try std.test.assert(svg.contains("stroke=\"#123456\"") == false);
     return TestResult.Ok;
   }
 
   /** Explicit limits are honored and data marks are enclosed in an SVG clipping viewport. */
   test_function scatter_export_and_explicit_limits() TestResult<void> {
-    var figure = plot.Figure(String("A & B"), String("x < y"), String("µm"));
+    var figure = try plot.Figure(
+      try String("A & B"),
+      try String("x < y"),
+      try String("µm")
+    );
     figure.x_limits = Option.Some(plot.Limits(0.0, 10.0));
     figure.y_limits = Option.Some(plot.Limits(0.0, 10.0));
-    var series = plot.Series(String(""), String("#123456"), true);
+    var series = try plot.Series(
+      try String(""),
+      try String("#123456"),
+      true
+    );
     series.add(5.0, 5.0);
     series.add(50.0, 50.0);
     figure.add(series);
     var drawing = try figure.draw(640.0, 480.0);
-    var svg = drawing.svg();
+    var svg = try drawing.svg();
     try std.test.assert(svg.contains("<circle cx=\"354\" cy=\"232\""));
     try std.test.assert(svg.contains("overflow=\"hidden\""));
     try std.test.assert(svg.contains("A &amp; B"));
@@ -176,8 +227,16 @@ module plot_tests {
 
   /** Rejects invalid styles and overflowing data bounds rather than exporting invalid geometry. */
   test_function invalid_styles_and_extreme_ranges() TestResult<void> {
-    var figure = plot.Figure(String("Invalid"), String("x"), String("y"));
-    var series = plot.Series(String(""), String("blue"), false);
+    var figure = try plot.Figure(
+      try String("Invalid"),
+      try String("x"),
+      try String("y")
+    );
+    var series = try plot.Series(
+      try String(""),
+      try String("blue"),
+      false
+    );
     series.line_width = -1.0;
     figure.add(series);
     match figure.draw(640.0, 480.0) {

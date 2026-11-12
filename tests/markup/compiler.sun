@@ -8,9 +8,9 @@ module markup_tests {
 
   /** Compiles a minimal view and retains a deterministic original source mapping. */
   test_function generates_owned_view() TestResult<void> {
-    var compiler = markup.Compiler(
-      String("counter.view.xml"),
-      String(
+    var compiler = try markup.Compiler(
+      try String("counter.view.xml"),
+      try String(
         "<Views module=\"counter\"><View name=\"view\" state=\"i64\"><Button key=\"{1}\" text=\"A &amp; B\" action=\"1\"/></View></Views>"
       )
     );
@@ -29,9 +29,9 @@ module markup_tests {
 
   /** Generates typed media fields and a captured edit action from XML. */
   test_function video_range_properties() TestResult<void> {
-    var compiler = markup.Compiler(
-      String("video.view.xml"),
-      String(
+    var compiler = try markup.Compiler(
+      try String("video.view.xml"),
+      try String(
         "<Views module=\"app\"><View name=\"view\" state=\"State\"><Video key=\"preview\" text=\"{state.path.clone(a)}\" duration=\"4000000\" frameRateNum=\"30000\" frameRateDen=\"1001\" trimStart=\"500000\" trimEnd=\"2000000\" position=\"1000000\" changeAction=\"15\"/></View></Views>"
       )
     );
@@ -48,9 +48,9 @@ module markup_tests {
 
   /** Preserves borderless panel styling in both resources and inline XML properties. */
   test_function flat_panel_styles() TestResult<void> {
-    var compiler = markup.Compiler(
-      String("panel.view.xml"),
-      String(
+    var compiler = try markup.Compiler(
+      try String("panel.view.xml"),
+      try String(
         "<Views module=\"app\"><Resources name=\"resources\"><Style name=\"panel\"><Normal borderWidth=\"0\" radius=\"16\" padding=\"18\"/></Style></Resources><View name=\"view\" state=\"State\"><Column borderWidth=\"0\" radius=\"8\" padding=\"12\"/></View></Views>"
       )
     );
@@ -63,9 +63,9 @@ module markup_tests {
 
   /** Preserves explicit ownership expressions without inserting copies. */
   test_function expressions_and_conditions() TestResult<void> {
-    var compiler = markup.Compiler(
-      String("conditional.view.xml"),
-      String(
+    var compiler = try markup.Compiler(
+      try String("conditional.view.xml"),
+      try String(
         "<Views module=\"app\"><View name=\"view\" state=\"State\"><If test=\"{state.visible}\"><Label text=\"{state.name.clone(a)}\"/><Else><Label text=\"Hidden\"/></Else></If></View></Views>"
       )
     );
@@ -79,9 +79,9 @@ module markup_tests {
 
   /** Emits one collection evaluation and a stable per-item scope. */
   test_function keyed_repetition() TestResult<void> {
-    var compiler = markup.Compiler(
-      String("loop.view.xml"),
-      String(
+    var compiler = try markup.Compiler(
+      try String("loop.view.xml"),
+      try String(
         "<Views module=\"app\"><View name=\"view\" state=\"State\"><For each=\"id\" in=\"{state.ids}\" key=\"{id}\"><Button text=\"Item\"/></For></View></Views>"
       )
     );
@@ -95,10 +95,10 @@ module markup_tests {
 
   /** Rejects a bad document with its original filename and location. */
   function rejects(source: static_ptr<u8>, expected: static_ptr<u8>) TestResult<void> {
-    var compiler = markup.Compiler(String("invalid.view.xml"), String(source));
+    var compiler = try markup.Compiler(try String("invalid.view.xml"), try String(source));
     match compiler.compile() {
       SystemResult.Error(error) => {
-        var message = error.message();
+        var message = try error.message();
         try std.test.assert(
           message.contains("invalid.view.xml:"),
           "diagnostic contains source filename"
@@ -150,9 +150,9 @@ module markup_tests {
 
   /** Keeps imported template declarations explicit and source-relative. */
   test_function imports_and_templates() TestResult<void> {
-    var compiler = markup.Compiler(
-      String("app.view.xml"),
-      String(
+    var compiler = try markup.Compiler(
+      try String("app.view.xml"),
+      try String(
         "<Views module=\"app\"><Import name=\"Card\" function=\"parts.Card\" source=\"parts/card.view.xml\"><Param name=\"title\" type=\"String\"/></Import><View name=\"view\" state=\"State\"><Card title=\"Hello\"/></View></Views>"
       )
     );
@@ -183,31 +183,31 @@ module markup_tests {
   /** Compiles generated Sun to prove invalid property expressions fail real type checking. */
   test_function generated_type_error() TestResult<void> {
     var a = make_heap_allocator();
-    var compiler = markup.Compiler(
-      String("invalid-type.view.xml"),
-      String(
+    var compiler = try markup.Compiler(
+      try String("invalid-type.view.xml"),
+      try String(
         "<Views module=\"app\"><View name=\"view\" state=\"i64\"><Label text=\"{42}\"/></View></Views>"
       )
     );
     try compiler.compile();
-    compiler.output.append(
+    try compiler.output.append(
       "\n/** Drives type checking of a deliberately invalid generated view. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n"
     );
-    var path = String("tmp/markup-invalid-type.sun");
+    var path = try String("tmp/markup-invalid-type.sun");
     try std.io.write_string(path, compiler.output);
-    var env = std.env.Env(a);
+    var env = try std.env.Env(a);
     var executable = match env.get("SUN_EXECUTABLE") {
-      Option.Some(value) => value.clone(a),
-      Option.None => String("sun")
+      Option.Some(value) => try value.clone(a),
+      Option.None => try String("sun")
     };
-    var command = std.process.Command(a, executable);
-    command.add_arg("--dynamic");
-    command.add_arg("--lib-path");
-    command.add_arg("build");
-    command.add_arg("-c");
-    command.add_arg("-o");
-    command.add_arg("tmp/markup-invalid-type");
-    command.add_arg(path);
+    var command = try std.process.Command(a, executable);
+    try command.add_arg("--dynamic");
+    try command.add_arg("--lib-path");
+    try command.add_arg("build");
+    try command.add_arg("-c");
+    try command.add_arg("-o");
+    try command.add_arg("tmp/markup-invalid-type");
+    try command.add_arg(path);
     var output = try command.output();
     try std.test.assert(
       output.status() != 0,
@@ -222,31 +222,31 @@ module markup_tests {
   /** Ensures generated descriptions cannot silently move strings out of borrowed state. */
   test_function generated_ownership_error() TestResult<void> {
     var a = make_heap_allocator();
-    var compiler = markup.Compiler(
-      String("invalid-ownership.view.xml"),
-      String(
+    var compiler = try markup.Compiler(
+      try String("invalid-ownership.view.xml"),
+      try String(
         "<Views module=\"app\"><View name=\"view\" state=\"String\"><Label text=\"{state}\"/></View></Views>"
       )
     );
     try compiler.compile();
-    compiler.output.append(
+    try compiler.output.append(
       "\n/** Forces generated ownership checking. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n"
     );
-    var path = String("tmp/markup-invalid-ownership.sun");
+    var path = try String("tmp/markup-invalid-ownership.sun");
     try std.io.write_string(path, compiler.output);
-    var env = std.env.Env(a);
+    var env = try std.env.Env(a);
     var executable = match env.get("SUN_EXECUTABLE") {
-      Option.Some(value) => value.clone(a),
-      Option.None => String("sun")
+      Option.Some(value) => try value.clone(a),
+      Option.None => try String("sun")
     };
-    var command = std.process.Command(a, executable);
-    command.add_arg("--dynamic");
-    command.add_arg("--lib-path");
-    command.add_arg("build");
-    command.add_arg("-c");
-    command.add_arg("-o");
-    command.add_arg("tmp/markup-invalid-ownership");
-    command.add_arg(path);
+    var command = try std.process.Command(a, executable);
+    try command.add_arg("--dynamic");
+    try command.add_arg("--lib-path");
+    try command.add_arg("build");
+    try command.add_arg("-c");
+    try command.add_arg("-o");
+    try command.add_arg("tmp/markup-invalid-ownership");
+    try command.add_arg(path);
     var output = try command.output();
     try std.test.assert(
       output.status() != 0,
@@ -293,31 +293,31 @@ module markup_tests {
   /** Ensures even unused template imports are checked against their declared parameter types. */
   test_function unused_template_signature() TestResult<void> {
     var a = make_heap_allocator();
-    var compiler = markup.Compiler(
-      String("template-type.view.xml"),
-      String(
+    var compiler = try markup.Compiler(
+      try String("template-type.view.xml"),
+      try String(
         "<Views module=\"app\"><Import name=\"Card\" function=\"foreign.Card\"><Param name=\"value\" type=\"i64\"/></Import><Resources name=\"resources\"><Template name=\"card\" value=\"Card\"/></Resources></Views>"
       )
     );
     try compiler.compile();
-    compiler.output.append(
+    try compiler.output.append(
       "\n/** Provides a deliberately incompatible imported component. */\nmodule foreign { /** Takes owned text rather than the declared integer. */ public function Card(view: ref ui.View, parent: i64, value: String) void {} }\n/** Runs signature checking without invoking the resource. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n"
     );
-    var path = String("tmp/markup-template-type.sun");
+    var path = try String("tmp/markup-template-type.sun");
     try std.io.write_string(path, compiler.output);
-    var env = std.env.Env(a);
+    var env = try std.env.Env(a);
     var executable = match env.get("SUN_EXECUTABLE") {
-      Option.Some(value) => value.clone(a),
-      Option.None => String("sun")
+      Option.Some(value) => try value.clone(a),
+      Option.None => try String("sun")
     };
-    var command = std.process.Command(a, executable);
-    command.add_arg("--dynamic");
-    command.add_arg("--lib-path");
-    command.add_arg("build");
-    command.add_arg("-c");
-    command.add_arg("-o");
-    command.add_arg("tmp/markup-template-type");
-    command.add_arg(path);
+    var command = try std.process.Command(a, executable);
+    try command.add_arg("--dynamic");
+    try command.add_arg("--lib-path");
+    try command.add_arg("build");
+    try command.add_arg("-c");
+    try command.add_arg("-o");
+    try command.add_arg("tmp/markup-template-type");
+    try command.add_arg(path);
     var output = try command.output();
     try std.test.assert(
       output.status() != 0,
@@ -393,17 +393,17 @@ module markup_tests {
   /** Discovers typed inputs once and resolves plain component tags without imports. */
   test_function application_component_registry() TestResult<void> {
     var a = make_heap_allocator();
-    var registry = markup.Registry(a);
-    var parts = markup.Compiler(
-      String("parts.view.xml"),
-      String(
+    var registry = try markup.Registry(a);
+    var parts = try markup.Compiler(
+      try String("parts.view.xml"),
+      try String(
         "<Views module=\"parts\"><Component name=\"Caption\"><Param name=\"text\" type=\"String\"/><Label text=\"{text}\"/></Component></Views>"
       )
     );
     try parts.register_components(registry);
-    var consumer = markup.Compiler(
-      String("app.view.xml"),
-      String(
+    var consumer = try markup.Compiler(
+      try String("app.view.xml"),
+      try String(
         "<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption text=\"Hello\"/></View></Views>"
       )
     );
@@ -413,51 +413,59 @@ module markup_tests {
     try std.test.assert(consumer.output.contains("String(\"Hello\")"));
     try parts.use_registry(registry);
     try parts.compile();
-    var missing = markup.Compiler(
-      String("missing.view.xml"),
-      String("<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption/></View></Views>")
+    var missing = try markup.Compiler(
+      try String("missing.view.xml"),
+      try String(
+        "<Views module=\"app\"><View name=\"view\" state=\"i64\"><Caption/></View></Views>"
+      )
     );
     try missing.use_registry(registry);
     match missing.compile() {
       SystemResult.Error(error) => {
-        try std.test.assert(error.message().contains("Missing component input"));
+        try std.test.assert((try error.message()).contains("Missing component input"));
       },
       SystemResult.Ok => {
         try std.test.assert(false, "registered inputs must be checked");
       }
     };
-    var duplicate = markup.Compiler(
-      String("other.view.xml"),
-      String("<Views module=\"other\"><Component name=\"Caption\"><Label/></Component></Views>")
+    var duplicate = try markup.Compiler(
+      try String("other.view.xml"),
+      try String(
+        "<Views module=\"other\"><Component name=\"Caption\"><Label/></Component></Views>"
+      )
     );
     match duplicate.register_components(registry) {
       SystemResult.Error(error) => {
-        try std.test.assert(error.message().contains("Duplicate registered component"));
-        try std.test.assert(error.message().contains("parts.view.xml"));
+        try std.test.assert((try error.message()).contains("Duplicate registered component"));
+        try std.test.assert((try error.message()).contains("parts.view.xml"));
       },
       SystemResult.Ok => {
         try std.test.assert(false, "duplicate registrations accepted");
       }
     };
-    var conflict = markup.Compiler(
-      String("local.view.xml"),
-      String("<Views module=\"local\"><Component name=\"Caption\"><Label/></Component></Views>")
+    var conflict = try markup.Compiler(
+      try String("local.view.xml"),
+      try String(
+        "<Views module=\"local\"><Component name=\"Caption\"><Label/></Component></Views>"
+      )
     );
     match conflict.use_registry(registry) {
       SystemResult.Error(error) => {
-        try std.test.assert(error.message().contains("conflicts"));
+        try std.test.assert((try error.message()).contains("conflicts"));
       },
       SystemResult.Ok => {
         try std.test.assert(false, "local collision accepted");
       }
     };
-    var reserved = markup.Compiler(
-      String("reserved.view.xml"),
-      String("<Views module=\"parts\"><Component name=\"Button\"><Label/></Component></Views>")
+    var reserved = try markup.Compiler(
+      try String("reserved.view.xml"),
+      try String(
+        "<Views module=\"parts\"><Component name=\"Button\"><Label/></Component></Views>"
+      )
     );
     match reserved.register_components(registry) {
       SystemResult.Error(error) => {
-        try std.test.assert(error.message().contains("reserved"));
+        try std.test.assert((try error.message()).contains("reserved"));
       },
       SystemResult.Ok => {
         try std.test.assert(false, "built-in component shadowed");
@@ -467,11 +475,11 @@ module markup_tests {
 
   /** Checks registry diagnostics without starting the command-line generator. */
   function rejects_registry(source: static_ptr<u8>, expected: static_ptr<u8>) TestResult<void> {
-    var compiler = markup.Compiler(String("components.registry.xml"), String(source));
+    var compiler = try markup.Compiler(try String("components.registry.xml"), try String(source));
     match compiler.registry_sources() {
       SystemResult.Error(error) => {
-        try std.test.assert(error.message().contains("components.registry.xml:"));
-        try std.test.assert(error.message().contains(expected));
+        try std.test.assert((try error.message()).contains("components.registry.xml:"));
+        try std.test.assert((try error.message()).contains(expected));
       },
       SystemResult.Ok(_) => {
         try std.test.assert(false, "invalid XML registry accepted");
@@ -482,9 +490,9 @@ module markup_tests {
 
   /** Accepts source lists and rejects malformed registry structure and unsafe paths. */
   test_function xml_component_registry() TestResult<void> {
-    var compiler = markup.Compiler(
-      String("components.registry.xml"),
-      String(
+    var compiler = try markup.Compiler(
+      try String("components.registry.xml"),
+      try String(
         "<ComponentRegistry><!-- reusable parts --><Source path=\"parts/panel.view.xml\"/></ComponentRegistry>"
       )
     );
@@ -511,9 +519,9 @@ module markup_tests {
 
   /** Generates a viewport identifier while retaining ordinary layout properties. */
   test_function viewport_properties() TestResult<void> {
-    var compiler = markup.Compiler(
-      String("viewport.view.xml"),
-      String(
+    var compiler = try markup.Compiler(
+      try String("viewport.view.xml"),
+      try String(
         "<Views module=\"app\"><View name=\"view\" state=\"State\"><Viewport key=\"scene\" viewportId=\"{state.viewport}\" width=\"640\" expandX=\"true\"/></View></Views>"
       )
     );

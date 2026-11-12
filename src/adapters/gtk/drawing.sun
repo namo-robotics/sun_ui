@@ -13,19 +13,21 @@ public module ui_gtk_drawing {
     var status: gtk.Label;
     var area: gtk.DrawingArea;
     var chooser: gtk.SaveDialog;
-    var svg: String = String("");
+    var svg: String;
 
     /** Creates checked widgets and installs the initial figure; GTK owns native lifetimes. */
     init(title: ref String, drawing: const ref ui_drawing.Drawing) SystemResult<void> {
+      this.svg = try String("");
+
       try validate(drawing);
-      var id = String("org.sunlang.PlotViewer");
+      var id = try String("org.sunlang.PlotViewer");
       this.app = try gtk.Application(id);
       this.window = gtk.Window(this.app);
       this.layout = try gtk.Box(gtk.Orientation.Vertical, 8);
       this.toolbar = try gtk.Box(gtk.Orientation.Horizontal, 12);
-      var label = String("Export SVG…");
+      var label = try String("Export SVG…");
       this.export_button = try gtk.Button(label);
-      var empty = String("");
+      var empty = try String("");
       this.status = try gtk.Label(empty);
       this.area = try gtk.DrawingArea();
       this.chooser = gtk.SaveDialog();
@@ -50,7 +52,7 @@ public module ui_gtk_drawing {
         return SystemResult.Error(Error(1, "Plot window is closed"));
       }
       try validate(drawing);
-      var content = drawing.svg();
+      var content = try drawing.svg();
       var document = try svg.Document(content);
       this.area.set_document(document);
       this.svg = content;
@@ -64,12 +66,13 @@ public module ui_gtk_drawing {
       }
       match std.io.write_string(path, this.svg) {
         SystemResult.Ok => {
-          var message = `Saved: ${path}`;
+          var message = try `Saved: ${path}`;
           ignore_error(this.status.set_text(message));
           return SystemResult.Ok;
         },
         SystemResult.Error(error) => {
-          var message = String("Export failed. Check the destination and try again.");
+          var message = try String("Export failed. Check the destination and try again.");
+
           ignore_error(this.status.set_text(message));
           return SystemResult.Error(error);
         }
@@ -77,10 +80,10 @@ public module ui_gtk_drawing {
     }
 
     /** Opens one chooser and consumes its result at the application dispatch boundary. */
-    method process_export() void {
+    method process_export() AllocationResult<void> {
       if (this.export_button.take_click() and this.chooser.is_open() == false) {
-        var title = String("Export plot as SVG");
-        var filename = String("scientific-plot.svg");
+        var title = try String("Export plot as SVG");
+        var filename = try String("scientific-plot.svg");
         ignore_error(this.chooser.show(this.window, title, filename));
       }
       match this.chooser.take_path() {
@@ -93,10 +96,13 @@ public module ui_gtk_drawing {
           };
         },
         SystemResult.Error(_) => {
-          var message = String("Export requires a local file destination.");
+          var message = try String("Export requires a local file destination.");
+
           ignore_error(this.status.set_text(message));
         }
       };
+
+      return AllocationResult.Ok;
     }
 
     /** Reports successful native rendering of the current figure. */
@@ -105,21 +111,23 @@ public module ui_gtk_drawing {
     }
 
     /** Pumps the native context, then applies export and render-error presentation policy. */
-    public method poll(block: bool) void {
+    public method poll(block: bool) AllocationResult<void> {
       if (this.running() == false) {
         this.chooser.cancel();
-        return;
+        return AllocationResult.Ok;
       }
       this.app.iterate(block);
       if (this.running()) {
-        this.process_export();
+        try this.process_export();
         if (this.area.render_failed()) {
-          var message = String("Could not render the current figure.");
+          var message = try String("Could not render the current figure.");
           ignore_error(this.status.set_text(message));
         }
       } else {
         this.chooser.cancel();
       }
+
+      return AllocationResult.Ok;
     }
 
     /** Reports whether the plot window is still open. */

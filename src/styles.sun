@@ -7,17 +7,19 @@ public module ui {
   public class Appearance {
     public var foreground: i64 = -1;
     public var background: i64 = -1;
-    public var font: String = String("");
+    public var font: String;
     public var font_size: i32 = -1;
     public var border_width: i32 = -1;
     public var radius: i32 = -1;
     public var padding: i32 = -1;
 
     /** Creates an empty override; colors use packed RGB values. */
-    init() {}
+    init() AllocationResult<void> {
+      this.font = try String("");
+    }
 
     /** Copies only explicitly supplied properties from a higher-precedence appearance. */
-    public method overlay(other: const ref Appearance) void {
+    public method overlay(other: const ref Appearance) AllocationResult<void> {
       var a = make_heap_allocator();
       if (other.foreground >= 0) {
         this.foreground = other.foreground;
@@ -26,7 +28,7 @@ public module ui {
         this.background = other.background;
       }
       if (not other.font.is_empty()) {
-        this.font = other.font.clone(a);
+        this.font = try other.font.clone(a);
       }
       if (other.border_width >= 0) {
         this.border_width = other.border_width;
@@ -40,6 +42,8 @@ public module ui {
       if (other.font_size >= 0) {
         this.font_size = other.font_size;
       }
+
+      return AllocationResult.Ok;
     }
 
     /** Compares resolved properties without allocating. */
@@ -72,20 +76,27 @@ public module ui {
 
   /** Owns normal and interaction-state overrides for one control. */
   public class Style {
-    public var normal: Appearance = Appearance();
-    public var hover: Appearance = Appearance();
-    public var focus: Appearance = Appearance();
-    public var disabled: Appearance = Appearance();
+    public var normal: Appearance;
+    public var hover: Appearance;
+    public var focus: Appearance;
+    public var disabled: Appearance;
 
     /** Creates an empty style that inherits native defaults. */
-    init() {}
+    init() AllocationResult<void> {
+      this.normal = try Appearance();
+      this.hover = try Appearance();
+      this.focus = try Appearance();
+      this.disabled = try Appearance();
+    }
 
     /** Applies a higher-precedence style without retaining references. */
-    public method overlay(other: const ref Style) void {
-      this.normal.overlay(other.normal);
-      this.hover.overlay(other.hover);
-      this.focus.overlay(other.focus);
-      this.disabled.overlay(other.disabled);
+    public method overlay(other: const ref Style) AllocationResult<void> {
+      try this.normal.overlay(other.normal);
+      try this.hover.overlay(other.hover);
+      try this.focus.overlay(other.focus);
+      try this.disabled.overlay(other.disabled);
+
+      return AllocationResult.Ok;
     }
 
     /** Compares all interaction states. */
@@ -106,16 +117,24 @@ public module ui {
 
   /** Records typed palette references for one resource appearance. */
   public class AppearanceReferences {
-    public var foreground: String = String("");
-    public var background: String = String("");
-    public var font: String = String("");
-    public var font_size: String = String("");
-    public var border_width: String = String("");
-    public var radius: String = String("");
-    public var padding: String = String("");
+    public var foreground: String;
+    public var background: String;
+    public var font: String;
+    public var font_size: String;
+    public var border_width: String;
+    public var radius: String;
+    public var padding: String;
 
     /** Creates an appearance without palette references. */
-    init() {}
+    init() AllocationResult<void> {
+      this.foreground = try String("");
+      this.background = try String("");
+      this.font = try String("");
+      this.font_size = try String("");
+      this.border_width = try String("");
+      this.radius = try String("");
+      this.padding = try String("");
+    }
   }
 
   /** Associates a control kind with its resolved default style. */
@@ -132,12 +151,14 @@ public module ui {
 
   /** Owns a base appearance and explicit defaults for native control kinds. */
   public class Theme {
-    public var base: Style = Style();
+    public var base: Style;
     public var defaults: Vec<ThemeDefault>;
 
     /** Allocates an empty theme without replacing native defaults. */
-    init(a: const ref HeapAllocator) {
-      this.defaults = Vec<ThemeDefault>(a, 4);
+    init(a: const ref HeapAllocator) AllocationResult<void> {
+      this.base = try Style();
+
+      this.defaults = try Vec<ThemeDefault>(a, 4);
     }
 
     /** Rejects duplicate defaults and invalid appearances. */
@@ -181,19 +202,31 @@ public module ui {
     public var name: String;
     public var kind: ResourceKind;
     public var number: i64 = 0;
-    public var text: String = String("");
-    public var style: Style = Style();
-    public var reference: String = String("");
-    public var based_on: String = String("");
-    public var normal_references: AppearanceReferences = AppearanceReferences();
-    public var hover_references: AppearanceReferences = AppearanceReferences();
-    public var focus_references: AppearanceReferences = AppearanceReferences();
-    public var disabled_references: AppearanceReferences = AppearanceReferences();
-    public var defaults: Vec<ThemeReference> = Vec<ThemeReference>(make_heap_allocator(), 4);
+    public var text: String;
+    public var style: Style;
+    public var reference: String;
+    public var based_on: String;
+    public var normal_references: AppearanceReferences;
+    public var hover_references: AppearanceReferences;
+    public var focus_references: AppearanceReferences;
+    public var disabled_references: AppearanceReferences;
+    public var defaults: Vec<ThemeReference>;
     var scope: i64 = 0;
 
     /** Transfers the resource name into a typed definition. */
-    init(name: String, kind: ResourceKind) {
+    init(name: String, kind: ResourceKind) AllocationResult<void> {
+      this.style = try Style();
+
+      this.normal_references = try AppearanceReferences();
+      this.hover_references = try AppearanceReferences();
+      this.focus_references = try AppearanceReferences();
+      this.disabled_references = try AppearanceReferences();
+
+      this.text = try String("");
+      this.reference = try String("");
+      this.based_on = try String("");
+      this.defaults = try Vec<ThemeReference>(make_heap_allocator(), 4);
+
       this.name = name;
       this.kind = kind;
     }
@@ -205,11 +238,11 @@ public module ui {
     var parents: Vec<i64>;
 
     /** Creates theme scope zero and application scope one. */
-    init(a: const ref HeapAllocator) {
-      this.entries = Vec<Resource>(a, 8);
-      this.parents = Vec<i64>(a, 4);
-      this.parents.push(-1);
-      this.parents.push(0);
+    init(a: const ref HeapAllocator) AllocationResult<void> {
+      this.entries = try Vec<Resource>(a, 8);
+      this.parents = try Vec<i64>(a, 4);
+      try this.parents.push(-1);
+      try this.parents.push(0);
     }
 
     /** Creates a component dictionary with an explicitly selected enclosing scope. */
@@ -218,7 +251,7 @@ public module ui {
         return SystemResult.Error(Error(1, "Invalid resource parent scope"));
       }
       var index = this.parents.size();
-      this.parents.push(parent);
+      try this.parents.push(parent);
       return SystemResult.Ok(index);
     }
 
@@ -233,7 +266,7 @@ public module ui {
         }
       }
       resource.scope = scope;
-      this.entries.push(resource);
+      try this.entries.push(resource);
       return SystemResult.Ok;
     }
 
@@ -286,8 +319,8 @@ public module ui {
             return SystemResult.Error(Error(1, "Empty text resource"));
           }
           if (resource.kind == ResourceKind.Font) {
-            var appearance = Appearance();
-            appearance.font = this.entries[index].text.clone(a);
+            var appearance = try Appearance();
+            appearance.font = try this.entries[index].text.clone(a);
             if (not appearance.valid()) {
               return SystemResult.Error(Error(1, "Invalid font resource"));
             }
@@ -325,7 +358,7 @@ public module ui {
       }
       var a = make_heap_allocator();
       var i = try this.resolve(scope, name, kind);
-      return SystemResult.Ok(this.entries[i].text.clone(a));
+      return SystemResult.Ok(try this.entries[i].text.clone(a));
     }
 
     /** Resolves a palette-backed appearance in the dictionary that defines it. */
@@ -334,8 +367,8 @@ public module ui {
       value: const ref Appearance,
       references: const ref AppearanceReferences
     ) SystemResult<Appearance> {
-      var result = Appearance();
-      result.overlay(value);
+      var result = try Appearance();
+      try result.overlay(value);
       if (not references.foreground.is_empty()) {
         if (value.foreground >= 0) {
           return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
@@ -406,12 +439,14 @@ public module ui {
     public const method theme(scope: i64, name: const ref String) SystemResult<Theme> {
       var i = try this.resolve(scope, name, ResourceKind.Theme);
       var resource = this.entries[i];
-      var result = Theme(make_heap_allocator());
+      var result = try Theme(make_heap_allocator());
       if (not resource.based_on.is_empty()) {
         result.base = try this.style(resource.scope, resource.based_on);
       }
       for (var entry: ref ThemeReference in resource.defaults) {
-        result.defaults.push(ThemeDefault(entry.kind, try this.style(resource.scope, entry.name)));
+        try result.defaults.push(
+          ThemeDefault(entry.kind, try this.style(resource.scope, entry.name))
+        );
       }
       try result.validate();
       return SystemResult.Ok(result);
@@ -420,7 +455,7 @@ public module ui {
     /** Resolves a style's inheritance chain from base to derived. */
     public const method style(scope: i64, name: const ref String) SystemResult<Style> {
       var a = make_heap_allocator();
-      var chain = Vec<i64>(a, 4);
+      var chain = try Vec<i64>(a, 4);
       var i = try this.resolve(scope, name, ResourceKind.Style);
       while (true) {
         for (var j: i64 = 0; j < chain.size(); j += 1) {
@@ -428,16 +463,16 @@ public module ui {
             return SystemResult.Error(Error(1, "Style inheritance cycle"));
           }
         }
-        chain.push(i);
+        try chain.push(i);
         if (this.entries[i].based_on.is_empty()) {
           break;
         }
         i = try this.resolve(this.entries[i].scope, this.entries[i].based_on, ResourceKind.Style);
       }
-      var result = Style();
+      var result = try Style();
       for (var j = chain.size() - 1; j >= 0; j -= 1) {
         var resource = this.entries[chain[j]];
-        var resolved = Style();
+        var resolved = try Style();
         resolved.normal = try this.appearance(
           resource.scope,
           resource.style.normal,
@@ -458,7 +493,7 @@ public module ui {
           resource.style.disabled,
           resource.disabled_references
         );
-        result.overlay(resolved);
+        try result.overlay(resolved);
       }
       if (not result.valid()) {
         return SystemResult.Error(Error(1, "Invalid style resource"));

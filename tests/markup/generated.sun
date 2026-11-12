@@ -11,8 +11,8 @@ module counter {
     var a = make_heap_allocator();
     var state: i64 = 7;
     var generated = view(state);
-    var handwritten = ui.View(a);
-    handwritten.button(1, String("Count: 7"), 1, 0);
+    var handwritten = try ui.View(a);
+    handwritten.button(1, try String("Count: 7"), 1, 0);
     try std.test.assert_eq(generated.elements.size(), handwritten.elements.size());
     try std.test.assert(
       generated.elements[0].key.equals(handwritten.elements[0].key),
@@ -66,10 +66,12 @@ module action_checks {
   /** Owns state edited only after an action is delivered. */
   class State {
     var count: i64 = 0;
-    var text: String = String("");
+    var text: String;
 
     /** Creates empty application state. */
-    init() {}
+    init() AllocationResult<void> {
+      this.text = try String("");
+    }
 
     /** Handles a method action without exposing application state to native callbacks. */
     public method advance(event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
@@ -79,7 +81,7 @@ module action_checks {
 
     /** Accepts the text value captured when an editable control changed. */
     public method edit(event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
-      this.text = event.value.text.clone(make_heap_allocator());
+      this.text = try event.value.text.clone(make_heap_allocator());
       return SystemResult.Ok;
     }
   }
@@ -105,34 +107,34 @@ module action_checks {
   }
 
   /** Copies a description's route as the framework does when capturing a native signal. */
-  function event(element: const ref ui.Element) ui.Event {
-    var value = ui.Event(1, element.action, element.payload);
-    value.action_scope = element.action_scope.clone(make_heap_allocator());
-    return value;
+  function event(element: const ref ui.Element) AllocationResult<ui.Event> {
+    var value = try ui.Event(1, element.action, element.payload);
+    value.action_scope = try element.action_scope.clone(make_heap_allocator());
+    return AllocationResult.Ok(value);
   }
 
   /** Verifies typed calls, edit values, collision-free numeric fallback, and stable automatic keys. */
   test_function named_actions_and_automatic_keys() ActionResult {
     var a = make_heap_allocator();
-    var state = State();
-    var queue = ui.EventQueue(a);
+    var state = try State();
+    var queue = try ui.EventQueue(a);
     var description = view(state);
     try std.test.assert(description.elements[0].tooltip.equals_literal("Increment the counter"));
     try std.test.assert(description.elements[0].icon.equals_literal("list-add-symbolic"));
     try std.test.assert_eq(state.count, 0);
-    var first = event(description.elements[0]);
+    var first = try event(description.elements[0]);
     try view_handle(state, first, queue);
-    var second = event(description.elements[1]);
+    var second = try event(description.elements[1]);
     try view_handle(state, second, queue);
     try std.test.assert_eq(state.count, 13);
-    var edit = event(description.elements[2]);
-    edit.value = ui.EventValue(String("captured"));
+    var edit = try event(description.elements[2]);
+    edit.value = try ui.EventValue(try String("captured"));
     try view_handle(state, edit, queue);
     try std.test.assert(
       state.text.equals_literal("captured"),
       "change action receives owned captured text"
     );
-    var fallback = event(description.elements[3]);
+    var fallback = try event(description.elements[3]);
     try std.test.assert_eq(fallback.action, first.action);
     try view_handle(state, fallback, queue);
     try std.test.assert_eq(state.count, 113);
@@ -149,7 +151,7 @@ module action_checks {
         );
       }
     }
-    first.action_scope = String("another-view");
+    first.action_scope = try String("another-view");
     match view_handle(state, first, queue) {
       SystemResult.Error(_) => {},
       SystemResult.Ok => {
@@ -167,11 +169,11 @@ module reusable_checks {
   enum ReusableResult { Ok, Assertion(std.test.AssertionError), System(Error) }
 
   /** Supplies stable keys for repeated caller content. */
-  function ids() Vec<i64> {
-    var values = Vec<i64>(make_heap_allocator(), 2);
-    values.push(10);
-    values.push(20);
-    return values;
+  function ids() AllocationResult<Vec<i64>> {
+    var values = try Vec<i64>(make_heap_allocator(), 2);
+    try values.push(10);
+    try values.push(20);
+    return AllocationResult.Ok(values);
   }
 
   /** Receives a named action from caller-owned XML content. */
@@ -211,9 +213,9 @@ module reusable_checks {
       }
       if (node.kind == ui.Kind.Button) {
         try std.test.assert(node.text.equals_literal("Value: 4"));
-        var event = ui.Event(1, node.action, 0);
-        event.action_scope = node.action_scope.clone(a);
-        var queue = ui.EventQueue(a);
+        var event = try ui.Event(1, node.action, 0);
+        event.action_scope = try node.action_scope.clone(a);
+        var queue = try ui.EventQueue(a);
         try view_handle(state, event, queue);
         clicks += 1;
       }

@@ -8,8 +8,8 @@ module markup_pipeline_tests {
 
   /** Writes a fixture owned by this test under the workspace temporary directory. */
   function write(path: static_ptr<u8>, text: static_ptr<u8>) SystemResult<void> {
-    var filename = String(path);
-    var source = String(text);
+    var filename = try String(path);
+    var source = try String(text);
     return std.io.write_string(filename, source);
   }
 
@@ -17,18 +17,18 @@ module markup_pipeline_tests {
   function generate() SystemResult<std.process.Output> {
     var a = make_heap_allocator();
     var target = try build_targets.load("sun_viewc");
-    var command = std.process.Command(a, target.output);
-    command.add_arg("tmp/markup-pipeline/main.view.xml");
-    command.add_arg("build/generated/tests/pipeline/main.view.sun");
+    var command = try std.process.Command(a, target.output);
+    try command.add_arg("tmp/markup-pipeline/main.view.xml");
+    try command.add_arg("build/generated/tests/pipeline/main.view.sun");
     return command.output();
   }
 
   /** Regenerates imported changes deterministically and rejects invalid dependency graphs. */
   test_function import_regeneration_and_failures() TestResult<void> {
     var a = make_heap_allocator();
-    var mkdir = std.process.Command(a, "mkdir");
-    mkdir.add_arg("-p");
-    mkdir.add_arg("tmp/markup-pipeline/parts");
+    var mkdir = try std.process.Command(a, "mkdir");
+    try mkdir.add_arg("-p");
+    try mkdir.add_arg("tmp/markup-pipeline/parts");
     try std.test.assert_eq(try mkdir.status(), 0);
     try write(
       "tmp/markup-pipeline/main.view.xml",
@@ -40,9 +40,10 @@ module markup_pipeline_tests {
     );
     var first = try generate();
     try std.test.assert_eq(first.status(), 0);
-    var path = String("build/generated/tests/pipeline/main.view.sun");
+    var path = try String("build/generated/tests/pipeline/main.view.sun");
     var original = try std.io.read_to_string(a, path);
-    var map_path = String("build/generated/tests/pipeline/main.view.sun.map");
+    var map_path = try String("build/generated/tests/pipeline/main.view.sun.map");
+
     var original_map = try std.io.read_to_string(a, map_path);
     try std.test.assert(
       original_map.contains("tmp/markup-pipeline/parts/footer.view.xml"),
@@ -117,9 +118,10 @@ module markup_pipeline_tests {
       "tmp/markup-map.sun.map",
       "1\t0\ttmp/markup-map-source.view.xml\n5\t13\ttmp/markup-map-source.view.xml\n"
     );
-    var generated = String("tmp/markup-map.sun");
-    var original = String("unused.view.xml");
-    var diagnostic = String("/workspace/tmp/markup-map.sun:6:3: error: expected String\n");
+    var generated = try String("tmp/markup-map.sun");
+    var original = try String("unused.view.xml");
+    var diagnostic = try String("/workspace/tmp/markup-map.sun:6:3: error: expected String\n");
+
     var messages = try build_diagnostics.mapped(diagnostic, generated, original);
     try std.test.assert(
       messages.contains("tmp/markup-map-source.view.xml:2:4:"),
@@ -135,14 +137,14 @@ module markup_pipeline_tests {
   function generate_registered(explicit_registry: bool) SystemResult<std.process.Output> {
     var a = make_heap_allocator();
     var target = try build_targets.load("sun_viewc");
-    var command = std.process.Command(a, target.output);
-    command.add_arg(
+    var command = try std.process.Command(a, target.output);
+    try command.add_arg(
       explicit_registry ? "tmp/registry-pipeline/views/main.view.xml" : "tmp/registry-pipeline/main.view.xml"
     );
-    command.add_arg("build/generated/tests/registry/main.view.sun");
+    try command.add_arg("build/generated/tests/registry/main.view.sun");
     if (explicit_registry) {
-      command.add_arg("--registry");
-      command.add_arg("tmp/registry-pipeline/components.registry.xml");
+      try command.add_arg("--registry");
+      try command.add_arg("tmp/registry-pipeline/components.registry.xml");
     }
     return command.output();
   }
@@ -150,9 +152,9 @@ module markup_pipeline_tests {
   /** Checks registry discovery, source regeneration, deduplication, and failure diagnostics. */
   test_function registry_pipeline() TestResult<void> {
     var a = make_heap_allocator();
-    var mkdir = std.process.Command(a, "mkdir");
-    mkdir.add_arg("-p");
-    mkdir.add_arg("tmp/registry-pipeline/views");
+    var mkdir = try std.process.Command(a, "mkdir");
+    try mkdir.add_arg("-p");
+    try mkdir.add_arg("tmp/registry-pipeline/views");
     try std.test.assert_eq(try mkdir.status(), 0);
     try write(
       "tmp/registry-pipeline/main.view.xml",
@@ -172,8 +174,9 @@ module markup_pipeline_tests {
     );
     var first = try generate_registered(false);
     try std.test.assert_eq(first.status(), 0);
-    var output = String("build/generated/tests/registry/main.view.sun");
-    var map = String("build/generated/tests/registry/main.view.sun.map");
+    var output = try String("build/generated/tests/registry/main.view.sun");
+    var map = try String("build/generated/tests/registry/main.view.sun.map");
+
     var original = try std.io.read_to_string(a, output);
     var mapping = try std.io.read_to_string(a, map);
     try std.test.assert(original.contains("parts.Caption(result,"));

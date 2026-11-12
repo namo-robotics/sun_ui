@@ -4,16 +4,16 @@ using std;
 module drawing_controls {
 
   /** Describes a drawing leaf beside an ordinary control. */
-  function view(id: const ref i64) ui.View {
+  function view(id: const ref i64) AllocationResult<ui.View> {
     var a = make_heap_allocator();
-    var v = ui.View(a);
-    v.button(1, String("Drawing surface"), 1, 0);
-    var e = ui.Element(ui.Key(2), ui.Kind.Drawing);
+    var v = try ui.View(a);
+    v.button(1, try String("Drawing surface"), 1, 0);
+    var e = try ui.Element(try ui.Key(2), ui.Kind.Drawing);
     e.drawing_id = id;
     e.min_width = 400;
     e.min_height = 300;
-    v.append(-1, e);
-    return v;
+    try v.append(-1, e);
+    return AllocationResult.Ok(v);
   }
 
   /** Leaves the example state unchanged when its illustrative button is clicked. */
@@ -27,9 +27,9 @@ module drawing_controls {
 
   /** Paints a document after its temporary SVG owner leaves scope. */
   function update(area: ref gtk.DrawingArea, text: static_ptr<u8>) SystemResult<void> {
-    var d = ui_drawing.Drawing(400.0, 300.0);
-    d.text(30.0, 50.0, String(text), 24.0, false, 0.0);
-    var content = d.svg();
+    var d = try ui_drawing.Drawing(400.0, 300.0);
+    d.text(30.0, 50.0, try String(text), 24.0, false, 0.0);
+    var content = try d.svg();
     var document = try svg.Document(content);
     area.set_document(document);
     return SystemResult.Ok;
@@ -54,7 +54,7 @@ module drawing_controls {
 
   /** Validates registrations, replacements, retention, redraw, and mounted cleanup rules. */
   public function run() SystemResult<void> {
-    var title = String("Embedded drawings");
+    var title = try String("Embedded drawings");
     var renderer = try ui_gtk.Renderer(title);
     var first = try gtk.DrawingArea();
     var second = try gtk.DrawingArea();
@@ -102,20 +102,22 @@ module drawing_controls {
     if (renderer.creates != renderer.removals) {
       return SystemResult.Error(Error(1, "Mounted controls leaked"));
     }
-    println("Drawing controls acceptance passed");
+    std.io.println("Drawing controls acceptance passed");
     return SystemResult.Ok;
   }
 }
 
 /** Runs the bounded drawing integration scenario. */
-function main() i32 {
-  return match drawing_controls.run() {
-    SystemResult.Ok => 0,
-    SystemResult.Error(error) => {
-      eprintln(error.message());
-      return 1;
+function main() AllocationResult<i32> {
+  return AllocationResult.Ok(
+    match drawing_controls.run() {
+      SystemResult.Ok => 0,
+      SystemResult.Error(error) => {
+        std.io.eprintln(try error.message());
+        return AllocationResult.Ok(1);
+      }
     }
-  };
+  );
 }
 manifest {
   libraries: [

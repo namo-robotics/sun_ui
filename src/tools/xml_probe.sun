@@ -1,53 +1,56 @@
 using std;
 
 /** Verifies reader and attribute spans in the selected compiler's standard library. */
-function main() i32 {
+function main() AllocationResult<i32> {
   var a = make_heap_allocator();
-  var input = String("<probe value=\"1\"/>");
-  var reader = XmlReader(a, input);
+  var input = try String("<probe value=\"1\"/>");
+  var reader = try std.xml.XmlReader(a, input);
   match reader.next() {
-    XmlResult.Ok(event) => {
+    std.xml.XmlResult.Ok(event) => {
       match event {
         Option.Some(value) => {
           match value {
-            XmlEvent.Start(element) => {
+            std.xml.XmlEvent.Start(element) => {
               var span = reader.source_span();
               if (span.start != 0 or span.end != input.length()) {
-                return 1;
+                return AllocationResult.Ok(1);
               }
               match element.attribute_source_span(0) {
-                XmlResult.Ok(attribute) => {
+                std.xml.XmlResult.Ok(attribute) => {
                   match attribute {
                     Option.Some(range) => {
-                      return range.start == 7 and range.end == 16 ? 0 : 1;
+                      return AllocationResult.Ok(range.start == 7 and range.end == 16 ? 0 : 1);
                     },
                     Option.None => {
-                      return 1;
+                      return AllocationResult.Ok(1);
                     }
                   };
                 },
-                XmlResult.Error(_) => {
-                  return 1;
+                std.xml.XmlResult.Error(_) => {
+                  return AllocationResult.Ok(1);
                 }
               };
             },
             _ => {
-              return 1;
+              return AllocationResult.Ok(1);
             }
           };
         },
         Option.None => {
-          return 1;
+          return AllocationResult.Ok(1);
         }
       };
     },
-    XmlResult.Error(_) => {
-      return 1;
+    std.xml.XmlResult.Error(_) => {
+      return AllocationResult.Ok(1);
     }
   };
-  return 1;
+  return AllocationResult.Ok(1);
 }
 manifest {
+  source_files: [
+    "../results.sun"
+  ]
   libraries: [
     "stdlib.moon"
   ]

@@ -7,15 +7,19 @@ public module ui {
   public class Key {
     var symbolic: bool = false;
     var number: i64 = 0;
-    var name: String = String("");
+    var name: String;
 
     /** Creates an integer key. */
-    init(value: i64) {
+    init(value: i64) AllocationResult<void> {
+      this.name = try String("");
+
       this.number = value;
     }
 
     /** Creates an owned symbolic key. */
-    init(value: String) {
+    init(value: String) AllocationResult<void> {
+      this.name = try String("");
+
       this.symbolic = true;
       this.name = value;
     }
@@ -27,22 +31,22 @@ public module ui {
     }
 
     /** Encodes a key for a native event snapshot without losing its type. */
-    public const method encoded() String {
-      var result = String(this.symbolic ? "s:" : "n:");
+    public const method encoded() AllocationResult<String> {
+      var result = try String(this.symbolic ? "s:" : "n:");
       if (this.symbolic) {
-        result.append(this.name);
+        try result.append(this.name);
       } else {
-        result.append(this.number);
+        try result.append(this.number);
       }
-      return result;
+      return AllocationResult.Ok(result);
     }
 
     /** Explicitly copies a key for a path or retained description. */
-    public const method clone(a: const ref HeapAllocator) Key {
+    public const method clone(a: const ref HeapAllocator) AllocationResult<Key> {
       if (this.symbolic) {
-        return Key(this.name.clone(a));
+        return AllocationResult.Ok(try Key(try this.name.clone(a)));
       }
-      return Key(this.number);
+      return AllocationResult.Ok(try Key(this.number));
     }
   }
 
@@ -97,15 +101,15 @@ public module ui {
   public class Element {
     public var key: Key;
     public var kind: Kind;
-    public var tooltip: String = String("");
-    public var icon: String = String("");
+    public var tooltip: String;
+    public var icon: String;
     public var trim_ranges: Vec<TrimRange>;
     public var active_range: i64 = 0;
-    public var template_id: String = String("");
+    public var template_id: String;
     public var parent: i64 = -1;
-    public var text: String = String("");
+    public var text: String;
     public var action: i64 = 0;
-    public var action_scope: String = String("");
+    public var action_scope: String;
     public var payload: i64 = 0;
     public var enabled: bool = true;
     public var visible: bool = true;
@@ -134,21 +138,31 @@ public module ui {
     public var column: i32 = 0;
     public var row_span: i32 = 1;
     public var column_span: i32 = 1;
-    public var style: Style = Style();
-    public var overrides: Style = Style();
+    public var style: Style;
+    public var overrides: Style;
     public var choices: Vec<Choice>;
     public var rows: Vec<Track>;
     public var columns: Vec<Track>;
 
     /** Allocates property collections explicitly for a typed node. */
-    init(key: Key, kind: Kind) {
+    init(key: Key, kind: Kind) AllocationResult<void> {
+      this.overrides = try Style();
+
+      this.style = try Style();
+
+      this.tooltip = try String("");
+      this.icon = try String("");
+      this.template_id = try String("");
+      this.text = try String("");
+      this.action_scope = try String("");
+
       var a = make_heap_allocator();
       this.key = key;
       this.kind = kind;
-      this.trim_ranges = Vec<TrimRange>(a, 4);
-      this.choices = Vec<Choice>(a, 4);
-      this.rows = Vec<Track>(a, 4);
-      this.columns = Vec<Track>(a, 4);
+      this.trim_ranges = try Vec<TrimRange>(a, 4);
+      this.choices = try Vec<Choice>(a, 4);
+      this.rows = try Vec<Track>(a, 4);
+      this.columns = try Vec<Track>(a, 4);
     }
 
     /** Reports whether a node can own children. */
@@ -223,145 +237,167 @@ public module ui {
   /** Owns parent-before-child descriptions and optional post-commit focus effects. */
   public class View {
     public var elements: Vec<Element>;
-    public var theme: Style = Style();
-    public var control_defaults: Vec<ThemeDefault> = Vec<ThemeDefault>(make_heap_allocator(), 4);
+    public var theme: Style;
+    public var control_defaults: Vec<ThemeDefault>;
     public var resources: Resources;
     public var resource_scope: i64 = 1;
-    public var construction_error: String = String("");
+    public var construction_error: String;
     public var focus_key: Option<i64> = Option.None;
     public var focus_path: Vec<Key>;
 
     /** Allocates this render's descriptions and focus path. */
-    init(a: const ref HeapAllocator) {
-      this.resources = Resources(a);
-      this.elements = Vec<Element>(a, 8);
-      this.focus_path = Vec<Key>(a, 4);
+    init(a: const ref HeapAllocator) AllocationResult<void> {
+      this.theme = try Style();
+
+      this.control_defaults = try Vec<ThemeDefault>(make_heap_allocator(), 4);
+      this.construction_error = try String("");
+
+      this.resources = try Resources(a);
+      this.elements = try Vec<Element>(a, 8);
+      this.focus_path = try Vec<Key>(a, 4);
     }
 
     /** Retains the first construction failure for atomic rejection before rendering. */
-    public method reject(error: Error) void {
+    public method reject(error: const ref IError) AllocationResult<void> {
       if (this.construction_error.is_empty()) {
-        this.construction_error = error.message().clone(make_heap_allocator());
+        this.construction_error = try error.message();
       }
+
+      return AllocationResult.Ok;
     }
 
     /** Installs an owned application dictionary or retains its construction error. */
-    public method set_resources(resources: SystemResult<Resources>) void {
+    public method set_resources(resources: SystemResult<Resources>) AllocationResult<void> {
       match resources {
         SystemResult.Ok(value) => {
           this.resources = value;
         },
-        SystemResult.Error(error) => {
-          this.reject(error);
+        (error: const ref IError) => {
+          try this.reject(error);
         }
       };
+
+      return AllocationResult.Ok;
     }
 
     /** Applies an owned theme, retaining validation failures for atomic preflight. */
-    public method set_theme(value: Theme) void {
+    public method set_theme(value: Theme) AllocationResult<void> {
       match value.validate() {
         SystemResult.Ok => {},
-        SystemResult.Error(error) => {
-          this.reject(error);
+        (error: const ref IError) => {
+          try this.reject(error);
         }
       };
       this.theme = value.base;
       this.control_defaults = value.defaults;
+
+      return AllocationResult.Ok;
     }
 
     /** Resolves a theme from the active resource scope. */
-    public method theme_resource(name: String) void {
+    public method theme_resource(name: String) AllocationResult<void> {
       match this.resources.theme(this.resource_scope, name) {
         SystemResult.Ok(value) => {
-          this.set_theme(value);
+          try this.set_theme(value);
         },
-        SystemResult.Error(error) => {
-          this.reject(error);
+        (error: const ref IError) => {
+          try this.reject(error);
         }
       };
+
+      return AllocationResult.Ok;
     }
 
     /** Opens a component dictionary and returns the enclosing scope for restoration. */
-    public method push_resources() i64 {
+    public method push_resources() AllocationResult<i64> {
       var previous = this.resource_scope;
       match this.resources.scope(previous) {
         SystemResult.Ok(scope) => {
           this.resource_scope = scope;
         },
-        SystemResult.Error(error) => {
-          this.reject(error);
+        (error: const ref IError) => {
+          try this.reject(error);
         }
       };
-      return previous;
+      return AllocationResult.Ok(previous);
     }
 
     /** Adds an owned local definition while retaining duplicate errors for preflight. */
-    public method define(resource: Resource) void {
+    public method define(resource: Resource) AllocationResult<void> {
       match this.resources.add(this.resource_scope, resource) {
         SystemResult.Ok => {},
-        SystemResult.Error(error) => {
-          this.reject(error);
+        (error: const ref IError) => {
+          try this.reject(error);
         }
       };
+
+      return AllocationResult.Ok;
     }
 
     /** Resolves a named style in the active component scope without retaining borrows. */
-    public method style_resource(name: String) Style {
+    public method style_resource(name: String) AllocationResult<Style> {
       match this.resources.style(this.resource_scope, name) {
         SystemResult.Ok(value) => {
-          return value;
+          return AllocationResult.Ok(value);
         },
-        SystemResult.Error(error) => {
-          this.reject(error);
+        (error: const ref IError) => {
+          try this.reject(error);
         }
       };
-      return Style();
+      return AllocationResult.Ok(try Style());
     }
 
     /** Resolves a typed color or spacing and retains lookup failures for preflight. */
-    public method number_resource(name: String, kind: ResourceKind) i32 {
+    public method number_resource(name: String, kind: ResourceKind) AllocationResult<i32> {
       match this.resources.number(this.resource_scope, name, kind) {
         SystemResult.Ok(value) => {
           if (value <= 2147483647) {
-            return _convert<i32>(value);
+            return AllocationResult.Ok(_convert<i32>(value));
           }
-          this.reject(Error(1, "Resource exceeds layout integer range"));
+          try this.reject(Error(1, "Resource exceeds layout integer range"));
         },
-        SystemResult.Error(error) => {
-          this.reject(error);
+        (error: const ref IError) => {
+          try this.reject(error);
         }
       };
-      return 0;
+      return AllocationResult.Ok(0);
     }
 
     /** Copies a named font from the nearest dictionary and retains lookup failures. */
-    public method font_resource(name: String) String {
+    public method font_resource(name: String) AllocationResult<String> {
       match this.resources.text(this.resource_scope, name, ResourceKind.Font) {
         SystemResult.Ok(value) => {
-          return value;
+          return AllocationResult.Ok(value);
         },
-        SystemResult.Error(error) => {
-          this.reject(error);
+        (error: const ref IError) => {
+          try this.reject(error);
         }
       };
-      return String("");
+      return AllocationResult.Ok(try String(""));
     }
 
     /** Appends a node under an earlier parent, or at the root for parent -1. */
-    public method append(parent: i64, element: Element) i64 {
+    public method append(parent: i64, element: Element) AllocationResult<i64> {
       element.parent = parent;
       var index = this.elements.size();
-      this.elements.push(element);
-      return index;
+      try this.elements.push(element);
+      return AllocationResult.Ok(index);
     }
 
     /** Appends a root button for existing handwritten views. */
-    public method button(key: i64, text: String, action: i64, payload: i64) void {
-      var node = Element(Key(key), Kind.Button);
+    public method button(
+      key: i64,
+      text: String,
+      action: i64,
+      payload: i64
+    ) AllocationResult<void> {
+      var node = try Element(try Key(key), Kind.Button);
       node.text = text;
       node.action = action;
       node.payload = payload;
-      this.append(-1, node);
+      try this.append(-1, node);
+
+      return AllocationResult.Ok;
     }
   }
 
@@ -371,31 +407,47 @@ public module ui {
   /** Owns a tagged edit value without retaining a widget or application borrow. */
   public class EventValue {
     public var kind: ValueKind = ValueKind.None;
-    public var text: String = String("");
+    public var text: String;
     public var boolean: bool = false;
     public var range_id: i64 = 0;
     public var range_start: i64 = 0;
     public var range_end: i64 = 0;
     public var position: i64 = 0;
-    public var selection: Key = Key(0);
+    public var selection: Key;
 
     /** Creates a valueless activation event. */
-    init() {}
+    init() AllocationResult<void> {
+      this.selection = try Key(0);
+
+      this.text = try String("");
+    }
 
     /** Takes ownership of captured editable text. */
-    init(value: String) {
+    init(value: String) AllocationResult<void> {
+      this.selection = try Key(0);
+
+      this.text = try String("");
+
       this.kind = ValueKind.Text;
       this.text = value;
     }
 
     /** Captures a checkbox state. */
-    init(value: bool) {
+    init(value: bool) AllocationResult<void> {
+      this.selection = try Key(0);
+
+      this.text = try String("");
+
       this.kind = ValueKind.Boolean;
       this.boolean = value;
     }
 
     /** Captures a media range and playhead in microseconds without platform references. */
-    init(start: i64, end: i64, position: i64) {
+    init(start: i64, end: i64, position: i64) AllocationResult<void> {
+      this.selection = try Key(0);
+
+      this.text = try String("");
+
       this.kind = ValueKind.Range;
       this.range_start = start;
       this.range_end = end;
@@ -403,7 +455,11 @@ public module ui {
     }
 
     /** Takes ownership of a selected application key. */
-    init(value: Key) {
+    init(value: Key) AllocationResult<void> {
+      this.selection = try Key(0);
+
+      this.text = try String("");
+
       this.kind = ValueKind.Selection;
       this.selection = value;
     }
@@ -413,12 +469,16 @@ public module ui {
   public class Event {
     public var identity: u64;
     public var action: i64;
-    public var action_scope: String = String("");
+    public var action_scope: String;
     public var payload: i64;
-    public var value: EventValue = EventValue();
+    public var value: EventValue;
 
     /** Captures routing without retaining application or widget references. */
-    init(identity: u64, action: i64, payload: i64) {
+    init(identity: u64, action: i64, payload: i64) AllocationResult<void> {
+      this.value = try EventValue();
+
+      this.action_scope = try String("");
+
       this.identity = identity;
       this.action = action;
       this.payload = payload;
@@ -430,13 +490,15 @@ public module ui {
     var pending: Vec<Event>;
 
     /** Allocates FIFO event storage. */
-    init(a: const ref HeapAllocator) {
-      this.pending = Vec<Event>(a, 8);
+    init(a: const ref HeapAllocator) AllocationResult<void> {
+      this.pending = try Vec<Event>(a, 8);
     }
 
     /** Transfers a captured event without running application code. */
-    public method post(event: Event) void {
-      this.pending.push(event);
+    public method post(event: Event) AllocationResult<void> {
+      try this.pending.push(event);
+
+      return AllocationResult.Ok;
     }
 
     /** Reports pending work to a platform loop. */
@@ -491,8 +553,8 @@ public module ui {
     var stopped: bool = false;
 
     /** Allocates retained descriptions. */
-    init(a: const ref HeapAllocator) {
-      this.mounted = Vec<Mounted>(a, 8);
+    init(a: const ref HeapAllocator) AllocationResult<void> {
+      this.mounted = try Vec<Mounted>(a, 8);
     }
 
     /** Finds a key within one mounted parent scope. */
@@ -506,10 +568,10 @@ public module ui {
     }
 
     /** Looks up an integer key at the root, returning zero when absent. */
-    public const method identity(key: i64) u64 {
-      var value = Key(key);
+    public const method identity(key: i64) AllocationResult<u64> {
+      var value = try Key(key);
       var i = this.index(0, value);
-      return i < 0 ? 0 : this.mounted[i].identity;
+      return AllocationResult.Ok(i < 0 ? 0 : this.mounted[i].identity);
     }
 
     /** Resolves a path through parent scopes, returning zero when absent. */
@@ -537,7 +599,7 @@ public module ui {
     /** Validates the full tree before making any platform changes. */
     method validate(view: const ref View) SystemResult<void> {
       if (not view.construction_error.is_empty()) {
-        return SystemResult.Error(Error(1, view.construction_error));
+        return SystemResult.Error(try Error(1, view.construction_error));
       }
       try view.resources.validate();
       for (var i: i64 = 0; i < view.elements.size(); i += 1) {
@@ -659,14 +721,14 @@ public module ui {
     }
 
     /** Removes unmatched subtrees before placement, including single-child replacements. */
-    method prune(renderer: ref Renderer, view: const ref View) void {
+    method prune(renderer: ref Renderer, view: const ref View) AllocationResult<void> {
       var a = make_heap_allocator();
-      var identities = Vec<u64>(a, view.elements.size());
+      var identities = try Vec<u64>(a, view.elements.size());
       for (var i: i64 = 0; i < view.elements.size(); i += 1) {
         var node = view.elements[i];
         var parent: u64 = node.parent < 0 ? 0 : identities[node.parent];
         var index = node.parent >= 0 and parent == 0 ? -1 : this.index(parent, node.key);
-        identities.push(
+        try identities.push(
           index >= 0 and this.mounted[index].element.kind == node.kind and
             this.mounted[index].element.template_id.equals(node.template_id) ? this.mounted[index].identity : 0
         );
@@ -687,13 +749,15 @@ public module ui {
           };
         }
       }
+
+      return AllocationResult.Ok;
     }
 
     /** Builds the next mounted order and releases unmatched descendants before parents. */
     method commit(renderer: ref Renderer, view: ref View) SystemResult<void> {
       var a = make_heap_allocator();
-      var next = Vec<Mounted>(a, view.elements.size());
-      this.prune(renderer, view);
+      var next = try Vec<Mounted>(a, view.elements.size());
+      try this.prune(renderer, view);
       while (view.elements.size() > 0) {
         var element = match view.elements.remove(0) {
           AccessResult.Ok(value) => value,
@@ -732,7 +796,7 @@ public module ui {
           try renderer.create(id, element);
         }
         try renderer.place(id, parent, previous);
-        next.push(Mounted(id, parent, element));
+        try next.push(Mounted(id, parent, element));
       }
       for (var i = this.mounted.size() - 1; i >= 0; i -= 1) {
         renderer.remove(this.mounted[i].identity);
@@ -747,7 +811,7 @@ public module ui {
       } else {
         match view.focus_key {
           Option.Some(key) => {
-            var id = this.identity(key);
+            var id = try this.identity(key);
             if (id != 0) {
               renderer.focus(id);
             }
@@ -768,15 +832,15 @@ public module ui {
       }
       try validate_theme_defaults(view.control_defaults);
       for (var element: ref Element in view.elements) {
-        var resolved = Style();
-        resolved.overlay(view.theme);
+        var resolved = try Style();
+        try resolved.overlay(view.theme);
         for (var entry: ref ThemeDefault in view.control_defaults) {
           if (entry.kind == element.kind) {
-            resolved.overlay(entry.style);
+            try resolved.overlay(entry.style);
           }
         }
-        resolved.overlay(element.style);
-        resolved.overlay(element.overrides);
+        try resolved.overlay(element.style);
+        try resolved.overlay(element.overrides);
         element.style = resolved;
       }
       try this.validate(view);
@@ -787,29 +851,46 @@ public module ui {
         SystemResult.Error(error) => {
           this.shutdown(renderer);
           return SystemResult.Error(error);
+        },
+        SystemResult.Allocation(error) => {
+          return SystemResult.Allocation(error);
+        },
+        SystemResult.InvalidArgument(error) => {
+          return SystemResult.InvalidArgument(error);
+        },
+        SystemResult.Overflow(error) => {
+          return SystemResult.Overflow(error);
         }
       };
     }
 
     /** Captures a button action from a live identity. */
-    public method enqueue(identity: u64, queue: ref EventQueue) void {
-      this.enqueue_value(identity, EventValue(), queue);
+    public method enqueue(identity: u64, queue: ref EventQueue) AllocationResult<void> {
+      try this.enqueue_value(identity, try EventValue(), queue);
+
+      return AllocationResult.Ok;
     }
 
     /** Transfers an owned native edit value and captures current routing. */
-    public method enqueue_value(identity: u64, value: EventValue, queue: ref EventQueue) void {
+    public method enqueue_value(
+      identity: u64,
+      value: EventValue,
+      queue: ref EventQueue
+    ) AllocationResult<void> {
       for (var item: ref Mounted in this.mounted) {
         if (item.identity == identity) {
           if (value.kind != ValueKind.None) {
             item.dirty = true;
           }
-          var event = Event(identity, item.element.action, item.element.payload);
-          event.action_scope = item.element.action_scope.clone(make_heap_allocator());
+          var event = try Event(identity, item.element.action, item.element.payload);
+          event.action_scope = try item.element.action_scope.clone(make_heap_allocator());
           event.value = value;
-          queue.post(event);
-          return;
+          try queue.post(event);
+          return AllocationResult.Ok;
         }
       }
+
+      return AllocationResult.Ok;
     }
 
     /** Checks whether an event's mounted source still exists. */
@@ -841,77 +922,66 @@ public module ui {
     public var tree: Tree;
     public var queue: EventQueue;
     var dispatching: bool = false;
-    var view: function (const ref State) View;
+    var view: function (const ref State) SystemResult<View>;
     var handle: function (ref State, const ref Event, ref EventQueue) SystemResult<void>;
 
     /** Takes state ownership; named functions borrow it only for the duration of a call. */
     init(
       state: State,
-      view: function (const ref State) View,
+      view: function (const ref State) SystemResult<View>,
       handle: function (ref State, const ref Event, ref EventQueue) SystemResult<void>
-    ) {
+    ) AllocationResult<void> {
       var a = make_heap_allocator();
       this.state = state;
-      this.tree = Tree(a);
-      this.queue = EventQueue(a);
+      this.tree = try Tree(a);
+      this.queue = try EventQueue(a);
       this.view = view;
       this.handle = handle;
     }
 
     /** Evaluates the pure view and commits it; call once before platform dispatch. */
     public method render(renderer: ref Renderer) SystemResult<void> {
-      var view = this.view(this.state);
-      match this.tree.render(renderer, view) {
-        SystemResult.Ok => {
-          return SystemResult.Ok;
-        },
-        SystemResult.Error(error) => {
-          if (this.tree.active() == false) {
-            this.queue.pending.clear();
-          }
-          return SystemResult.Error(error);
-        }
-      };
+      var view = try this.view(this.state);
+      var result = this.tree.render(renderer, view);
+      if (not this.tree.active()) {
+        this.queue.pending.clear();
+      }
+      return result;
     }
 
     /** Processes only the current queue snapshot and batches one render afterwards. */
-    public method dispatch(renderer: ref Renderer) SystemResult<void> {
-      if (this.tree.active() == false) {
+    public method dispatch(renderer: ref Renderer) std.Result<void> {
+      if (not this.tree.active()) {
         this.queue.pending.clear();
-        return SystemResult.Error(Error(1, "Tree is stopped"));
+        return std.Result.Error(Error(1, "Tree is stopped"));
       }
       if (this.dispatching) {
-        return SystemResult.Error(Error(1, "Recursive dispatch is forbidden"));
+        return std.Result.Error(Error(1, "Recursive dispatch is forbidden"));
       }
       this.dispatching = true;
       var count = this.queue.pending.size();
       var changed = false;
       for (var i: i64 = 0; i < count; i += 1) {
-        var event = match this.queue.pending.remove(0) {
-          AccessResult.Ok(value) => value,
-          AccessResult.OutOfBounds(_) => {
-            return SystemResult.Error(Error(1, "Internal index error"));
-          }
-        };
+        var event = try this.queue.pending.remove(0);
         if (this.tree.alive(event.identity)) {
-          match this.handle(this.state, event, this.queue) {
-            SystemResult.Ok => {
-              changed = true;
-            },
-            SystemResult.Error(error) => {
+          var result = this.handle(this.state, event, this.queue);
+          match result {
+            (error: const ref IError) => {
               this.tree.shutdown(renderer);
               this.queue.pending.clear();
               this.dispatching = false;
-              return SystemResult.Error(error);
-            }
+            },
+            _ => {}
           };
+          try result;
+          changed = true;
         }
       }
       this.dispatching = false;
       if (changed) {
-        return this.render(renderer);
+        try this.render(renderer);
       }
-      return SystemResult.Ok;
+      return std.Result.Ok;
     }
   }
 }
@@ -921,6 +991,7 @@ manifest {
     "stdlib.moon"
   ]
   source_files: [
+    "results.sun",
     "drawing.sun",
     "styles.sun"
   ]

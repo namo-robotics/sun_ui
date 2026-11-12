@@ -34,8 +34,10 @@ public module ui_gtk {
   }
 
   /** Encodes a packed RGB color using numeric CSS channels. */
-  function color(value: i64) String {
-    return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`;
+  function color(value: i64) AllocationResult<String> {
+    return AllocationResult.Ok(
+      try `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`
+    );
   }
 
   /** Emits one validated appearance with a fixed interaction selector. */
@@ -43,72 +45,74 @@ public module ui_gtk {
     output: ref String,
     selector: static_ptr<u8>,
     value: const ref ui.Appearance
-  ) void {
-    output.append(selector);
-    output.append(" {");
+  ) AllocationResult<void> {
+    try output.append(selector);
+    try output.append(" {");
     if (value.foreground >= 0) {
-      output.append("color:");
-      output.append(color(value.foreground));
-      output.append(";");
+      try output.append("color:");
+      try output.append(try color(value.foreground));
+      try output.append(";");
     }
     if (value.background >= 0) {
-      output.append("background-color:");
-      output.append(color(value.background));
-      output.append(";background-image:none;");
+      try output.append("background-color:");
+      try output.append(try color(value.background));
+      try output.append(";background-image:none;");
     }
     if (not value.font.is_empty()) {
-      output.append("font-family:\"");
-      output.append(value.font);
-      output.append("\";");
+      try output.append("font-family:\"");
+      try output.append(value.font);
+      try output.append("\";");
     }
     if (value.font_size > 0) {
-      output.append("font-size:");
-      output.append(value.font_size);
-      output.append("px;");
+      try output.append("font-size:");
+      try output.append(value.font_size);
+      try output.append("px;");
     }
     if (value.border_width >= 0) {
-      output.append("border-width:");
-      output.append(value.border_width);
-      output.append("px;box-shadow:none;");
+      try output.append("border-width:");
+      try output.append(value.border_width);
+      try output.append("px;box-shadow:none;");
       if (value.border_width == 0) {
-        output.append("outline:none;transition:none;");
+        try output.append("outline:none;transition:none;");
       }
     }
     if (value.radius >= 0) {
-      output.append("border-radius:");
-      output.append(value.radius);
-      output.append("px;");
+      try output.append("border-radius:");
+      try output.append(value.radius);
+      try output.append("px;");
     }
     if (value.padding >= 0) {
-      output.append("padding:");
-      output.append(value.padding);
-      output.append("px;");
+      try output.append("padding:");
+      try output.append(value.padding);
+      try output.append("px;");
     }
-    output.append("}\n");
+    try output.append("}\n");
+
+    return AllocationResult.Ok;
   }
 
   /** Keeps button keyboard-focus feedback distinct from pointer hover and click focus. */
-  function stylesheet(style: const ref ui.Style, kind: ui.Kind) String {
-    var css = String("");
-    appearance(css, "*", style.normal);
-    appearance(css, "*:hover", style.hover);
-    appearance(
+  function stylesheet(style: const ref ui.Style, kind: ui.Kind) AllocationResult<String> {
+    var css = try String("");
+    try appearance(css, "*", style.normal);
+    try appearance(css, "*:hover", style.hover);
+    try appearance(
       css,
       kind == ui.Kind.Button ? "*:focus-visible" : "*:focus, *:focus-within",
       style.focus
     );
-    appearance(css, "*:disabled", style.disabled);
+    try appearance(css, "*:disabled", style.disabled);
     if (style.normal.border_width == 0) {
-      css.append(
+      try css.append(
         "* button, * entry, * text {border:none;outline:none;box-shadow:none;transition:none;background-image:none;background-color:inherit;color:inherit;}\n"
       );
     }
     if (style.normal.radius == 0) {
-      css.append(
+      try css.append(
         "* button, * entry, * text, * check, * trough, * slider, * popover contents {border-radius:0;}\n"
       );
     }
-    return css;
+    return AllocationResult.Ok(css);
   }
 
   /** Owns a heterogeneous widget, its subscription, and placement metadata. */
@@ -126,7 +130,7 @@ public module ui_gtk {
     var row_span: i32 = 1;
     var column_span: i32 = 1;
     var choices: Vec<ui.Choice>;
-    var applied_style: ui.Style = ui.Style();
+    var applied_style: ui.Style ;
     var styled: bool = false;
 
     /** Constructs a native control before registering user events. */
@@ -136,19 +140,21 @@ public module ui_gtk {
       events: ref gtk.EventQueue,
       widget: gtk.Widget
     ) SystemResult<void> {
+      this.applied_style = try ui.Style();
+
       var a = make_heap_allocator();
       this.identity = identity;
       this.kind = element.kind;
       this.widget = widget;
       this.viewport_id = element.viewport_id;
       this.drawing_id = element.drawing_id;
-      this.choices = Vec<ui.Choice>(a, 4);
-      this.subscriptions = Vec<gtk.RegistrationId>(a, 4);
+      this.choices = try Vec<ui.Choice>(a, 4);
+      this.subscriptions = try Vec<gtk.RegistrationId>(a, 4);
       try this.apply(element);
       if (element.kind == ui.Kind.Button or element.kind == ui.Kind.TextInput or
         element.kind == ui.Kind.Checkbox or element.kind == ui.Kind.Select or
         element.kind == ui.Kind.Video) {
-        this.subscriptions.push(try events.on_widget(this.widget));
+        try this.subscriptions.push(try events.on_widget(this.widget));
       }
     }
 
@@ -157,20 +163,20 @@ public module ui_gtk {
       var a = make_heap_allocator();
       if (element.kind == ui.Kind.Button or element.kind == ui.Kind.Label or
         element.kind == ui.Kind.TextInput or element.kind == ui.Kind.Checkbox) {
-        var text = element.text.clone(a);
+        var text = try element.text.clone(a);
         try this.widget.set_text(text);
       }
-      var tooltip = element.tooltip.clone(a);
-      var icon = element.icon.clone(a);
+      var tooltip = try element.tooltip.clone(a);
+      var icon = try element.icon.clone(a);
       try this.widget.hint(tooltip, icon);
       if (element.kind == ui.Kind.Image) {
-        var path = element.text.clone(a);
+        var path = try element.text.clone(a);
         try this.widget.image(path);
       }
       if (element.kind == ui.Kind.Video) {
         this.widget.media_trim_controls(element.trim_controls);
         try this.widget.media_frame_rate(element.frame_rate_num, element.frame_rate_den);
-        var path = element.text.clone(a);
+        var path = try element.text.clone(a);
         try this.widget.media(
           path,
           element.duration,
@@ -178,13 +184,13 @@ public module ui_gtk {
           element.trim_end,
           element.position
         );
-        var ranges = String("");
+        var ranges = try String("");
         for (var i: i64 = 0; i < element.trim_ranges.size(); i += 1) {
           if (i > 0) {
-            ranges.append(";");
+            try ranges.append(";");
           }
-          ranges.append(
-            `${element.trim_ranges[i].id},${element.trim_ranges[i].start},${element.trim_ranges[i].end}`
+          try ranges.append(
+            try `${element.trim_ranges[i].id},${element.trim_ranges[i].start},${element.trim_ranges[i].end}`
           );
         }
         try this.widget.media_ranges(ranges, element.active_range);
@@ -206,11 +212,14 @@ public module ui_gtk {
           try this.widget.clear_options();
           this.choices.clear();
           for (var i: i64 = 0; i < element.choices.size(); i += 1) {
-            var text = element.choices[i].text.clone(a);
-            var key = element.choices[i].key.encoded();
+            var text = try element.choices[i].text.clone(a);
+            var key = try element.choices[i].key.encoded();
             try this.widget.add_option(text, key);
-            this.choices.push(
-              ui.Choice(element.choices[i].key.clone(a), element.choices[i].text.clone(a))
+            try this.choices.push(
+              ui.Choice(
+                try element.choices[i].key.clone(a),
+                try element.choices[i].text.clone(a)
+              )
             );
           }
         }
@@ -245,10 +254,10 @@ public module ui_gtk {
         }
       }
       if (not this.styled or not this.applied_style.equals(element.style)) {
-        var css = stylesheet(element.style, element.kind);
+        var css = try stylesheet(element.style, element.kind);
         try this.widget.style(css);
-        this.applied_style = ui.Style();
-        this.applied_style.overlay(element.style);
+        this.applied_style = try ui.Style();
+        try this.applied_style.overlay(element.style);
         this.styled = true;
       }
       this.row = element.row;
@@ -315,13 +324,13 @@ public module ui_gtk {
     /** Prepares a window shown after its first completed render, using the default application identifier. */
     init(title: ref String) SystemResult<void> {
       var a = make_heap_allocator();
-      var id = String("org.sunlang.UIPrototype");
+      var id = try String("org.sunlang.UIPrototype");
       this.app = try gtk.Application(id);
       this.window = gtk.Window(this.app);
       this.root = try gtk.Widget(2);
-      this.controls = Vec<Control>(a, 8);
-      this.viewports = Vec<ViewportRegistration>(a, 4);
-      this.drawings = Vec<DrawingRegistration>(a, 4);
+      this.controls = try Vec<Control>(a, 8);
+      this.viewports = try Vec<ViewportRegistration>(a, 4);
+      this.drawings = try Vec<DrawingRegistration>(a, 4);
       try this.root.properties(true, true, 0, -1, -1, 0, 0, false, false, 8);
       try this.window.set_widget(this.root);
       this.events = try gtk.EventQueue(this.app);
@@ -335,9 +344,9 @@ public module ui_gtk {
       this.app = try gtk.Application(id);
       this.window = gtk.Window(this.app);
       this.root = try gtk.Widget(2);
-      this.controls = Vec<Control>(a, 8);
-      this.viewports = Vec<ViewportRegistration>(a, 4);
-      this.drawings = Vec<DrawingRegistration>(a, 4);
+      this.controls = try Vec<Control>(a, 8);
+      this.viewports = try Vec<ViewportRegistration>(a, 4);
+      this.drawings = try Vec<DrawingRegistration>(a, 4);
       try this.root.properties(true, true, 0, -1, -1, 0, 0, false, false, 8);
       try this.window.set_widget(this.root);
       this.events = try gtk.EventQueue(this.app);
@@ -385,7 +394,7 @@ public module ui_gtk {
           );
         }
       }
-      this.viewports.push(ViewportRegistration(id, area));
+      try this.viewports.push(ViewportRegistration(id, area));
       return SystemResult.Ok;
     }
 
@@ -433,7 +442,7 @@ public module ui_gtk {
           );
         }
       }
-      this.drawings.push(DrawingRegistration(id, area));
+      try this.drawings.push(DrawingRegistration(id, area));
       return SystemResult.Ok;
     }
 
@@ -466,21 +475,23 @@ public module ui_gtk {
         if (index < 0 or this.viewports[index].mounted != 0) {
           return SystemResult.Error(Error(1, "Viewport is missing or already mounted"));
         }
-        this.controls.push(
+        try this.controls.push(
           try Control(identity, element, this.events, gtk.Widget(this.viewports[index].area))
         );
+
         this.viewports[index].mounted = identity;
       } else if (element.kind == ui.Kind.Drawing) {
         var index = this.drawing_index(element.drawing_id);
         if (index < 0 or this.drawings[index].mounted != 0) {
           return SystemResult.Error(Error(1, "Drawing is missing or already mounted"));
         }
-        this.controls.push(
+        try this.controls.push(
           try Control(identity, element, this.events, gtk.Widget(this.drawings[index].area))
         );
+
         this.drawings[index].mounted = identity;
       } else {
-        this.controls.push(
+        try this.controls.push(
           try Control(identity, element, this.events, try gtk.Widget(widget_kind(element.kind)))
         );
       }
@@ -530,7 +541,7 @@ public module ui_gtk {
         this.controls[index].styled = false;
         this.drawings[next].mounted = identity;
       }
-      try this.controls[index].apply(element);
+      (try this.controls[index].apply(element));
       this.updates += 1;
       return SystemResult.Ok;
     }
@@ -673,10 +684,10 @@ public module ui_gtk {
     }
 
     /** Converts a bounded native FIFO batch to owned semantic edit values. */
-    method collect(tree: ref ui.Tree, queue: ref ui.EventQueue) void {
+    method collect(tree: ref ui.Tree, queue: ref ui.EventQueue) std.Result<void> {
       var a = make_heap_allocator();
       for (var i: i64 = 0; i < 64; i += 1) {
-        match this.events.next() {
+        match try this.events.next() {
           Option.Some(event) => {
             var id = event.registration();
             for (var control: ref Control in this.controls) {
@@ -687,7 +698,7 @@ public module ui_gtk {
               if (matches) {
                 if (event.kind() == gtk.EventKind.TextChanged) {
                   if (control.kind == ui.Kind.Video) {
-                    var fields = event.text.split(a, b':');
+                    var fields = try event.text.split(a, b':');
                     if (fields.size() == 3 or fields.size() == 4) {
                       var start = match fields[0].parse_i64() {
                         Option.Some(value) => value,
@@ -709,39 +720,53 @@ public module ui_gtk {
                         };
                       }
                       if (start >= 0 and end > start and position >= 0 and range_id >= 0) {
-                        var value = ui.EventValue(start, end, position);
+                        var value = try ui.EventValue(start, end, position);
                         value.range_id = range_id;
-                        tree.enqueue_value(control.identity, value, queue);
+                        try tree.enqueue_value(control.identity, value, queue);
                       }
                     }
                   } else {
-                    tree.enqueue_value(
+                    try tree.enqueue_value(
                       control.identity,
-                      ui.EventValue(event.text.clone(a)),
+                      try ui.EventValue(try event.text.clone(a)),
                       queue
                     );
                   }
                 } else if (event.kind() == gtk.EventKind.Toggled) {
-                  tree.enqueue_value(control.identity, ui.EventValue(event.value != 0), queue);
+                  try tree.enqueue_value(
+                    control.identity,
+                    try ui.EventValue(event.value != 0),
+                    queue
+                  );
                 } else if (event.kind() == gtk.EventKind.Selected) {
                   if (event.text.length() >= 2) {
-                    var encoded = match event.text.substr(a, 2, event.text.length() - 2) {
+                    var encoded = match try sun_ui_results.access(
+                      event.text.substr(a, 2, event.text.length() - 2)
+                    ) {
                       AccessResult.Ok(value) => value,
-                      AccessResult.OutOfBounds(_) => String("")
+                      AccessResult.OutOfBounds(_) => try String("")
                     };
                     if (event.text.starts_with("s:")) {
-                      tree.enqueue_value(control.identity, ui.EventValue(ui.Key(encoded)), queue);
+                      try tree.enqueue_value(
+                        control.identity,
+                        try ui.EventValue(try ui.Key(encoded)),
+                        queue
+                      );
                     } else {
                       match encoded.parse_i64() {
                         Option.Some(key) => {
-                          tree.enqueue_value(control.identity, ui.EventValue(ui.Key(key)), queue);
+                          try tree.enqueue_value(
+                            control.identity,
+                            try ui.EventValue(try ui.Key(key)),
+                            queue
+                          );
                         },
                         Option.None => {}
                       };
                     }
                   }
                 } else {
-                  tree.enqueue(control.identity, queue);
+                  try tree.enqueue(control.identity, queue);
                 }
                 break;
               }
@@ -752,17 +777,25 @@ public module ui_gtk {
           }
         };
       }
+
+      return std.Result.Ok;
     }
 
     /** Services GTK and collects native events according to this adapter's batching policy. */
-    public method poll(tree: ref ui.Tree, queue: ref ui.EventQueue, block: bool) void {
+    public method poll(
+      tree: ref ui.Tree,
+      queue: ref ui.EventQueue,
+      block: bool
+    ) std.Result<void> {
       this.events.iterate(false);
-      this.collect(tree, queue);
+      try this.collect(tree, queue);
       if (block and queue.size() == 0 and this.running()) {
         this.events.iterate(true);
-        this.collect(tree, queue);
+        try this.collect(tree, queue);
       }
       gtk.clear_gl_context();
+
+      return std.Result.Ok;
     }
 
     /** Waits on GTK's event loop, with a bounded wakeup only for external work polling. */
@@ -770,21 +803,21 @@ public module ui_gtk {
       tree: ref ui.Tree,
       queue: ref ui.EventQueue,
       timeout_ms: u32
-    ) SystemResult<void> {
+    ) std.Result<void> {
       if (queue.size() != 0 or not this.running()) {
-        return SystemResult.Ok;
+        return std.Result.Ok;
       }
       if (timeout_ms == 0) {
         this.events.iterate(true);
-        this.collect(tree, queue);
+        try this.collect(tree, queue);
       } else {
         var wakeup = try this.events.after(timeout_ms);
         this.events.iterate(true);
-        this.collect(tree, queue);
+        try this.collect(tree, queue);
         try this.events.disconnect(wakeup);
       }
       gtk.clear_gl_context();
-      return SystemResult.Ok;
+      return std.Result.Ok;
     }
 
     /** Sets a preferred window size through the checked GTK binding. */
@@ -794,13 +827,13 @@ public module ui_gtk {
 
     /** Opens a local input chooser parented to this renderer's window. */
     public method choose_input() SystemResult<void> {
-      var title = String("Open file");
+      var title = try String("Open file");
       return this.open_dialog.show(this.window, title);
     }
 
     /** Opens a save chooser using a suggested output filename. */
     public method choose_output(filename: ref String) SystemResult<void> {
-      var title = String("Save file");
+      var title = try String("Save file");
       return this.save_dialog.show(this.window, title, filename);
     }
 

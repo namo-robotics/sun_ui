@@ -16,24 +16,24 @@ function await_frame(window: ref ui_gtk_drawing.Window) SystemResult<void> {
 function run(automated: bool) SystemResult<void> {
   var figure = try plot_example.figure();
   var drawing = try figure.draw(1440.0, 1100.0);
-  var title = String("Sun Plot — Damped oscillator study");
+  var title = try String("Sun Plot — Damped oscillator study");
   var window = try ui_gtk_drawing.Window(title, drawing);
   if (automated) {
     try await_frame(window);
-    figure.title = String("Updated damping study");
+    figure.title = try String("Updated damping study");
     var updated = try figure.draw(1280.0, 1000.0);
     try window.update(updated);
     try window.resize(1280, 1000);
     try await_frame(window);
-    var export_path = String("build/plot_viewer-export.svg");
+    var export_path = try String("build/plot_viewer-export.svg");
     try window.export_svg(export_path);
     var allocator = make_heap_allocator();
     var exported = try std.io.read_to_string(allocator, export_path);
-    var expected = updated.svg();
+    var expected = try updated.svg();
     if (exported.equals(expected) == false) {
       return SystemResult.Error(Error(1, "Export did not save the current drawing"));
     }
-    var invalid_path = String("build");
+    var invalid_path = try String("build");
     match window.export_svg(invalid_path) {
       SystemResult.Ok => {
         return SystemResult.Error(Error(1, "Export to a directory unexpectedly succeeded"));
@@ -44,7 +44,7 @@ function run(automated: bool) SystemResult<void> {
     if (window.running() == false) {
       return SystemResult.Error(Error(1, "Drawing window closed unexpectedly"));
     }
-    println("Plot GTK acceptance passed");
+    std.io.println("Plot GTK acceptance passed");
     return SystemResult.Ok;
   }
   while (window.running()) {
@@ -54,17 +54,19 @@ function run(automated: bool) SystemResult<void> {
 }
 
 /** Selects the interactive viewer or its bounded native acceptance scenario. */
-function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) AllocationResult<i32> {
   var a = make_heap_allocator();
-  var env = std.env.Env(a);
-  var args = env.args(argc, argv);
-  return match run(args.size() == 2 and args[1].equals_literal("--self-test")) {
-    SystemResult.Ok => 0,
-    SystemResult.Error(error) => {
-      eprintln(error.message());
-      return 1;
+  var env = try std.env.Env(a);
+  var args = try env.args(argc, argv);
+  return AllocationResult.Ok(
+    match run(args.size() == 2 and args[1].equals_literal("--self-test")) {
+      SystemResult.Ok => 0,
+      SystemResult.Error(error) => {
+        std.io.eprintln(try error.message());
+        return AllocationResult.Ok(1);
+      }
     }
-  };
+  );
 }
 manifest {
   libraries: [

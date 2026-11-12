@@ -5,7 +5,7 @@ module forms {
 
   /** Owns form values and resolved themes independently of GTK widgets. */
   class State {
-    var name: String = String("");
+    var name: String;
     var enabled: bool = false;
     var selected: i64 = 0;
     var dark: bool = false;
@@ -17,9 +17,11 @@ module forms {
 
     /** Validates and resolves generated resources before opening the application. */
     init() SystemResult<void> {
+      this.name = try String("");
+
       var dictionary = try resources();
-      var light = String("light");
-      var dark = String("dark");
+      var light = try String("light");
+      var dark = try String("dark");
       this.light_style = try dictionary.style(1, light);
       this.dark_style = try dictionary.style(1, dark);
     }
@@ -37,10 +39,12 @@ module forms {
   }
 
   /** Appends a handwritten child through a generated template's named slot. */
-  function footer(view: ref ui.View, parent: i64) void {
-    var label = ui.Element(ui.Key(String("help")), ui.Kind.Label);
-    label.text = String("State and event handlers are ordinary Sun functions.");
-    view.append(parent, label);
+  function footer(view: ref ui.View, parent: i64) AllocationResult<void> {
+    var label = try ui.Element(try ui.Key(try String("help")), ui.Kind.Label);
+    label.text = try String("State and event handlers are ordinary Sun functions.");
+    try view.append(parent, label);
+
+    return AllocationResult.Ok;
   }
 
   /** Accepts edits through named actions and deliberately rejects one test value. */
@@ -59,12 +63,12 @@ module forms {
         state.seen_beta_after_alpha = true;
       }
       if (not event.value.text.equals_literal("reject")) {
-        state.name = event.value.text.clone(a);
+        state.name = try event.value.text.clone(a);
       }
     } else if (event.action == 2 and event.value.kind == ui.ValueKind.Boolean) {
       state.enabled = event.value.boolean;
     } else if (event.action == 3 and event.value.kind == ui.ValueKind.Selection) {
-      var high = ui.Key(String("high"));
+      var high = try ui.Key(try String("high"));
       state.selected = event.value.selection.equals(high) ? 1 : 0;
     } else if (event.action == 4) {
       state.dark = not state.dark;
@@ -73,14 +77,14 @@ module forms {
   }
 
   /** Resolves one editable control within its stable nested layout. */
-  function control(tree: const ref ui.Tree, name: static_ptr<u8>) u64 {
+  function control(tree: const ref ui.Tree, name: static_ptr<u8>) AllocationResult<u64> {
     var a = make_heap_allocator();
-    var path = Vec<ui.Key>(a, 4);
-    path.push(ui.Key(String("page")));
-    path.push(ui.Key(String("form")));
-    path.push(ui.Key(String("fields")));
-    path.push(ui.Key(String(name)));
-    return tree.identity_path(path);
+    var path = try Vec<ui.Key>(a, 4);
+    try path.push(try ui.Key(try String("page")));
+    try path.push(try ui.Key(try String("form")));
+    try path.push(try ui.Key(try String("fields")));
+    try path.push(try ui.Key(try String(name)));
+    return AllocationResult.Ok(tree.identity_path(path));
   }
 
   /** Verifies native FIFO edits, controlled restoration, themes, and cleanup. */
@@ -88,19 +92,19 @@ module forms {
     renderer: ref ui_gtk.Renderer,
     session: ref ui.Session<State>
   ) SystemResult<void> {
-    var name = control(session.tree, "name");
-    var enabled = control(session.tree, "enabled");
-    var choice = control(session.tree, "choice");
-    var text = String("alpha");
+    var name = try control(session.tree, "name");
+    var enabled = try control(session.tree, "enabled");
+    var choice = try control(session.tree, "choice");
+    var text = try String("alpha");
     try renderer.edit(name, text, 0);
-    text = String("beta");
+    text = try String("beta");
     try renderer.edit(name, text, 0);
     renderer.poll(session.tree, session.queue, false);
     try session.dispatch(renderer);
     if (not session.state.name.equals_literal("beta") or not session.state.seen_beta_after_alpha) {
       return SystemResult.Error(Error(1, "Text edits lost their captured FIFO values"));
     }
-    text = String("reject");
+    text = try String("reject");
     try renderer.edit(name, text, 0);
     renderer.poll(session.tree, session.queue, false);
     try session.dispatch(renderer);
@@ -113,7 +117,7 @@ module forms {
     if (session.state.edits != edits) {
       return SystemResult.Error(Error(1, "Programmatic text update emitted an edit"));
     }
-    text = String("");
+    text = try String("");
     try renderer.edit(enabled, text, 1);
     try renderer.edit(choice, text, 1);
     renderer.poll(session.tree, session.queue, false);
@@ -124,21 +128,21 @@ module forms {
     var creates = renderer.creates;
     session.state.dark = true;
     try session.render(renderer);
-    if (control(session.tree, "name") != name or renderer.creates != creates) {
+    if (try control(session.tree, "name") != name or renderer.creates != creates) {
       return SystemResult.Error(Error(1, "Theme update remounted controls"));
     }
     session.tree.shutdown(renderer);
     if (renderer.creates != renderer.removals) {
       return SystemResult.Error(Error(1, "Form subscriptions survived shutdown"));
     }
-    println("XML forms acceptance passed");
+    std.io.println("XML forms acceptance passed");
     return SystemResult.Ok;
   }
 
   /** Runs the generated form using the normal state/session/event pipeline. */
   public function run(automated: bool) SystemResult<void> {
     var state = try State();
-    var title = String("Sun XML forms");
+    var title = try String("Sun XML forms");
     var renderer = try ui_gtk.Renderer(title);
     var session = ui.Session<State>(state, view, handle);
     try session.render(renderer);
@@ -155,17 +159,19 @@ module forms {
 }
 
 /** Runs the interactive form or its native acceptance scenario. */
-function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 {
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) AllocationResult<i32> {
   var a = make_heap_allocator();
-  var env = std.env.Env(a);
-  var args = env.args(argc, argv);
-  return match forms.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
-    SystemResult.Ok => 0,
-    SystemResult.Error(error) => {
-      eprintln(error.message());
-      return 1;
+  var env = try std.env.Env(a);
+  var args = try env.args(argc, argv);
+  return AllocationResult.Ok(
+    match forms.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
+      SystemResult.Ok => 0,
+      SystemResult.Error(error) => {
+        std.io.eprintln(try error.message());
+        return AllocationResult.Ok(1);
+      }
     }
-  };
+  );
 }
 manifest {
   source_files: [

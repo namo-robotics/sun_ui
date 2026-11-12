@@ -9,31 +9,31 @@ module graphics_checks {
   /** Reports a failed acceptance condition as a normal application error. */
   function check(ok: bool, message: static_ptr<u8>) SystemResult<void> {
     if (not ok) {
-      return SystemResult.Error(Error(1, message));
+      return SystemResult.Error(try Error(1, message));
     }
     return SystemResult.Ok;
   }
 
   /** Constructs a keyed viewport and a clickable sibling in either order. */
-  function view(id: i64, reverse: bool, include: bool) ui.View {
+  function view(id: i64, reverse: bool, include: bool) AllocationResult<ui.View> {
     var a = make_heap_allocator();
-    var v = ui.View(a);
+    var v = try ui.View(a);
     if (reverse) {
-      v.button(2, String("Control"), 1, 0);
+      v.button(2, try String("Control"), 1, 0);
     }
     if (include) {
-      var e = ui.Element(ui.Key(1), ui.Kind.Viewport);
+      var e = try ui.Element(try ui.Key(1), ui.Kind.Viewport);
       e.viewport_id = id;
       e.width = 240;
       e.height = 200;
       e.expand_x = true;
       e.expand_y = true;
-      v.append(-1, e);
+      try v.append(-1, e);
     }
     if (not reverse) {
-      v.button(2, String("Control"), 1, 0);
+      v.button(2, try String("Control"), 1, 0);
     }
-    return v;
+    return AllocationResult.Ok(v);
   }
 
   /** Pumps both hosts without blocking either event source. */
@@ -64,7 +64,7 @@ module graphics_checks {
       try pump(renderer, tree, queue, window);
       var error = viewport.error();
       if (not error.is_empty()) {
-        return SystemResult.Error(Error(1, error));
+        return SystemResult.Error(try Error(1, error));
       }
     }
     return check(viewport.surface().frames() >= target, "GTK viewport did not draw in time");
@@ -73,17 +73,17 @@ module graphics_checks {
   /** Builds a screen-filling triangle to test real shader and vertex-buffer execution. */
   function mesh() SystemResult<gpu.Mesh> {
     var a = make_heap_allocator();
-    var vertices = Vec<f64>(a, 9);
-    var indices = Vec<i64>(a, 0);
-    vertices.push(-1.0);
-    vertices.push(-1.0);
-    vertices.push(0.0);
-    vertices.push(3.0);
-    vertices.push(-1.0);
-    vertices.push(0.0);
-    vertices.push(-1.0);
-    vertices.push(3.0);
-    vertices.push(0.0);
+    var vertices = try Vec<f64>(a, 9);
+    var indices = try Vec<i64>(a, 0);
+    try vertices.push(-1.0);
+    try vertices.push(-1.0);
+    try vertices.push(0.0);
+    try vertices.push(3.0);
+    try vertices.push(-1.0);
+    try vertices.push(0.0);
+    try vertices.push(-1.0);
+    try vertices.push(3.0);
+    try vertices.push(0.0);
     return gpu.Mesh(vertices, indices);
   }
 
@@ -94,42 +94,44 @@ module graphics_checks {
   ) SystemResult<void> {
     var a = make_heap_allocator();
     var geometry = try mesh();
-    var vertex = String(
+    var vertex = try String(
       "#version 330 core\nlayout(location=0) in vec3 position; uniform mat4 transform; uniform float scale; uniform vec2 offset; void main(){gl_Position=transform*vec4(position.xy*scale+offset,position.z,1);}"
     );
-    var fragment = String(
+
+    var fragment = try String(
       "#version 330 core\nuniform vec4 color; uniform vec3 tint; out vec4 result; void main(){result=color*vec4(tint,1);}"
     );
+
     var shader = try gpu.Shader(vertex, fragment);
     var frame = try gpu.Frame(0.0, 0.0, 1.0, 1.0);
     try frame.draw(geometry, shader, gpu.Primitive.Triangles, false, false);
-    var color = Vec<f64>(a, 4);
-    color.push(1.0);
-    color.push(0.0);
-    color.push(0.0);
-    color.push(1.0);
-    var name = String("color");
+    var color = try Vec<f64>(a, 4);
+    try color.push(1.0);
+    try color.push(0.0);
+    try color.push(0.0);
+    try color.push(1.0);
+    var name = try String("color");
     try frame.uniform(name, color);
-    var value = Vec<f64>(a, 16);
-    value.push(1.0);
-    var scale_name = String("scale");
+    var value = try Vec<f64>(a, 16);
+    try value.push(1.0);
+    var scale_name = try String("scale");
     try frame.uniform(scale_name, value);
     value.clear();
-    value.push(0.0);
-    value.push(0.0);
-    var offset_name = String("offset");
+    try value.push(0.0);
+    try value.push(0.0);
+    var offset_name = try String("offset");
     try frame.uniform(offset_name, value);
     value.clear();
-    value.push(1.0);
-    value.push(1.0);
-    value.push(1.0);
-    var tint_name = String("tint");
+    try value.push(1.0);
+    try value.push(1.0);
+    try value.push(1.0);
+    var tint_name = try String("tint");
     try frame.uniform(tint_name, value);
     value.clear();
     for (var i: i64 = 0; i < 16; i += 1) {
-      value.push(i % 5 == 0 ? 1.0 : 0.0);
+      try value.push(i % 5 == 0 ? 1.0 : 0.0);
     }
-    var matrix_name = String("transform");
+    var matrix_name = try String("transform");
     try frame.uniform(matrix_name, value);
     viewport.submit(frame);
     window.submit(frame);
@@ -203,13 +205,13 @@ module graphics_checks {
   /** Exercises one window pair, including reordering, replacement, and either close order. */
   function scenario(close_sdl_first: bool) SystemResult<void> {
     var a = make_heap_allocator();
-    var title = String("Graphics acceptance");
+    var title = try String("Graphics acceptance");
     var renderer = try ui_gtk.Renderer(
       title,
-      String(close_sdl_first ? "org.sunlang.Graphics.First" : "org.sunlang.Graphics.Second")
+      try String(close_sdl_first ? "org.sunlang.Graphics.First" : "org.sunlang.Graphics.Second")
     );
-    var tree = ui.Tree(a);
-    var queue = ui.EventQueue(a);
+    var tree = try ui.Tree(a);
+    var queue = try ui.EventQueue(a);
     var viewport = try gpu_gtk.Viewport();
     viewport.surface().readback(true);
     try renderer.register_viewport(1, viewport.widget());
@@ -276,8 +278,8 @@ module graphics_checks {
       "Remounted viewport lost its retained geometry"
     );
     // Exercise actual compiler diagnostics, then recover with a valid frame.
-    var bad_vertex = String("invalid GLSL");
-    var bad_fragment = String("invalid GLSL");
+    var bad_vertex = try String("invalid GLSL");
+    var bad_fragment = try String("invalid GLSL");
     var bad_shader = try gpu.Shader(bad_vertex, bad_fragment);
     var geometry = try mesh();
     var bad = try gpu.Frame(0.0, 0.0, 0.0, 1.0);
@@ -320,18 +322,21 @@ module graphics_checks {
   /** Checks invalid public inputs without executing OpenGL. */
   function invalid_inputs() SystemResult<void> {
     var frame = try gpu.Frame(0.0, 0.0, 0.0, 1.0);
-    var values = Vec<f64>(make_heap_allocator(), 1);
-    values.push(1.0);
-    var name = String("missing");
+    var values = try Vec<f64>(make_heap_allocator(), 1);
+    try values.push(1.0);
+    var name = try String("missing");
     match frame.uniform(name, values) {
       SystemResult.Error(_) => {},
       SystemResult.Ok => {
         return SystemResult.Error(Error(1, "Uniform without draw was accepted"));
       }
     };
-    var title = String("Missing registration");
-    var renderer = try ui_gtk.Renderer(title, String("org.sunlang.Graphics.Missing"));
-    var tree = ui.Tree(make_heap_allocator());
+    var title = try String("Missing registration");
+    var renderer = try ui_gtk.Renderer(
+      title,
+      try String("org.sunlang.Graphics.Missing")
+    );
+    var tree = try ui.Tree(make_heap_allocator());
     match tree.render(renderer, view(99, false, true)) {
       SystemResult.Error(_) => {},
       SystemResult.Ok => {
@@ -348,20 +353,22 @@ module graphics_checks {
     try invalid_inputs();
     try scenario(true);
     try scenario(false);
-    println("Graphics acceptance passed");
+    std.io.println("Graphics acceptance passed");
     return SystemResult.Ok;
   }
 }
 
 /** Returns a failing process status for any graphics acceptance error. */
-function main() i32 {
-  return match graphics_checks.run() {
-    SystemResult.Ok => 0,
-    SystemResult.Error(error) => {
-      eprintln(error.message());
-      return 1;
+function main() AllocationResult<i32> {
+  return AllocationResult.Ok(
+    match graphics_checks.run() {
+      SystemResult.Ok => 0,
+      SystemResult.Error(error) => {
+        std.io.eprintln(try error.message());
+        return AllocationResult.Ok(1);
+      }
     }
-  };
+  );
 }
 manifest {
   libraries:[

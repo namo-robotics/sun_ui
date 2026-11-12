@@ -20,33 +20,44 @@ module build_targets {
   }
 
   /** Selects a named Sun or native build entry without inferring artifact paths. */
-  function select_group(document: ref Json, name: static_ptr<u8>, native: bool) JsonResult<Target> {
+  function select_group(
+    document: ref std.json.Json,
+    name: static_ptr<u8>,
+    native: bool
+  ) std.json.JsonResult<Target> {
     var a = make_heap_allocator();
     if (native) {
-      var source_key = String("");
-      var output_key = String("");
+      var source_key = try String("");
+      var output_key = try String("");
       var archive = true;
-      var selected = String(name);
+      var selected = try String(name);
       if (selected.equals_literal("graphics-native")) {
-        source_key = String("GRAPHICS_NATIVE_SOURCE");
-        output_key = String("GRAPHICS_NATIVE_OUTPUT");
+        source_key = try String("GRAPHICS_NATIVE_SOURCE");
+        output_key = try String("GRAPHICS_NATIVE_OUTPUT");
         archive = false;
       } else if (selected.equals_literal("graphics-executor")) {
-        source_key = String("GRAPHICS_EXECUTOR_SOURCE");
-        output_key = String("GRAPHICS_EXECUTOR_OUTPUT");
+        source_key = try String("GRAPHICS_EXECUTOR_SOURCE");
+        output_key = try String("GRAPHICS_EXECUTOR_OUTPUT");
       } else if (selected.equals_literal("graphics-sdl")) {
-        source_key = String("GRAPHICS_SDL_SOURCE");
-        output_key = String("GRAPHICS_SDL_OUTPUT");
+        source_key = try String("GRAPHICS_SDL_SOURCE");
+        output_key = try String("GRAPHICS_SDL_OUTPUT");
       } else if (selected.equals_literal("graphics-test-input")) {
-        source_key = String("GRAPHICS_TEST_INPUT_SOURCE");
-        output_key = String("GRAPHICS_TEST_INPUT_OUTPUT");
+        source_key = try String("GRAPHICS_TEST_INPUT_SOURCE");
+        output_key = try String("GRAPHICS_TEST_INPUT_OUTPUT");
       } else {
-        return JsonResult.Error(JsonError("Unknown native target", -1));
+        return std.json.JsonResult.Error(std.json.JsonError("Unknown native target", -1));
       }
       var paths = try document.get("path_variables");
       var source = try (try paths.get(source_key)).as_string();
       var output = try (try paths.get(output_key)).as_string();
-      return JsonResult.Ok(Target(source.clone(a), output.clone(a), String(""), archive));
+      return std.json.JsonResult.Ok(
+        Target(
+          try source.clone(a),
+          try output.clone(a),
+          try String(""),
+          archive
+        )
+      );
     }
     var entries = try document.get("entrypoints");
     for (var i: i64 = 0; i < entries.len(); i += 1) {
@@ -57,49 +68,58 @@ module build_targets {
         var output = try (try entry.get("output_name")).as_string();
         var kind = try (try entry.get("type")).as_string();
         if (kind.equals_literal("library") == false and kind.equals_literal("binary") == false) {
-          return JsonResult.Error(JsonError("Unexpected build target type", -1));
+          return std.json.JsonResult.Error(std.json.JsonError("Unexpected build target type", -1));
         }
-        var tests = output.clone(a);
-        tests.append("_test");
+        var tests = try output.clone(a);
+        try tests.append("_test");
         tests = match entry.get("test_binary_name") {
-          JsonResult.Ok(value) => (try value.as_string()).clone(a),
-          JsonResult.Error(_) => tests.clone(a)
+          std.json.JsonResult.Ok(value) => try (try value.as_string()).clone(a),
+          std.json.JsonResult.Error(_) => try tests.clone(a)
         };
-        return JsonResult.Ok(
-          Target(source.clone(a), output.clone(a), tests, kind.equals_literal("library"))
+        return std.json.JsonResult.Ok(
+          Target(
+            try source.clone(a),
+            try output.clone(a),
+            tests,
+            kind.equals_literal("library")
+          )
         );
       }
     }
-    return JsonResult.Error(JsonError("Unknown build target", -1));
+    return std.json.JsonResult.Error(std.json.JsonError("Unknown build target", -1));
   }
 
   /** Queries the compiler so tools share its target selection and resolved paths. */
   function query(action: static_ptr<u8>, dependency: static_ptr<u8>) SystemResult<String> {
     var a = make_heap_allocator();
-    var env = std.env.Env(a);
+    var env = try std.env.Env(a);
     var executable = match env.get("SUN_EXECUTABLE") {
-      Option.Some(value) => value.clone(a),
-      Option.None => String("sun")
+      Option.Some(value) => try value.clone(a),
+      Option.None => try String("sun")
     };
-    var command = std.process.Command(a, executable);
-    command.add_arg(action);
-    command.add_arg("--config");
-    command.add_arg("sun-config.json");
-    if (not String(dependency).is_empty()) {
-      command.add_arg("--dependency");
-      command.add_arg(dependency);
+    var command = try std.process.Command(a, executable);
+    try command.add_arg(action);
+    try command.add_arg("--config");
+    try command.add_arg("sun-config.json");
+    if (not (try String(dependency)).is_empty()) {
+      try command.add_arg("--dependency");
+      try command.add_arg(dependency);
     }
     var output = try command.output();
     if (output.status() != 0) {
-      eprint(output.stderr());
-      return SystemResult.Error(Error(output.status(), "Cannot resolve build configuration"));
+      std.io.eprint(output.stderr());
+      return SystemResult.Error(
+        try Error(output.status(), "Cannot resolve build configuration")
+      );
     }
-    return SystemResult.Ok(output.stdout().clone(a));
+    return SystemResult.Ok(try output.stdout().clone(a));
   }
 
   /** Copies one resolved string property from the compiler's JSON response. */
-  function property(document: ref Json, key: static_ptr<u8>) JsonResult<String> {
-    return JsonResult.Ok((try (try document.get(key)).as_string()).clone(make_heap_allocator()));
+  function property(document: ref std.json.Json, key: static_ptr<u8>) std.json.JsonResult<String> {
+    return std.json.JsonResult.Ok(
+      try (try (try document.get(key)).as_string()).clone(make_heap_allocator())
+    );
   }
 
   /** Resolves a directory property and translates malformed responses into build errors. */
@@ -109,15 +129,15 @@ module build_targets {
     dependency: static_ptr<u8>
   ) SystemResult<String> {
     var text = try query(action, dependency);
-    var document = match parse_json(make_heap_allocator(), text) {
-      JsonResult.Ok(value) => value,
-      JsonResult.Error(error) => {
+    var document = match std.json.parse_json(make_heap_allocator(), text) {
+      std.json.JsonResult.Ok(value) => value,
+      std.json.JsonResult.Error(error) => {
         return SystemResult.Error(Error(1, "Invalid compiler configuration response"));
       }
     };
     return match property(document, key) {
-      JsonResult.Ok(value) => SystemResult.Ok(value),
-      JsonResult.Error(error) => SystemResult.Error(
+      std.json.JsonResult.Ok(value) => SystemResult.Ok(value),
+      std.json.JsonResult.Error(error) => SystemResult.Error(
         Error(1, "Missing compiler configuration property")
       )
     };
@@ -136,45 +156,45 @@ module build_targets {
   /** Loads one target group and reports configuration failures as build errors. */
   function load_group(name: static_ptr<u8>, native: bool) SystemResult<Target> {
     var a = make_heap_allocator();
-    var path = String("sun-config.json");
-    var text = String("");
+    var path = try String("sun-config.json");
+    var text = try String("");
     if (native) {
       text = try std.io.read_to_string(a, path);
     } else {
       text = try query("describe", "");
     }
-    var document = match parse_json(a, text) {
-      JsonResult.Ok(value) => value,
-      JsonResult.Error(error) => {
-        eprintln(error.message());
+    var document = match std.json.parse_json(a, text) {
+      std.json.JsonResult.Ok(value) => value,
+      std.json.JsonResult.Error(error) => {
+        std.io.eprintln(try error.message());
         return SystemResult.Error(Error(1, "Cannot parse sun-config.json"));
       }
     };
     match select_group(document, name, native) {
-      JsonResult.Ok(value) => {
+      std.json.JsonResult.Ok(value) => {
         if (not native) {
           var root = match property(document, "build_root") {
-            JsonResult.Ok(path) => path,
-            JsonResult.Error(_) => {
+            std.json.JsonResult.Ok(path) => path,
+            std.json.JsonResult.Error(_) => {
               return SystemResult.Error(Error(1, "Missing compiler build directory"));
             }
           };
           // Keep compiler-selected filenames in the custom driver's build directory.
-          value.output.replace(root, String("build"));
-          value.tests.replace(root, String("build"));
+          value.output.replace(root, try String("build"));
+          value.tests.replace(root, try String("build"));
         }
         return SystemResult.Ok(value);
       },
-      JsonResult.Error(error) => {
-        eprintln(name);
-        eprintln(error.message());
+      std.json.JsonResult.Error(error) => {
+        std.io.eprintln(name);
+        std.io.eprintln(try error.message());
         return SystemResult.Error(Error(1, "Cannot load configured build target"));
       }
     };
   }
 
   /** Selects a Sun entrypoint for compiler configuration and unit tests. */
-  function select(document: ref Json, name: static_ptr<u8>) JsonResult<Target> {
+  function select(document: ref std.json.Json, name: static_ptr<u8>) std.json.JsonResult<Target> {
     return select_group(document, name, false);
   }
 
