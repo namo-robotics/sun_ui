@@ -53,7 +53,7 @@ module build_tasks {
         std.io.eprintln(output.stderr());
         return SystemResult.Error(Error(1, "Install GTK development dependencies"));
       }
-      var flags = output.stdout().split_whitespace(a);
+      var flags = try output.stdout().split_whitespace(a);
       for (var flag: ref String in flags) {
         try command.add_arg(flag);
       }
@@ -81,9 +81,9 @@ module build_tasks {
       std.io.eprint(result.stderr());
       if (result.status() != 0) {
         var a = make_heap_allocator();
-        var parts = source_path.split(a, b'/');
+        var parts = try source_path.split(a, b'/');
         var view = try parts[1].clone(a);
-        view.replace("-xml", "");
+        try view.replace("-xml", "");
         try view.append(".view.xml");
         var original = try String("examples/");
         try original.append(parts[1]);
@@ -91,10 +91,10 @@ module build_tasks {
         try original.append(view);
         var generated = try String("build/generated/");
         try generated.append(original);
-        generated.replace(".view.xml", ".view.sun");
+        try generated.replace(".view.xml", ".view.sun");
         ignore_error(build_diagnostics.annotate(result.stderr(), generated, original));
         return SystemResult.Error(
-          try Error(result.status(), "Generated view compilation failed")
+          Error(result.status(), "Generated view compilation failed")
         );
       }
       return SystemResult.Ok;
@@ -108,9 +108,9 @@ module build_tasks {
     var a = make_heap_allocator();
     match compile("xml_probe", false) {
       SystemResult.Ok => {},
-      SystemResult.Error(_) => {
+      (error: const ref IError) => {
         return SystemResult.Error(
-          try Error(
+          Error(
             1,
             "XML reader and source-span APIs are required. Run ./scripts/bootstrap-sun.sh --update or set SUN_EXECUTABLE to a current compiler."
           )
@@ -156,18 +156,21 @@ module build_tasks {
   function link_native(command: ref std.process.Command, name: static_ptr<u8>) SystemResult<void> {
     var a = make_heap_allocator();
     var target = try build_targets.load_native(name);
-    var parts = target.output.split(a, b'/');
+    var parts = try target.output.split(a, b'/');
     var file = parts[parts.size() - 1];
     if (not target.library or not file.starts_with("lib") or not file.ends_with(".a")) {
       return SystemResult.Error(Error(1, "Native linker target must be a static archive"));
     }
-    var directory = match try sun_ui_results.access(
-      target.output.substr(a, 0, target.output.length() - file.length())
+    var directory = match try sun_ui_results.substring(
+      target.output,
+      a,
+      0,
+      target.output.length() - file.length()
     ) {
       AccessResult.Ok(value) => value,
       AccessResult.OutOfBounds(_) => try String("")
     };
-    var library = match try sun_ui_results.access(file.substr(a, 3, file.length() - 5)) {
+    var library = match try sun_ui_results.substring(file, a, 3, file.length() - 5) {
       AccessResult.Ok(value) => value,
       AccessResult.OutOfBounds(_) => try String("")
     };
@@ -201,7 +204,7 @@ module build_tasks {
     if (output.status() != 0) {
       return SystemResult.Error(Error(1, "Install SDL3 and libepoxy development dependencies"));
     }
-    var flags = output.stdout().split_whitespace(make_heap_allocator());
+    var flags = try output.stdout().split_whitespace(make_heap_allocator());
     for (var flag: ref String in flags) {
       try command.add_arg(flag);
     }
@@ -281,7 +284,7 @@ module build_tasks {
     var tests = try std.process.Command(a, markup_target.tests);
     try run(tests);
     var viewc = try build_targets.load("sun_viewc");
-    var names = (try String("counter tasks forms")).split_whitespace(a);
+    var names = try (try String("counter tasks forms")).split_whitespace(a);
     for (var name: ref String in names) {
       var generate = try std.process.Command(a, viewc.output);
       var example = try name.clone(a);
@@ -412,7 +415,7 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) AllocationResult<i32> {
   return AllocationResult.Ok(
     match result {
       SystemResult.Ok => 0,
-      SystemResult.Error(error) => {
+      (error: const ref IError) => {
         std.io.eprintln(try error.message());
         return AllocationResult.Ok(1);
       }

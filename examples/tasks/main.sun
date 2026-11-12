@@ -25,24 +25,24 @@ module tasks {
     if (selected) {
       try label.append(" — selected");
     }
-    view.button(id, label, 4, id);
+    try view.button(id, label, 4, id);
 
     return AllocationResult.Ok;
   }
 
   /** Builds toolbar and task components from a read-only state borrow. */
-  function view(state: const ref State) AllocationResult<ui.View> {
+  function view(state: const ref State) SystemResult<ui.View> {
     var a = make_heap_allocator();
     var result = try ui.View(a);
-    result.button(-1, try String("Add task"), 1, 0);
-    result.button(-2, try String("Reverse tasks"), 2, 0);
-    result.button(-3, try String("Remove selected task"), 3, 0);
+    try result.button(-1, try String("Add task"), 1, 0);
+    try result.button(-2, try String("Reverse tasks"), 2, 0);
+    try result.button(-3, try String("Remove selected task"), 3, 0);
     for (var i: i64 = 0; i < state.ids.size(); i += 1) {
       var index = state.reversed ? state.ids.size() - 1 - i : i;
       var id = state.ids[index];
       try task(result, id, state.selected == id);
     }
-    return AllocationResult.Ok(result);
+    return SystemResult.Ok(result);
   }
 
   /** Updates task state using a captured scalar message, never a platform handle. */
@@ -78,9 +78,9 @@ module tasks {
     renderer: ref ui_gtk.Renderer,
     session: ref ui.Session<State>,
     key: i64
-  ) SystemResult<void> {
-    renderer.click(session.tree.identity(key));
-    renderer.poll(session.tree, session.queue, false);
+  ) std.Result<void> {
+    renderer.click(try session.tree.identity(key));
+    try renderer.poll(session.tree, session.queue, false);
     return session.dispatch(renderer);
   }
 
@@ -88,73 +88,73 @@ module tasks {
   function acceptance(
     renderer: ref ui_gtk.Renderer,
     session: ref ui.Session<State>
-  ) SystemResult<void> {
-    var first = session.tree.identity(1);
-    var second = session.tree.identity(2);
+  ) std.Result<void> {
+    var first = try session.tree.identity(1);
+    var second = try session.tree.identity(2);
     try click(renderer, session, 2);
     if (session.state.selected != 2 or renderer.updates != 1) {
-      return SystemResult.Error(Error(1, "Task payload or targeted selection update failed"));
+      return std.Result.Error(Error(1, "Task payload or targeted selection update failed"));
     }
     // Collection must preserve native order across controls, independently of tree order.
     renderer.click(second);
     renderer.click(first);
-    renderer.poll(session.tree, session.queue, false);
+    try renderer.poll(session.tree, session.queue, false);
     try session.dispatch(renderer);
     if (session.state.selected != 1) {
-      return SystemResult.Error(Error(1, "Cross-widget native event order was changed"));
+      return std.Result.Error(Error(1, "Cross-widget native event order was changed"));
     }
     try click(renderer, session, 2);
     renderer.focus(second);
     if (renderer.focused(second) == false) {
-      return SystemResult.Error(Error(1, "Initial native focus failed"));
+      return std.Result.Error(Error(1, "Initial native focus failed"));
     }
     try click(renderer, session, -2);
     if (renderer.focused(second) == false or renderer.follows(first, second) == false) {
-      return SystemResult.Error(Error(1, "Reorder did not preserve native focus and order"));
+      return std.Result.Error(Error(1, "Reorder did not preserve native focus and order"));
     }
     try click(renderer, session, -1);
-    var third = session.tree.identity(3);
+    var third = try session.tree.identity(3);
     if (third == 0 or renderer.follows(second, third) == false or
       renderer.focused(second) == false) {
-      return SystemResult.Error(Error(1, "Insertion did not preserve focus or order"));
+      return std.Result.Error(Error(1, "Insertion did not preserve focus or order"));
     }
-    if (session.tree.identity(1) != first or session.tree.identity(2) != second or
+    if (try session.tree.identity(1) != first or try session.tree.identity(2) != second or
       renderer.creates != 6) {
-      return SystemResult.Error(Error(1, "Surviving tasks were remounted"));
+      return std.Result.Error(Error(1, "Surviving tasks were remounted"));
     }
     try click(renderer, session, -3);
-    if (session.tree.identity(2) != 0 or renderer.removals != 1 or
+    if (try session.tree.identity(2) != 0 or renderer.removals != 1 or
       renderer.follows(first, third) == false) {
-      return SystemResult.Error(Error(1, "Removal did not clean up the selected task"));
+      return std.Result.Error(Error(1, "Removal did not clean up the selected task"));
     }
-    session.tree.enqueue(second, session.queue);
+    try session.tree.enqueue(second, session.queue);
     if (session.queue.size() != 0) {
-      return SystemResult.Error(Error(1, "Removed task still delivers events"));
+      return std.Result.Error(Error(1, "Removed task still delivers events"));
     }
     session.tree.shutdown(renderer);
     if (renderer.removals != renderer.creates) {
-      return SystemResult.Error(Error(1, "Subscriptions survived shutdown"));
+      return std.Result.Error(Error(1, "Subscriptions survived shutdown"));
     }
     std.io.println("Task list acceptance passed");
-    return SystemResult.Ok;
+    return std.Result.Ok;
   }
 
   /** Runs the native task list with explicitly owned state and bounded dispatch turns. */
-  public function run(automated: bool) SystemResult<void> {
+  public function run(automated: bool) std.Result<void> {
     var title = try String("Sun UI — Keyed tasks");
     var renderer = try ui_gtk.Renderer(title);
     var state = try State();
-    var session = ui.Session<State>(state, view, handle);
+    var session = try ui.Session<State>(state, view, handle);
     try session.render(renderer);
     if (automated) {
       return acceptance(renderer, session);
     }
     while (renderer.running()) {
-      renderer.poll(session.tree, session.queue, true);
+      try renderer.poll(session.tree, session.queue, true);
       try session.dispatch(renderer);
     }
     session.tree.shutdown(renderer);
-    return SystemResult.Ok;
+    return std.Result.Ok;
   }
 }
 
@@ -165,8 +165,8 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) AllocationResult<i32> {
   var args = try env.args(argc, argv);
   return AllocationResult.Ok(
     match tasks.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
-      SystemResult.Ok => 0,
-      SystemResult.Error(error) => {
+      std.Result.Ok => 0,
+      (error: const ref IError) => {
         std.io.eprintln(try error.message());
         return AllocationResult.Ok(1);
       }

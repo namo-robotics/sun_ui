@@ -133,10 +133,12 @@ public module markup {
   function expression(value: const ref String, string_value: bool) std.Result<String> {
     var a = make_heap_allocator();
     if (value.starts_with("{") and value.ends_with("}")) {
-      return std.Result.Ok(match try sun_ui_results.access(value.substr(a, 1, value.length() - 2)) {
-        AccessResult.Ok(text) => text,
-        AccessResult.OutOfBounds(_) => try String("")
-      });
+      return std.Result.Ok(
+        match try sun_ui_results.substring(value, a, 1, value.length() - 2) {
+          AccessResult.Ok(text) => text,
+          AccessResult.OutOfBounds(_) => try String("")
+        }
+      );
     }
     if (string_value) {
       var result = try String("try String(");
@@ -189,9 +191,9 @@ public module markup {
     var input: String;
     var filename: String;
     var nodes: Vec<Node>;
-    public var output: String ;
+    public var output: String;
     public var imports: Vec<String>;
-    public var source_map: String ;
+    public var source_map: String;
     var line: i64 = 1;
     var prepared: bool = false;
 
@@ -329,9 +331,9 @@ public module markup {
           AccessResult.OutOfBounds(_) => {}
         };
       }
-    
+
       return std.AllocationResult.Ok;
-}
+    }
 
     /** Rejects attributes outside a declaration's supported vocabulary. */
     method attributes(index: i64, allowed: static_ptr<u8>) std.Result<void> {
@@ -510,11 +512,7 @@ public module markup {
     }
 
     /** Resolves literal template names lexically, then through application and theme dictionaries. */
-    method template_resource(
-      index: i64,
-      name: const ref String,
-      theme_only: bool
-    ) std.Result<i64> {
+    method template_resource(index: i64, name: const ref String, theme_only: bool) std.Result<i64> {
       var owner = index;
       while (owner >= 0) {
         var candidate: i64 = -1;
@@ -590,7 +588,9 @@ public module markup {
           )
         );
       }
-      return std.Result.Error(try this.failure(this.nodes[index].offset, "Template resource cycle"));
+      return std.Result.Error(
+        try this.failure(this.nodes[index].offset, "Template resource cycle")
+      );
     }
 
     /** Emits a typed function-valued resource; Sun checks even unused imported signatures. */
@@ -601,7 +601,9 @@ public module markup {
         function_name = try this.nodes[target].attr("name");
       }
       try this.emit(
-        try String("/** Returns the typed component function stored by this template resource. */"),
+        try String(
+          "/** Returns the typed component function stored by this template resource. */"
+        ),
         this.nodes[index].offset
       );
       var line = try `function template_resource_${index}() function (ref ui.View, i64`;
@@ -662,7 +664,10 @@ public module markup {
       try line.append(try expression(scope, true));
       try line.append(";");
       try this.emit(line, this.nodes[index].offset);
-      try this.emit(try String("if (event.action_scope.equals(scope)) {"), this.nodes[index].offset);
+      try this.emit(
+        try String("if (event.action_scope.equals(scope)) {"),
+        this.nodes[index].offset
+      );
       for (var n = index + 1; n < this.nodes.size(); n += 1) {
         if (this.action_owner(n) != index or not builtin(this.nodes[n].name)) {
           continue;
@@ -695,7 +700,9 @@ public module markup {
         try this.emit(try String("return SystemResult.Ok;"), this.nodes[index].offset);
       } else {
         line = try `return ${fallback}`;
-        try line.append(fallback.starts_with("state.") ? "(event, queue);" : "(state, event, queue);");
+        try line.append(
+          fallback.starts_with("state.") ? "(event, queue);" : "(state, event, queue);"
+        );
         try this.emit(line, this.nodes[index].offset);
       }
       try this.emit(try String("}"), this.nodes[index].offset);
@@ -751,6 +758,18 @@ public module markup {
         var line = try `${name}(result, ${parent});`;
         if (owner >= 0 and this.content_input(owner, name) >= 0) {
           line = try `${name}.parent = try result.append(${parent}, try ui.Element(try ui.Key(try String("slot:${name}")), ui.Kind.Group));`;
+        } else {
+          for (var p = owner + 1; p < this.nodes.size(); p += 1) {
+            if (this.nodes[p].parent == owner and this.nodes[p].name.equals_literal("Param") and
+              this.nodes[p].attr_equals("name", name)) {
+              var type = try this.nodes[p].attr("type");
+              type.trim();
+              if (not type.ends_with(" void")) {
+                line = try `try ${name}(result, ${parent});`;
+              }
+              break;
+            }
+          }
         }
         try this.emit(line, node.offset);
         return std.Result.Ok;
@@ -775,7 +794,9 @@ public module markup {
               otherwise = i;
             } else {
               if (otherwise >= 0) {
-                return std.Result.Error(try this.failure(this.nodes[i].offset, "Else must be last"));
+                return std.Result.Error(
+                  try this.failure(this.nodes[i].offset, "Else must be last")
+                );
               }
               try this.child(i, parent);
             }
@@ -1130,7 +1151,9 @@ public module markup {
           for (var j: i64 = 0; j < node.attributes.size(); j += 1) {
             if (node.attributes[j].name.equals(name)) {
               try line.append(", ");
-              try line.append(try expression(node.attributes[j].value, type.equals_literal("String")));
+              try line.append(
+                try expression(node.attributes[j].value, type.equals_literal("String"))
+              );
               found = true;
               break;
             }
@@ -1349,7 +1372,10 @@ public module markup {
           }
           if (not node.name.equals_literal("Style") or not alias.is_empty()) {
             return std.Result.Error(
-              try this.failure(appearance.offset, "Only non-alias styles have appearance children")
+              try this.failure(
+                appearance.offset,
+                "Only non-alias styles have appearance children"
+              )
             );
           }
           for (var nested = state + 1; nested < this.nodes.size(); nested += 1) {
@@ -1393,7 +1419,10 @@ public module markup {
               for (var supplied: ref Attribute in appearance.attributes) {
                 if (supplied.name.equals(property)) {
                   return std.Result.Error(
-                    try this.failure(attribute.offset, "Conflicting appearance value and resource")
+                    try this.failure(
+                      attribute.offset,
+                      "Conflicting appearance value and resource"
+                    )
                   );
                 }
               }
@@ -1409,7 +1438,9 @@ public module markup {
             } else {
               line = try `${variable}.style.${field}.${property} = `;
             }
-            try line.append(try expression(attribute.value, reference or property.equals_literal("font")));
+            try line.append(
+              try expression(attribute.value, reference or property.equals_literal("font"))
+            );
             try line.append(";");
             try this.emit(line, attribute.offset);
           }
@@ -1447,7 +1478,10 @@ public module markup {
       for (var i: i64 = 1; i < this.nodes.size(); i += 1) {
         if (this.nodes[i].parent != 0 or not this.nodes[i].name.equals_literal("Source")) {
           return std.Result.Error(
-            try this.failure(this.nodes[i].offset, "Registry accepts only empty Source declarations")
+            try this.failure(
+              this.nodes[i].offset,
+              "Registry accepts only empty Source declarations"
+            )
           );
         }
         try this.attributes(i, "path");
@@ -1543,7 +1577,10 @@ public module markup {
         }
         if (not identifier(name) or reserved) {
           return std.Result.Error(
-            try this.failure(this.nodes[i].offset, "Invalid or reserved registered component name")
+            try this.failure(
+              this.nodes[i].offset,
+              "Invalid or reserved registered component name"
+            )
           );
         }
         for (var entry: ref Registration in registry.entries) {
@@ -1558,7 +1595,11 @@ public module markup {
             return std.Result.Error(try Error(1, message));
           }
         }
-        var entry = try Registration(try name.clone(a), try `${module_name}.${name}`, try this.filename.clone(a));
+        var entry = try Registration(
+          try name.clone(a),
+          try `${module_name}.${name}`,
+          try this.filename.clone(a)
+        );
         for (var p = i + 1; p < this.nodes.size(); p += 1) {
           if (this.nodes[p].parent != i or
             not (this.nodes[p].name.equals_literal("Param") or
@@ -1575,7 +1616,9 @@ public module markup {
           }
           var input = try Node(try this.nodes[p].name.clone(a), 0, this.nodes[p].offset);
           for (var attr: ref Attribute in this.nodes[p].attributes) {
-            try input.attributes.push(Attribute(try attr.name.clone(a), try attr.value.clone(a), attr.offset));
+            try input.attributes.push(
+              Attribute(try attr.name.clone(a), try attr.value.clone(a), attr.offset)
+            );
           }
           try entry.inputs.push(input);
         }
@@ -1625,7 +1668,9 @@ public module markup {
         for (var input: ref Node in entry.inputs) {
           var node = try Node(try input.name.clone(a), parent, 0);
           for (var attr: ref Attribute in input.attributes) {
-            try node.attributes.push(Attribute(try attr.name.clone(a), try attr.value.clone(a), 0));
+            try node.attributes.push(
+              Attribute(try attr.name.clone(a), try attr.value.clone(a), 0)
+            );
           }
           try this.nodes.push(node);
         }
@@ -1674,7 +1719,9 @@ public module markup {
             );
           }
           try this.emit(
-            try String("/** Appends owned component content during the current construction call. */"),
+            try String(
+              "/** Appends owned component content during the current construction call. */"
+            ),
             this.nodes[i].offset
           );
           line = try `public function ${name}(result: ref ui.View, parent: i64`;
@@ -1712,7 +1759,10 @@ public module markup {
             this.nodes[i].offset
           );
           try this.children(i, try String("parent"));
-          try this.emit(try String("result.resource_scope = enclosing_resources;"), this.nodes[i].offset);
+          try this.emit(
+            try String("result.resource_scope = enclosing_resources;"),
+            this.nodes[i].offset
+          );
           try this.emit(try String("return SystemResult.Ok;"), this.nodes[i].offset);
           try this.emit(try String("}"), this.nodes[i].offset);
           continue;
@@ -1743,7 +1793,10 @@ public module markup {
           var function_name = try this.nodes[i].attr("function");
           if (not identifier(imported_name) or not try qualified(function_name)) {
             return std.Result.Error(
-              try this.failure(this.nodes[i].offset, "Import requires name and function identifiers")
+              try this.failure(
+                this.nodes[i].offset,
+                "Import requires name and function identifiers"
+              )
             );
           }
           var source = try this.nodes[i].attr("source");
@@ -1812,7 +1865,10 @@ public module markup {
           try line.append(");");
           try this.emit(line, this.nodes[i].offset);
         }
-        try this.emit(try String("result.resource_scope = enclosing_resources;"), this.nodes[i].offset);
+        try this.emit(
+          try String("result.resource_scope = enclosing_resources;"),
+          this.nodes[i].offset
+        );
         try this.emit(try String("return SystemResult.Ok(result);"), this.nodes[i].offset);
         try this.emit(try String("}"), this.nodes[i].offset);
       }

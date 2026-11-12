@@ -7,7 +7,7 @@ module build_diagnostics {
   function slice(text: const ref String, start: i64, length: i64) AllocationResult<String> {
     var a = make_heap_allocator();
     return AllocationResult.Ok(
-      match try sun_ui_results.access(text.substr(a, start, length)) {
+      match try sun_ui_results.substring(text, a, start, length) {
         AccessResult.Ok(value) => value,
         AccessResult.OutOfBounds(_) => try String("")
       }
@@ -55,8 +55,8 @@ module build_diagnostics {
     var map_path = try generated.clone(a);
     try map_path.append(".map");
     var mapping = try std.io.read_to_string(a, map_path);
-    var records = mapping.split(a, b'\n');
-    var lines = diagnostic.split(a, b'\n');
+    var records = try mapping.split(a, b'\n');
+    var lines = try diagnostic.split(a, b'\n');
     var needle = try generated.clone(a);
     try needle.append(":");
     for (var line: ref String in lines) {
@@ -86,7 +86,7 @@ module build_diagnostics {
       var offset: i64 = -1;
       var mapped_file = try original.clone(a);
       for (var record: ref String in records) {
-        var fields = record.split(a, b'\t');
+        var fields = try record.split(a, b'\t');
         if (fields.size() < 2) {
           continue;
         }

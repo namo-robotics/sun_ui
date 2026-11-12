@@ -3,7 +3,7 @@ using std;
 /** Waits for a successful paint with a bounded deadline. */
 function await_frame(window: ref ui_gtk_drawing.Window) SystemResult<void> {
   for (var i: i64 = 0; i < 200; i += 1) {
-    window.poll(false);
+    try window.poll(false);
     if (window.rendered()) {
       return SystemResult.Ok;
     }
@@ -38,7 +38,16 @@ function run(automated: bool) SystemResult<void> {
       SystemResult.Ok => {
         return SystemResult.Error(Error(1, "Export to a directory unexpectedly succeeded"));
       },
-      SystemResult.Error(_) => {}
+      SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return SystemResult.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return SystemResult.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return SystemResult.Overflow(error);
+      }
     };
     try window.export_svg(export_path);
     if (window.running() == false) {
@@ -48,7 +57,7 @@ function run(automated: bool) SystemResult<void> {
     return SystemResult.Ok;
   }
   while (window.running()) {
-    window.poll(true);
+    try window.poll(true);
   }
   return SystemResult.Ok;
 }
@@ -61,7 +70,7 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) AllocationResult<i32> {
   return AllocationResult.Ok(
     match run(args.size() == 2 and args[1].equals_literal("--self-test")) {
       SystemResult.Ok => 0,
-      SystemResult.Error(error) => {
+      (error: const ref IError) => {
         std.io.eprintln(try error.message());
         return AllocationResult.Ok(1);
       }

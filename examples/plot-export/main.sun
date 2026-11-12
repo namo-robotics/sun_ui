@@ -5,7 +5,7 @@ function main() AllocationResult<i32> {
   return AllocationResult.Ok(
     match export_plot() {
       SystemResult.Ok => 0,
-      SystemResult.Error(error) => {
+      (error: const ref IError) => {
         std.io.eprintln(try error.message());
         return AllocationResult.Ok(1);
       }

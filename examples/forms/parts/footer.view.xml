@@ -1,6 +1,6 @@
 <Views module="form_parts">
   <Template name="Footer">
-    <Param name="content" type="function (ref ui.View, i64) void" />
+    <Param name="content" type="function (ref ui.View, i64) AllocationResult&lt;void&gt;" />
     <Resources><Spacing name="gap" value="4" /></Resources>
     <Column key="footer" spacingResource="gap"><Slot name="content" /></Column>
   </Template>

@@ -4,7 +4,7 @@ using std;
 module plot_tests {
 
   /** Places four independent figures in distinct viewports without losing their labels. */
-  test_function subplot_grid_composes_panels() TestResult<void> {
+  test_function subplot_grid_composes_panels() std.test.AssertionResult<void> {
     var grid = try plot.Grid(
       2,
       2,
@@ -17,7 +17,7 @@ module plot_tests {
         try String("x"),
         try String("y")
       );
-      grid.add(try figure.draw(684.0, 471.0));
+      try grid.add(try figure.draw(684.0, 471.0));
     }
     var drawing = try grid.draw(1440.0, 1100.0);
     var svg = try drawing.svg();
@@ -29,11 +29,11 @@ module plot_tests {
     try std.test.assert_eq(drawing.width, 1440.0);
     var small = try grid.draw(1280.0, 1000.0);
     try std.test.assert_eq(small.height, 1000.0);
-    return TestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 
   /** Rejects missing panels, invalid dimensions, and cells too small for readable axes. */
-  test_function subplot_grid_rejects_invalid_layout() TestResult<void> {
+  test_function subplot_grid_rejects_invalid_layout() std.test.AssertionResult<void> {
     var grid = try plot.Grid(
       1,
       1,
@@ -44,19 +44,37 @@ module plot_tests {
       SystemResult.Ok(_) => {
         try std.test.assert(false);
       },
-      SystemResult.Error(_) => {}
+      SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.test.AssertionResult.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.test.AssertionResult.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.test.AssertionResult.Overflow(error);
+      }
     };
     var figure = try plot.Figure(
       try String("Panel"),
       try String("x"),
       try String("y")
     );
-    grid.add(try figure.draw(400.0, 300.0));
+    try grid.add(try figure.draw(400.0, 300.0));
     match grid.draw(400.0, 300.0) {
       SystemResult.Ok(_) => {
         try std.test.assert(false);
       },
-      SystemResult.Error(_) => {}
+      SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.test.AssertionResult.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.test.AssertionResult.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.test.AssertionResult.Overflow(error);
+      }
     };
     var invalid = try plot.Grid(
       0,
@@ -68,26 +86,32 @@ module plot_tests {
       SystemResult.Ok(_) => {
         try std.test.assert(false);
       },
-      SystemResult.Error(_) => {}
+      SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.test.AssertionResult.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.test.AssertionResult.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.test.AssertionResult.Overflow(error);
+      }
     };
-    return TestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 
-  /** Propagates assertion and plotting failures through the test runner. */
-  enum TestResult<T> { Ok(T), Assertion(std.test.AssertionError), System(Error) }
-
   /** Checks ordinary and reversed output transforms at interval boundaries. */
-  test_function coordinate_mapping() TestResult<void> {
+  test_function coordinate_mapping() std.test.AssertionResult<void> {
     var limits = plot.Limits(-2.0, 2.0);
     try std.test.assert(limits.valid());
     try std.test.assert_eq(limits.map(-2.0, 100.0, 500.0), 100.0);
     try std.test.assert_eq(limits.map(0.0, 100.0, 500.0), 300.0);
     try std.test.assert_eq(limits.map(2.0, 500.0, 100.0), 100.0);
-    return TestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 
   /** Checks readable tick increments across small and large scales. */
-  test_function tick_intervals_and_labels() TestResult<void> {
+  test_function tick_intervals_and_labels() std.test.AssertionResult<void> {
     try std.test.assert_eq(plot.tick_step(10.0), 2.0);
     try std.test.assert_eq(plot.tick_step(23.0), 5.0);
     try std.test.assert_eq(plot.tick_step(0.01), 0.002);
@@ -99,11 +123,11 @@ module plot_tests {
     try std.test.assert(small.equals_literal("2e-6"));
     try std.test.assert(large.equals_literal("2e6"));
     try std.test.assert(offset.equals_literal("1.0000002e6"));
-    return TestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 
   /** Verifies deterministic limits for empty and constant samples. */
-  test_function empty_and_constant_ranges() TestResult<void> {
+  test_function empty_and_constant_ranges() std.test.AssertionResult<void> {
     var figure = try plot.Figure(
       try String("Empty"),
       try String("x"),
@@ -117,19 +141,19 @@ module plot_tests {
       try String("blue"),
       false
     );
-    series.add(4.0, -3.0);
-    figure.add(series);
+    try series.add(4.0, -3.0);
+    try figure.add(series);
     var x = figure.bounds(true);
     var y = figure.bounds(false);
     try std.test.assert(x.min < 4.0 and x.max > 4.0);
     try std.test.assert(y.min < -3.0 and y.max > -3.0);
     var drawing = try figure.draw(640.0, 480.0);
     try std.test.assert_eq(drawing.width, 640.0);
-    return TestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 
   /** Rejects unusable ranges and dimensions before producing a drawing. */
-  test_function invalid_layout_is_rejected() TestResult<void> {
+  test_function invalid_layout_is_rejected() std.test.AssertionResult<void> {
     var figure = try plot.Figure(
       try String("Invalid"),
       try String("x"),
@@ -139,37 +163,64 @@ module plot_tests {
       SystemResult.Ok(_) => {
         try std.test.assert(false);
       },
-      SystemResult.Error(_) => {}
+      SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.test.AssertionResult.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.test.AssertionResult.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.test.AssertionResult.Overflow(error);
+      }
     };
     figure.x_limits = Option.Some(plot.Limits(1.0, 1.0));
     match figure.draw(640.0, 480.0) {
       SystemResult.Ok(_) => {
         try std.test.assert(false);
       },
-      SystemResult.Error(_) => {}
+      SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.test.AssertionResult.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.test.AssertionResult.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.test.AssertionResult.Overflow(error);
+      }
     };
     figure.x_limits = Option.Some(plot.Limits(2.0, -2.0));
     match figure.draw(640.0, 480.0) {
       SystemResult.Ok(_) => {
         try std.test.assert(false);
       },
-      SystemResult.Error(_) => {}
+      SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.test.AssertionResult.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.test.AssertionResult.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.test.AssertionResult.Overflow(error);
+      }
     };
-    return TestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 
   /** Ensures user labels cannot become markup or escape XML attributes. */
-  test_function xml_text_is_escaped() TestResult<void> {
+  test_function xml_text_is_escaped() std.test.AssertionResult<void> {
     var text = try String("A & B <tag> \"quoted\" 'single'");
     var escaped = try ui_drawing.escape(text);
     try std.test.assert(
       escaped.equals_literal("A &amp; B &lt;tag&gt; &quot;quoted&quot; &apos;single&apos;")
     );
-    return TestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 
   /** Non-finite paired samples neither affect limits nor connect unrelated line segments. */
-  test_function nonfinite_samples_break_lines() TestResult<void> {
+  test_function nonfinite_samples_break_lines() std.test.AssertionResult<void> {
     var huge = F64_MAX;
     var infinity = huge + huge;
     var nan = infinity - infinity;
@@ -186,20 +237,20 @@ module plot_tests {
       try String("#123456"),
       false
     );
-    series.add(0.0, 0.0);
-    series.add(999.0, nan);
-    series.add(1.0, 1.0);
-    figure.add(series);
+    try series.add(0.0, 0.0);
+    try series.add(999.0, nan);
+    try series.add(1.0, 1.0);
+    try figure.add(series);
     var bounds = figure.bounds(true);
     try std.test.assert_eq(bounds.max, 1.0);
     var drawing = try figure.draw(640.0, 480.0);
     var svg = try drawing.svg();
     try std.test.assert(svg.contains("stroke=\"#123456\"") == false);
-    return TestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 
   /** Explicit limits are honored and data marks are enclosed in an SVG clipping viewport. */
-  test_function scatter_export_and_explicit_limits() TestResult<void> {
+  test_function scatter_export_and_explicit_limits() std.test.AssertionResult<void> {
     var figure = try plot.Figure(
       try String("A & B"),
       try String("x < y"),
@@ -212,9 +263,9 @@ module plot_tests {
       try String("#123456"),
       true
     );
-    series.add(5.0, 5.0);
-    series.add(50.0, 50.0);
-    figure.add(series);
+    try series.add(5.0, 5.0);
+    try series.add(50.0, 50.0);
+    try figure.add(series);
     var drawing = try figure.draw(640.0, 480.0);
     var svg = try drawing.svg();
     try std.test.assert(svg.contains("<circle cx=\"354\" cy=\"232\""));
@@ -222,11 +273,11 @@ module plot_tests {
     try std.test.assert(svg.contains("A &amp; B"));
     try std.test.assert(svg.contains("x &lt; y"));
     try std.test.assert(svg.contains("µm"));
-    return TestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 
   /** Rejects invalid styles and overflowing data bounds rather than exporting invalid geometry. */
-  test_function invalid_styles_and_extreme_ranges() TestResult<void> {
+  test_function invalid_styles_and_extreme_ranges() std.test.AssertionResult<void> {
     var figure = try plot.Figure(
       try String("Invalid"),
       try String("x"),
@@ -238,12 +289,21 @@ module plot_tests {
       false
     );
     series.line_width = -1.0;
-    figure.add(series);
+    try figure.add(series);
     match figure.draw(640.0, 480.0) {
       SystemResult.Ok(_) => {
         try std.test.assert(false);
       },
-      SystemResult.Error(_) => {}
+      SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.test.AssertionResult.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.test.AssertionResult.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.test.AssertionResult.Overflow(error);
+      }
     };
     figure.series[0].line_width = 2.0;
     figure.x_limits = Option.Some(plot.Limits(0.0 - F64_MAX, F64_MAX));
@@ -251,8 +311,17 @@ module plot_tests {
       SystemResult.Ok(_) => {
         try std.test.assert(false);
       },
-      SystemResult.Error(_) => {}
+      SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.test.AssertionResult.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.test.AssertionResult.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.test.AssertionResult.Overflow(error);
+      }
     };
-    return TestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 }

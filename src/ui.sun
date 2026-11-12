@@ -385,12 +385,7 @@ public module ui {
     }
 
     /** Appends a root button for existing handwritten views. */
-    public method button(
-      key: i64,
-      text: String,
-      action: i64,
-      payload: i64
-    ) AllocationResult<void> {
+    public method button(key: i64, text: String, action: i64, payload: i64) AllocationResult<void> {
       var node = try Element(try Key(key), Kind.Button);
       node.text = text;
       node.action = action;

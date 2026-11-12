@@ -6,7 +6,7 @@ function main() AllocationResult<i32> {
   var input = try String("<probe value=\"1\"/>");
   var reader = try std.xml.XmlReader(a, input);
   match reader.next() {
-    std.xml.XmlResult.Ok(event) => {
+    Result.Ok(event) => {
       match event {
         Option.Some(value) => {
           match value {
@@ -41,7 +41,7 @@ function main() AllocationResult<i32> {
         }
       };
     },
-    std.xml.XmlResult.Error(_) => {
+    _ => {
       return AllocationResult.Ok(1);
     }
   };

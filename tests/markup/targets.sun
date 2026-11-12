@@ -3,13 +3,10 @@ using std;
 /** Verifies target selection independently of this workspace's artifact names. */
 module build_targets {
 
-  /** Combines JSON parsing and assertion failures for target configuration tests. */
-  enum TargetTestResult<T> { Ok(T), Json(JsonError), Assertion(std.test.AssertionError) }
-
   /** Keeps explicit library and test output names when selecting among multiple entries. */
-  test_function configured_artifact_names() TargetTestResult<void> {
+  test_function configured_artifact_names() std.test.AssertionResult<void> {
     var a = make_heap_allocator();
-    var document = try parse_json(
+    var document = try std.json.parse_json(
       a,
       "{\"entrypoints\":[{\"name\":\"other\"},{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"library\",\"output_name\":\"tmp/custom.moon\",\"test_binary_name\":\"tmp/custom-tests\"}]}"
     );
@@ -18,39 +15,49 @@ module build_targets {
     try std.test.assert(target.source.equals_literal("src/example.sun"));
     try std.test.assert(target.output.equals_literal("tmp/custom.moon"));
     try std.test.assert(target.tests.equals_literal("tmp/custom-tests"));
-    return TargetTestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 
   /** Derives a binary's default test artifact from its configured output. */
-  test_function default_test_artifact() TargetTestResult<void> {
+  test_function default_test_artifact() std.test.AssertionResult<void> {
     var a = make_heap_allocator();
-    var document = try parse_json(
+    var document = try std.json.parse_json(
       a,
       "{\"entrypoints\":[{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"binary\",\"output_name\":\"tmp/custom\"}]}"
     );
     var target = try select(document, "sample");
     try std.test.assert(target.library == false);
     try std.test.assert(target.tests.equals_literal("tmp/custom_test"));
-    return TargetTestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 
   /** Reports missing targets and invalid target types instead of compiling a fallback. */
-  test_function invalid_targets() TargetTestResult<void> {
+  test_function invalid_targets() std.test.AssertionResult<void> {
     var a = make_heap_allocator();
-    var document = try parse_json(
+    var document = try std.json.parse_json(
       a,
       "{\"entrypoints\":[{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"invalid\",\"output_name\":\"tmp/custom\"}]}"
     );
     var missing = match select(document, "absent") {
-      JsonResult.Ok(_) => false,
-      JsonResult.Error(_) => true
+      Result.Ok(_) => false,
+      Result.Json(_) => true,
+      (error: const ref IError) => {
+        std.io.eprintln(try error.message());
+        try std.test.fail("Unexpected target selection failure");
+        return std.test.AssertionResult.Ok;
+      }
     };
     var invalid = match select(document, "sample") {
-      JsonResult.Ok(_) => false,
-      JsonResult.Error(_) => true
+      Result.Ok(_) => false,
+      Result.Json(_) => true,
+      (error: const ref IError) => {
+        std.io.eprintln(try error.message());
+        try std.test.fail("Unexpected target selection failure");
+        return std.test.AssertionResult.Ok;
+      }
     };
     try std.test.assert(missing);
     try std.test.assert(invalid);
-    return TargetTestResult.Ok;
+    return std.test.AssertionResult.Ok;
   }
 }

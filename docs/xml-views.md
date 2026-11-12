@@ -166,13 +166,13 @@ subtree even when the instance key stays the same.
 
 ```xml
 <Template name="Footer">
-  <Param name="content" type="function (ref ui.View, i64) void" />
+  <Param name="content" type="function (ref ui.View, i64) AllocationResult&lt;void&gt;" />
   <Column key="footer"><Slot name="content" /></Column>
 </Template>
 ```
 
 Supply slots as named, typed Sun functions, for example
-`<Footer key="footer" content="{render_footer}" />`. Slots run only during view
+`<Footer key="footer" content="{render_footer}" />`. Callbacks may return `void` or a result enum; result failures propagate to the view builder. Slots run only during view
 construction and append owned nodes; they are not retained event callbacks.
 Function-valued slots remain supported alongside named XML content slots.
 
@@ -266,7 +266,7 @@ another `.view.xml` file:
 
 ```xml
 <Import name="Footer" function="form_parts.Footer" source="parts/footer.view.xml">
-  <Param name="content" type="function (ref ui.View, i64) void" />
+  <Param name="content" type="function (ref ui.View, i64) AllocationResult&lt;void&gt;" />
 </Import>
 ```
 

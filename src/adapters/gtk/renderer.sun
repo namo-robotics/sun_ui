@@ -130,7 +130,7 @@ public module ui_gtk {
     var row_span: i32 = 1;
     var column_span: i32 = 1;
     var choices: Vec<ui.Choice>;
-    var applied_style: ui.Style ;
+    var applied_style: ui.Style;
     var styled: bool = false;
 
     /** Constructs a native control before registering user events. */
@@ -740,8 +740,11 @@ public module ui_gtk {
                   );
                 } else if (event.kind() == gtk.EventKind.Selected) {
                   if (event.text.length() >= 2) {
-                    var encoded = match try sun_ui_results.access(
-                      event.text.substr(a, 2, event.text.length() - 2)
+                    var encoded = match try sun_ui_results.substring(
+                      event.text,
+                      a,
+                      2,
+                      event.text.length() - 2
                     ) {
                       AccessResult.Ok(value) => value,
                       AccessResult.OutOfBounds(_) => try String("")
@@ -782,11 +785,7 @@ public module ui_gtk {
     }
 
     /** Services GTK and collects native events according to this adapter's batching policy. */
-    public method poll(
-      tree: ref ui.Tree,
-      queue: ref ui.EventQueue,
-      block: bool
-    ) std.Result<void> {
+    public method poll(tree: ref ui.Tree, queue: ref ui.EventQueue, block: bool) std.Result<void> {
       this.events.iterate(false);
       try this.collect(tree, queue);
       if (block and queue.size() == 0 and this.running()) {

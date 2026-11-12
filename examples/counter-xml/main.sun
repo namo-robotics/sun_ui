@@ -14,47 +14,47 @@ module counter {
   }
 
   /** Runs the interactive counter or a real-signal acceptance scenario. */
-  public function run(automated: bool) SystemResult<void> {
+  public function run(automated: bool) std.Result<void> {
     var title = try String("Sun UI — Counter");
     var renderer = try ui_gtk.Renderer(title);
-    var session = ui.Session<i64>(0, view, increment);
+    var session = try ui.Session<i64>(0, view, increment);
     try session.render(renderer);
-    var original = session.tree.identity(1);
+    var original = try session.tree.identity(1);
     if (automated) {
       renderer.click(original);
-      renderer.poll(session.tree, session.queue, false);
+      try renderer.poll(session.tree, session.queue, false);
       try session.dispatch(renderer);
-      if (session.state != 1 or session.tree.identity(1) != original or renderer.updates != 1 or
+      if (session.state != 1 or try session.tree.identity(1) != original or renderer.updates != 1 or
         renderer.creates != 1) {
-        return SystemResult.Error(Error(1, "Counter did not perform one targeted text update"));
+        return std.Result.Error(Error(1, "Counter did not perform one targeted text update"));
       }
       // More clicks than one native collection turn must remain runnable without new input.
       for (var i: i64 = 0; i < 65; i += 1) {
         renderer.click(original);
       }
-      renderer.poll(session.tree, session.queue, true);
+      try renderer.poll(session.tree, session.queue, true);
       if (session.queue.size() != 64) {
-        return SystemResult.Error(Error(1, "Native batch was not bounded"));
+        return std.Result.Error(Error(1, "Native batch was not bounded"));
       }
       try session.dispatch(renderer);
-      renderer.poll(session.tree, session.queue, true);
+      try renderer.poll(session.tree, session.queue, true);
       try session.dispatch(renderer);
       if (session.state != 66 or renderer.creates != 1) {
-        return SystemResult.Error(Error(1, "Pending native clicks were stranded"));
+        return std.Result.Error(Error(1, "Pending native clicks were stranded"));
       }
       session.tree.shutdown(renderer);
       if (renderer.removals != 1) {
-        return SystemResult.Error(Error(1, "Counter subscription was not removed"));
+        return std.Result.Error(Error(1, "Counter subscription was not removed"));
       }
       std.io.println("Counter acceptance passed");
-      return SystemResult.Ok;
+      return std.Result.Ok;
     }
     while (renderer.running()) {
-      renderer.poll(session.tree, session.queue, true);
+      try renderer.poll(session.tree, session.queue, true);
       try session.dispatch(renderer);
     }
     session.tree.shutdown(renderer);
-    return SystemResult.Ok;
+    return std.Result.Ok;
   }
 }
 
@@ -65,8 +65,8 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) AllocationResult<i32> {
   var args = try env.args(argc, argv);
   return AllocationResult.Ok(
     match counter.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
-      SystemResult.Ok => 0,
-      SystemResult.Error(error) => {
+      std.Result.Ok => 0,
+      (error: const ref IError) => {
         std.io.eprintln(try error.message());
         return AllocationResult.Ok(1);
       }

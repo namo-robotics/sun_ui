@@ -3,13 +3,25 @@ using std;
 /** Exercises actual frame ownership, GTK reconciliation, and SDL presentation. */
 module graphics_checks {
 
+  /** Accepts a system failure while propagating allocation failures. */
+  function expect_failure(result: SystemResult<void>, message: static_ptr<u8>) SystemResult<void> {
+    match result {
+      SystemResult.Error(_) => {
+        return SystemResult.Ok;
+      },
+      _ => {}
+    };
+    try result;
+    return SystemResult.Error(Error(1, message));
+  }
+
   /** Injects native SDL events through the ordinary host event dispatcher. */
   extern "C" function graphics_test_event(kind: i32, code: i32, x: f64, y: f64) i32;
 
   /** Reports a failed acceptance condition as a normal application error. */
   function check(ok: bool, message: static_ptr<u8>) SystemResult<void> {
     if (not ok) {
-      return SystemResult.Error(try Error(1, message));
+      return SystemResult.Error(Error(1, message));
     }
     return SystemResult.Ok;
   }
@@ -19,7 +31,7 @@ module graphics_checks {
     var a = make_heap_allocator();
     var v = try ui.View(a);
     if (reverse) {
-      v.button(2, try String("Control"), 1, 0);
+      try v.button(2, try String("Control"), 1, 0);
     }
     if (include) {
       var e = try ui.Element(try ui.Key(1), ui.Kind.Viewport);
@@ -31,7 +43,7 @@ module graphics_checks {
       try v.append(-1, e);
     }
     if (not reverse) {
-      v.button(2, try String("Control"), 1, 0);
+      try v.button(2, try String("Control"), 1, 0);
     }
     return AllocationResult.Ok(v);
   }
@@ -42,12 +54,12 @@ module graphics_checks {
     tree: ref ui.Tree,
     queue: ref ui.EventQueue,
     window: ref gpu_sdl.Window
-  ) SystemResult<void> {
-    renderer.poll(tree, queue, false);
+  ) std.Result<void> {
+    try renderer.poll(tree, queue, false);
     gpu_sdl.poll();
     try window.render();
     gpu_sdl.delay(5);
-    return SystemResult.Ok;
+    return std.Result.Ok;
   }
 
   /** Waits for both surfaces to paint or reports a bounded timeout. */
@@ -58,16 +70,17 @@ module graphics_checks {
     viewport: ref gpu_gtk.Viewport,
     window: ref gpu_sdl.Window,
     target: i32
-  ) SystemResult<void> {
+  ) std.Result<void> {
     var deadline = gpu_sdl.time() + 3.0;
     while (gpu_sdl.time() < deadline and viewport.surface().frames() < target) {
       try pump(renderer, tree, queue, window);
       var error = try viewport.error();
       if (not error.is_empty()) {
-        return SystemResult.Error(try Error(1, error));
+        return std.Result.Error(try Error(1, error));
       }
     }
-    return check(viewport.surface().frames() >= target, "GTK viewport did not draw in time");
+    try check(viewport.surface().frames() >= target, "GTK viewport did not draw in time");
+    return std.Result.Ok;
   }
 
   /** Builds a screen-filling triangle to test real shader and vertex-buffer execution. */
@@ -203,7 +216,7 @@ module graphics_checks {
   }
 
   /** Exercises one window pair, including reordering, replacement, and either close order. */
-  function scenario(close_sdl_first: bool) SystemResult<void> {
+  function scenario(close_sdl_first: bool) std.Result<void> {
     var a = make_heap_allocator();
     var title = try String("Graphics acceptance");
     var renderer = try ui_gtk.Renderer(
@@ -215,14 +228,12 @@ module graphics_checks {
     var viewport = try gpu_gtk.Viewport();
     viewport.surface().readback(true);
     try renderer.register_viewport(1, viewport.widget());
-    match renderer.register_viewport(2, viewport.widget()) {
-      SystemResult.Error(_) => {},
-      SystemResult.Ok => {
-        return SystemResult.Error(Error(1, "Duplicate surface registration was accepted"));
-      }
-    };
-    try tree.render(renderer, view(1, false, true));
-    var identity = tree.identity(1);
+    try expect_failure(
+      renderer.register_viewport(2, viewport.widget()),
+      "Duplicate surface registration was accepted"
+    );
+    try tree.render(renderer, try view(1, false, true));
+    var identity = try tree.identity(1);
     gtk.clear_gl_context();
     var window = try gpu_sdl.Window(title, 240, 200);
     window.surface().readback(true);
@@ -236,9 +247,9 @@ module graphics_checks {
       window.surface().pixel(0) > 250 and window.surface().pixel(1) < 3,
       "SDL did not render retained red triangle"
     );
-    try tree.render(renderer, view(1, true, true));
-    try check(tree.identity(1) == identity, "Keyed reorder replaced viewport identity");
-    renderer.click(tree.identity(2));
+    try tree.render(renderer, try view(1, true, true));
+    try check(try tree.identity(1) == identity, "Keyed reorder replaced viewport identity");
+    renderer.click(try tree.identity(2));
     try pump(renderer, tree, queue, window);
     try check(queue.size() == 1, "GTK control event lost beside GPU viewport");
     var before = viewport.surface().frames();
@@ -258,17 +269,17 @@ module graphics_checks {
     var replacement = try gpu_gtk.Viewport();
     replacement.surface().readback(true);
     try renderer.register_viewport(2, replacement.widget());
-    try tree.render(renderer, view(2, true, true));
+    try tree.render(renderer, try view(2, true, true));
     try submit_triangle(replacement, window);
     try wait_frames(renderer, tree, queue, replacement, window, 1);
     try check(
-      tree.identity(1) == identity,
+      try tree.identity(1) == identity,
       "Changing viewport identifier replaced keyed control identity"
     );
     try renderer.unregister_viewport(1);
     // Removing and remounting must rebuild the context-local cache safely.
-    try tree.render(renderer, view(2, false, false));
-    try tree.render(renderer, view(2, false, true));
+    try tree.render(renderer, try view(2, false, false));
+    try tree.render(renderer, try view(2, false, true));
     var remount = replacement.surface().frames();
     var area = try renderer.viewport(2);
     area.redraw();
@@ -285,12 +296,7 @@ module graphics_checks {
     var bad = try gpu.Frame(0.0, 0.0, 0.0, 1.0);
     try bad.draw(geometry, bad_shader, gpu.Primitive.Triangles, false, false);
     window.submit(bad);
-    match window.render() {
-      SystemResult.Error(_) => {},
-      SystemResult.Ok => {
-        return SystemResult.Error(Error(1, "Invalid shader succeeded"));
-      }
-    };
+    try expect_failure(window.render(), "Invalid shader succeeded");
     var diagnostic = try window.surface().error();
     try check(not diagnostic.is_empty(), "Missing shader diagnostic");
     window.submit(blue);
@@ -316,7 +322,7 @@ module graphics_checks {
       window.close();
     }
     try renderer.unregister_viewport(2);
-    return SystemResult.Ok;
+    return std.Result.Ok;
   }
 
   /** Checks invalid public inputs without executing OpenGL. */
@@ -325,36 +331,29 @@ module graphics_checks {
     var values = try Vec<f64>(make_heap_allocator(), 1);
     try values.push(1.0);
     var name = try String("missing");
-    match frame.uniform(name, values) {
-      SystemResult.Error(_) => {},
-      SystemResult.Ok => {
-        return SystemResult.Error(Error(1, "Uniform without draw was accepted"));
-      }
-    };
+    try expect_failure(frame.uniform(name, values), "Uniform without draw was accepted");
     var title = try String("Missing registration");
     var renderer = try ui_gtk.Renderer(
       title,
       try String("org.sunlang.Graphics.Missing")
     );
     var tree = try ui.Tree(make_heap_allocator());
-    match tree.render(renderer, view(99, false, true)) {
-      SystemResult.Error(_) => {},
-      SystemResult.Ok => {
-        return SystemResult.Error(Error(1, "Unregistered viewport mounted"));
-      }
-    };
+    try expect_failure(
+      tree.render(renderer, try view(99, false, true)),
+      "Unregistered viewport mounted"
+    );
     tree.shutdown(renderer);
     gtk.clear_gl_context();
     return SystemResult.Ok;
   }
 
   /** Runs bounded scenarios against the real public host APIs. */
-  public function run() SystemResult<void> {
+  public function run() std.Result<void> {
     try invalid_inputs();
     try scenario(true);
     try scenario(false);
     std.io.println("Graphics acceptance passed");
-    return SystemResult.Ok;
+    return std.Result.Ok;
   }
 }
 
@@ -362,8 +361,8 @@ module graphics_checks {
 function main() AllocationResult<i32> {
   return AllocationResult.Ok(
     match graphics_checks.run() {
-      SystemResult.Ok => 0,
-      SystemResult.Error(error) => {
+      std.Result.Ok => 0,
+      (error: const ref IError) => {
         std.io.eprintln(try error.message());
         return AllocationResult.Ok(1);
       }

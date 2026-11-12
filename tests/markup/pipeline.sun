@@ -3,9 +3,6 @@ using std;
 /** Exercises the command-line import graph without GTK or a display. */
 module markup_pipeline_tests {
 
-  /** Combines filesystem, process, and assertion failures. */
-  enum TestResult<T> { Ok(T), Assertion(std.test.AssertionError), System(Error) }
-
   /** Writes a fixture owned by this test under the workspace temporary directory. */
   function write(path: static_ptr<u8>, text: static_ptr<u8>) SystemResult<void> {
     var filename = try String(path);
@@ -24,7 +21,7 @@ module markup_pipeline_tests {
   }
 
   /** Regenerates imported changes deterministically and rejects invalid dependency graphs. */
-  test_function import_regeneration_and_failures() TestResult<void> {
+  test_function import_regeneration_and_failures() std.test.AssertionResult<void> {
     var a = make_heap_allocator();
     var mkdir = try std.process.Command(a, "mkdir");
     try mkdir.add_arg("-p");
@@ -94,7 +91,7 @@ module markup_pipeline_tests {
     var included = try generate();
     try std.test.assert_eq(included.status(), 0);
     var included_source = try std.io.read_to_string(a, path);
-    var lines = included_source.split(a, b'\n');
+    var lines = try included_source.split(a, b'\n');
     var definitions: i64 = 0;
     for (var line: ref String in lines) {
       if (line.contains("public function resources")) {
@@ -112,7 +109,7 @@ module markup_pipeline_tests {
   }
 
   /** Maps compiler diagnostics to imported XML, counting CRLF and Unicode correctly. */
-  test_function imported_diagnostic_locations() TestResult<void> {
+  test_function imported_diagnostic_locations() std.test.AssertionResult<void> {
     try write("tmp/markup-map-source.view.xml", "<Views>\r\n  é<Label/>\r\n</Views>");
     try write(
       "tmp/markup-map.sun.map",
@@ -150,7 +147,7 @@ module markup_pipeline_tests {
   }
 
   /** Checks registry discovery, source regeneration, deduplication, and failure diagnostics. */
-  test_function registry_pipeline() TestResult<void> {
+  test_function registry_pipeline() std.test.AssertionResult<void> {
     var a = make_heap_allocator();
     var mkdir = try std.process.Command(a, "mkdir");
     try mkdir.add_arg("-p");
@@ -181,7 +178,7 @@ module markup_pipeline_tests {
     var mapping = try std.io.read_to_string(a, map);
     try std.test.assert(original.contains("parts.Caption(result,"));
     try std.test.assert(mapping.contains("tmp/registry-pipeline/parts.view.xml"));
-    var lines = original.split(a, b'\n');
+    var lines = try original.split(a, b'\n');
     var count: i64 = 0;
     for (var line: ref String in lines) {
       if (line.contains("public function Caption(")) {

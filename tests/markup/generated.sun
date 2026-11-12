@@ -3,16 +3,13 @@ using std;
 /** Checks generated descriptions without GTK or the binding dependency. */
 module counter {
 
-  /** Combines assertion outcomes for generated description checks. */
-  enum GeneratedResult { Ok, Assertion(std.test.AssertionError) }
-
   /** Compares generated counter descriptions with the handwritten public API. */
-  test_function generated_counter_equivalence() GeneratedResult {
+  test_function generated_counter_equivalence() std.test.AssertionResult<void> {
     var a = make_heap_allocator();
     var state: i64 = 7;
-    var generated = view(state);
+    var generated = try view(state);
     var handwritten = try ui.View(a);
-    handwritten.button(1, try String("Count: 7"), 1, 0);
+    try handwritten.button(1, try String("Count: 7"), 1, 0);
     try std.test.assert_eq(generated.elements.size(), handwritten.elements.size());
     try std.test.assert(
       generated.elements[0].key.equals(handwritten.elements[0].key),
@@ -30,13 +27,10 @@ module counter {
 /** Checks lexical templates and per-instance resource dictionaries in generated code. */
 module scoped {
 
-  /** Combines assertion failures with dictionary validation errors. */
-  enum ScopedResult { Ok, Assertion(std.test.AssertionError), System(Error) }
-
   /** Resolves theme, application, view, and component scopes without leaking sibling overrides. */
-  test_function scoped_resources_and_typed_templates() ScopedResult {
+  test_function scoped_resources_and_typed_templates() std.test.AssertionResult<void> {
     var state: i64 = 4;
-    var result = view(state);
+    var result = try view(state);
     try std.test.assert(result.construction_error.is_empty(), "construction succeeds");
     try result.resources.validate();
     try std.test.assert_eq(result.elements.size(), 8);
@@ -59,9 +53,6 @@ module scoped {
 
 /** Exercises generated function and method routing without a native backend. */
 module action_checks {
-
-  /** Reports assertion and action failures from generated dispatch. */
-  enum ActionResult { Ok, Assertion(std.test.AssertionError), System(Error) }
 
   /** Owns state edited only after an action is delivered. */
   class State {
@@ -114,11 +105,11 @@ module action_checks {
   }
 
   /** Verifies typed calls, edit values, collision-free numeric fallback, and stable automatic keys. */
-  test_function named_actions_and_automatic_keys() ActionResult {
+  test_function named_actions_and_automatic_keys() std.test.AssertionResult<void> {
     var a = make_heap_allocator();
     var state = try State();
     var queue = try ui.EventQueue(a);
-    var description = view(state);
+    var description = try view(state);
     try std.test.assert(description.elements[0].tooltip.equals_literal("Increment the counter"));
     try std.test.assert(description.elements[0].icon.equals_literal("list-add-symbolic"));
     try std.test.assert_eq(state.count, 0);
@@ -138,7 +129,7 @@ module action_checks {
     try std.test.assert_eq(fallback.action, first.action);
     try view_handle(state, fallback, queue);
     try std.test.assert_eq(state.count, 113);
-    var next = view(state);
+    var next = try view(state);
     for (var i: i64 = 0; i < description.elements.size(); i += 1) {
       try std.test.assert(
         description.elements[i].key.equals(next.elements[i].key),
@@ -154,6 +145,15 @@ module action_checks {
     first.action_scope = try String("another-view");
     match view_handle(state, first, queue) {
       SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.test.AssertionResult.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.test.AssertionResult.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.test.AssertionResult.Overflow(error);
+      },
       SystemResult.Ok => {
         try std.test.assert(false, "foreign generated action must not enter numeric fallback");
       }
@@ -164,9 +164,6 @@ module action_checks {
 
 /** Checks imported content, caller bindings, and palette-backed themes together. */
 module reusable_checks {
-
-  /** Reports generated-view assertion and resource failures. */
-  enum ReusableResult { Ok, Assertion(std.test.AssertionError), System(Error) }
 
   /** Supplies stable keys for repeated caller content. */
   function ids() AllocationResult<Vec<i64>> {
@@ -187,10 +184,10 @@ module reusable_checks {
   }
 
   /** Preserves caller resources, component resources, parent order, and named event routing. */
-  test_function reusable_content_and_theme() ReusableResult {
+  test_function reusable_content_and_theme() std.test.AssertionResult<void> {
     var a = make_heap_allocator();
     var state: i64 = 4;
-    var result = view(state);
+    var result = try view(state);
     try std.test.assert(result.construction_error.is_empty());
     try result.resources.validate();
     try std.test.assert_eq(result.resource_scope, 1);
@@ -224,7 +221,7 @@ module reusable_checks {
     try std.test.assert_eq(caller, 6);
     try std.test.assert_eq(clicks, 1);
     try std.test.assert_eq(state, 5);
-    var again = view(state);
+    var again = try view(state);
     try std.test.assert_eq(again.elements.size(), result.elements.size());
     for (var i: i64 = 0; i < result.elements.size(); i += 1) {
       try std.test.assert(result.elements[i].key.equals(again.elements[i].key));

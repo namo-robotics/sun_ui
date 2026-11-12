@@ -19,10 +19,10 @@ module graphics_demo {
   }
 
   /** Describes ordinary controls surrounding the registered viewport. */
-  function view(state: const ref Settings) AllocationResult<ui.View> {
+  function view(state: const ref Settings) SystemResult<ui.View> {
     var v = try ui.View(make_heap_allocator());
-    v.button(1, try String(state.blue ? "Use warm color" : "Use blue color"), 1, 0);
-    v.button(2, try String(state.animated ? "Pause rotation" : "Resume rotation"), 2, 0);
+    try v.button(1, try String(state.blue ? "Use warm color" : "Use blue color"), 1, 0);
+    try v.button(2, try String(state.animated ? "Pause rotation" : "Resume rotation"), 2, 0);
     var e = try ui.Element(try ui.Key(3), ui.Kind.Viewport);
     e.viewport_id = 1;
     e.min_width = 480;
@@ -30,7 +30,7 @@ module graphics_demo {
     e.expand_x = true;
     e.expand_y = true;
     try v.append(-1, e);
-    return AllocationResult.Ok(v);
+    return SystemResult.Ok(v);
   }
 
   /** Applies UI actions without touching GPU resources or camera state. */
@@ -275,12 +275,12 @@ module graphics_demo {
   }
 
   /** Runs both hosts with one bounded main-thread loop and independent cameras. */
-  public function run() SystemResult<void> {
+  public function run() std.Result<void> {
     var title = try String("Sun UI graphics — drag to look");
     var renderer = try ui_gtk.Renderer(title);
     var viewport = try gpu_gtk.Viewport();
     try renderer.register_viewport(1, viewport.widget());
-    var session = ui.Session<Settings>(Settings(), view, handle);
+    var session = try ui.Session<Settings>(Settings(), view, handle);
     try session.render(renderer);
     gtk.clear_gl_context();
     var game_title = try String("Sun graphics — click to capture, WASD, Escape to release");
@@ -302,7 +302,7 @@ module graphics_demo {
     var angle: f64 = 0.0;
     while (renderer.running() or window.running()) {
       if (renderer.running()) {
-        renderer.poll(session.tree, session.queue, false);
+        try renderer.poll(session.tree, session.queue, false);
         try session.dispatch(renderer);
       }
       gtk.clear_gl_context();
@@ -331,7 +331,7 @@ module graphics_demo {
         viewport.submit(f);
         var error = try viewport.error();
         if (not error.is_empty()) {
-          return SystemResult.Error(try Error(1, error));
+          return std.Result.Error(try Error(1, error));
         }
       }
       if (window.running()) {
@@ -348,13 +348,13 @@ module graphics_demo {
         try window.render();
         var error = try window.error();
         if (not error.is_empty()) {
-          return SystemResult.Error(try Error(1, error));
+          return std.Result.Error(try Error(1, error));
         }
       }
       gpu_sdl.delay(8);
     }
     session.tree.shutdown(renderer);
-    return SystemResult.Ok;
+    return std.Result.Ok;
   }
 }
 
@@ -362,8 +362,8 @@ module graphics_demo {
 function main() AllocationResult<i32> {
   return AllocationResult.Ok(
     match graphics_demo.run() {
-      SystemResult.Ok => 0,
-      SystemResult.Error(error) => {
+      std.Result.Ok => 0,
+      (error: const ref IError) => {
         std.io.eprintln(try error.message());
         return AllocationResult.Ok(1);
       }

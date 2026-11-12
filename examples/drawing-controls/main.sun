@@ -4,16 +4,16 @@ using std;
 module drawing_controls {
 
   /** Describes a drawing leaf beside an ordinary control. */
-  function view(id: const ref i64) AllocationResult<ui.View> {
+  function view(id: const ref i64) SystemResult<ui.View> {
     var a = make_heap_allocator();
     var v = try ui.View(a);
-    v.button(1, try String("Drawing surface"), 1, 0);
+    try v.button(1, try String("Drawing surface"), 1, 0);
     var e = try ui.Element(try ui.Key(2), ui.Kind.Drawing);
     e.drawing_id = id;
     e.min_width = 400;
     e.min_height = 300;
     try v.append(-1, e);
-    return AllocationResult.Ok(v);
+    return SystemResult.Ok(v);
   }
 
   /** Leaves the example state unchanged when its illustrative button is clicked. */
@@ -28,7 +28,7 @@ module drawing_controls {
   /** Paints a document after its temporary SVG owner leaves scope. */
   function update(area: ref gtk.DrawingArea, text: static_ptr<u8>) SystemResult<void> {
     var d = try ui_drawing.Drawing(400.0, 300.0);
-    d.text(30.0, 50.0, try String(text), 24.0, false, 0.0);
+    try d.text(30.0, 50.0, try String(text), 24.0, false, 0.0);
     var content = try d.svg();
     var document = try svg.Document(content);
     area.set_document(document);
@@ -40,20 +40,20 @@ module drawing_controls {
     renderer: ref ui_gtk.Renderer,
     session: ref ui.Session<i64>,
     area: const ref gtk.DrawingArea
-  ) SystemResult<void> {
+  ) std.Result<void> {
     for (var i: i64 = 0; i < 200; i += 1) {
-      renderer.poll(session.tree, session.queue, false);
+      try renderer.poll(session.tree, session.queue, false);
       try session.dispatch(renderer);
       if (area.rendered()) {
-        return SystemResult.Ok;
+        return std.Result.Ok;
       }
       std.time.sleep(std.time.create_duration_millis(10));
     }
-    return SystemResult.Error(Error(1, "Embedded drawing did not paint"));
+    return std.Result.Error(Error(1, "Embedded drawing did not paint"));
   }
 
   /** Validates registrations, replacements, retention, redraw, and mounted cleanup rules. */
-  public function run() SystemResult<void> {
+  public function run() std.Result<void> {
     var title = try String("Embedded drawings");
     var renderer = try ui_gtk.Renderer(title);
     var first = try gtk.DrawingArea();
@@ -63,47 +63,74 @@ module drawing_controls {
     try renderer.register_drawing(1, gtk.DrawingArea(first));
     match renderer.register_drawing(2, gtk.DrawingArea(first)) {
       SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.Result.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.Result.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.Result.Overflow(error);
+      },
       SystemResult.Ok => {
-        return SystemResult.Error(Error(1, "Duplicate surface accepted"));
+        return std.Result.Error(Error(1, "Duplicate surface accepted"));
       }
     };
     match renderer.register_drawing(1, gtk.DrawingArea(second)) {
       SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.Result.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.Result.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.Result.Overflow(error);
+      },
       SystemResult.Ok => {
-        return SystemResult.Error(Error(1, "Duplicate identifier accepted"));
+        return std.Result.Error(Error(1, "Duplicate identifier accepted"));
       }
     };
     try renderer.register_drawing(2, gtk.DrawingArea(second));
-    var session = ui.Session<i64>(1, view, handle);
+    var session = try ui.Session<i64>(1, view, handle);
     try session.render(renderer);
     try paint(renderer, session, first);
-    var identity = session.tree.identity(2);
+    var identity = try session.tree.identity(2);
     match renderer.unregister_drawing(1) {
       SystemResult.Error(_) => {},
+      SystemResult.Allocation(error) => {
+        return std.Result.Allocation(error);
+      },
+      SystemResult.InvalidArgument(error) => {
+        return std.Result.InvalidArgument(error);
+      },
+      SystemResult.Overflow(error) => {
+        return std.Result.Overflow(error);
+      },
       SystemResult.Ok => {
-        return SystemResult.Error(Error(1, "Mounted surface released"));
+        return std.Result.Error(Error(1, "Mounted surface released"));
       }
     };
     session.state = 2;
     try session.render(renderer);
     try paint(renderer, session, second);
-    if (session.tree.identity(2) != identity) {
-      return SystemResult.Error(Error(1, "Replacement changed keyed identity"));
+    if (try session.tree.identity(2) != identity) {
+      return std.Result.Error(Error(1, "Replacement changed keyed identity"));
     }
     try renderer.unregister_drawing(1);
     try update(second, "Updated drawing");
     try paint(renderer, session, second);
     var retained = try renderer.drawing(2);
     if (not retained.same(second)) {
-      return SystemResult.Error(Error(1, "Retained surface changed identity"));
+      return std.Result.Error(Error(1, "Retained surface changed identity"));
     }
     session.tree.shutdown(renderer);
     try renderer.unregister_drawing(2);
     if (renderer.creates != renderer.removals) {
-      return SystemResult.Error(Error(1, "Mounted controls leaked"));
+      return std.Result.Error(Error(1, "Mounted controls leaked"));
     }
     std.io.println("Drawing controls acceptance passed");
-    return SystemResult.Ok;
+    return std.Result.Ok;
   }
 }
 
@@ -111,8 +138,8 @@ module drawing_controls {
 function main() AllocationResult<i32> {
   return AllocationResult.Ok(
     match drawing_controls.run() {
-      SystemResult.Ok => 0,
-      SystemResult.Error(error) => {
+      std.Result.Ok => 0,
+      (error: const ref IError) => {
         std.io.eprintln(try error.message());
         return AllocationResult.Ok(1);
       }

@@ -28,14 +28,14 @@ module forms {
   }
 
   /** Explicitly copies the selected theme into one owned control description. */
-  function theme(state: const ref State) ui.Style {
-    var result = ui.Style();
+  function theme(state: const ref State) AllocationResult<ui.Style> {
+    var result = try ui.Style();
     if (state.dark) {
-      result.overlay(state.dark_style);
+      try result.overlay(state.dark_style);
     } else {
-      result.overlay(state.light_style);
+      try result.overlay(state.light_style);
     }
-    return result;
+    return AllocationResult.Ok(result);
   }
 
   /** Appends a handwritten child through a generated template's named slot. */
@@ -91,7 +91,7 @@ module forms {
   function acceptance(
     renderer: ref ui_gtk.Renderer,
     session: ref ui.Session<State>
-  ) SystemResult<void> {
+  ) std.Result<void> {
     var name = try control(session.tree, "name");
     var enabled = try control(session.tree, "enabled");
     var choice = try control(session.tree, "choice");
@@ -99,62 +99,62 @@ module forms {
     try renderer.edit(name, text, 0);
     text = try String("beta");
     try renderer.edit(name, text, 0);
-    renderer.poll(session.tree, session.queue, false);
+    try renderer.poll(session.tree, session.queue, false);
     try session.dispatch(renderer);
     if (not session.state.name.equals_literal("beta") or not session.state.seen_beta_after_alpha) {
-      return SystemResult.Error(Error(1, "Text edits lost their captured FIFO values"));
+      return std.Result.Error(Error(1, "Text edits lost their captured FIFO values"));
     }
     text = try String("reject");
     try renderer.edit(name, text, 0);
-    renderer.poll(session.tree, session.queue, false);
+    try renderer.poll(session.tree, session.queue, false);
     try session.dispatch(renderer);
     if (not session.state.name.equals_literal("beta")) {
-      return SystemResult.Error(Error(1, "Rejected edit changed state"));
+      return std.Result.Error(Error(1, "Rejected edit changed state"));
     }
     var edits = session.state.edits;
-    renderer.poll(session.tree, session.queue, false);
+    try renderer.poll(session.tree, session.queue, false);
     try session.dispatch(renderer);
     if (session.state.edits != edits) {
-      return SystemResult.Error(Error(1, "Programmatic text update emitted an edit"));
+      return std.Result.Error(Error(1, "Programmatic text update emitted an edit"));
     }
     text = try String("");
     try renderer.edit(enabled, text, 1);
     try renderer.edit(choice, text, 1);
-    renderer.poll(session.tree, session.queue, false);
+    try renderer.poll(session.tree, session.queue, false);
     try session.dispatch(renderer);
     if (not session.state.enabled or session.state.selected != 1) {
-      return SystemResult.Error(Error(1, "Typed checkbox or selection event was lost"));
+      return std.Result.Error(Error(1, "Typed checkbox or selection event was lost"));
     }
     var creates = renderer.creates;
     session.state.dark = true;
     try session.render(renderer);
     if (try control(session.tree, "name") != name or renderer.creates != creates) {
-      return SystemResult.Error(Error(1, "Theme update remounted controls"));
+      return std.Result.Error(Error(1, "Theme update remounted controls"));
     }
     session.tree.shutdown(renderer);
     if (renderer.creates != renderer.removals) {
-      return SystemResult.Error(Error(1, "Form subscriptions survived shutdown"));
+      return std.Result.Error(Error(1, "Form subscriptions survived shutdown"));
     }
     std.io.println("XML forms acceptance passed");
-    return SystemResult.Ok;
+    return std.Result.Ok;
   }
 
   /** Runs the generated form using the normal state/session/event pipeline. */
-  public function run(automated: bool) SystemResult<void> {
+  public function run(automated: bool) std.Result<void> {
     var state = try State();
     var title = try String("Sun XML forms");
     var renderer = try ui_gtk.Renderer(title);
-    var session = ui.Session<State>(state, view, handle);
+    var session = try ui.Session<State>(state, view, handle);
     try session.render(renderer);
     if (automated) {
       return acceptance(renderer, session);
     }
     while (renderer.running()) {
-      renderer.poll(session.tree, session.queue, true);
+      try renderer.poll(session.tree, session.queue, true);
       try session.dispatch(renderer);
     }
     session.tree.shutdown(renderer);
-    return SystemResult.Ok;
+    return std.Result.Ok;
   }
 }
 
@@ -165,8 +165,8 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) AllocationResult<i32> {
   var args = try env.args(argc, argv);
   return AllocationResult.Ok(
     match forms.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
-      SystemResult.Ok => 0,
-      SystemResult.Error(error) => {
+      std.Result.Ok => 0,
+      (error: const ref IError) => {
         std.io.eprintln(try error.message());
         return AllocationResult.Ok(1);
       }
