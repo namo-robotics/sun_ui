@@ -329,7 +329,7 @@ module graphics_demo {
           shader
         );
         viewport.submit(f);
-        var error = viewport.error();
+        var error = try viewport.error();
         if (not error.is_empty()) {
           return SystemResult.Error(try Error(1, error));
         }
@@ -346,7 +346,7 @@ module graphics_demo {
         );
         window.submit(f);
         try window.render();
-        var error = window.error();
+        var error = try window.error();
         if (not error.is_empty()) {
           return SystemResult.Error(try Error(1, error));
         }

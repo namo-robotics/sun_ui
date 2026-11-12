@@ -71,12 +71,29 @@ public module ui_gtk_drawing {
           return SystemResult.Ok;
         },
         SystemResult.Error(error) => {
-          var message = try String("Export failed. Check the destination and try again.");
-
-          ignore_error(this.status.set_text(message));
+          try this.report_export_failure();
           return SystemResult.Error(error);
+        },
+        SystemResult.Allocation(error) => {
+          ignore_error(this.report_export_failure());
+          return SystemResult.Allocation(error);
+        },
+        SystemResult.InvalidArgument(error) => {
+          try this.report_export_failure();
+          return SystemResult.InvalidArgument(error);
+        },
+        SystemResult.Overflow(error) => {
+          try this.report_export_failure();
+          return SystemResult.Overflow(error);
         }
       };
+    }
+
+    /** Shows a failed export in the toolbar when a status message can be allocated. */
+    method report_export_failure() AllocationResult<void> {
+      var message = try String("Export failed. Check the destination and try again.");
+      ignore_error(this.status.set_text(message));
+      return AllocationResult.Ok;
     }
 
     /** Opens one chooser and consumes its result at the application dispatch boundary. */
@@ -95,7 +112,7 @@ public module ui_gtk_drawing {
             Option.None => {}
           };
         },
-        SystemResult.Error(_) => {
+        _ => {
           var message = try String("Export requires a local file destination.");
 
           ignore_error(this.status.set_text(message));
@@ -157,7 +174,6 @@ public module ui_gtk_drawing {
   }
 }
 manifest {
-  id: "namo-robotics/sun_ui_gtk_drawing"
   libraries: [
     "stdlib.moon",
     "sun_ui.moon",

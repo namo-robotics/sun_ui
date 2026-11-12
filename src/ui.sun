@@ -986,7 +986,6 @@ public module ui {
   }
 }
 manifest {
-  id: "namo-robotics/sun_ui"
   libraries: [
     "stdlib.moon"
   ]

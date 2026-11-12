@@ -5,7 +5,7 @@ public module gpu {
 
   /** Rejects embedded NUL bytes and invalid UTF-8 before a native string call. */
   public function validate_text(text: ref String) SystemResult<void> {
-    if (unsafe { gu_text_valid(text.c_str(), _convert<u64>(text.length())); } == 0) {
+    if (unsafe { gu_text_valid(try text.c_str(), _convert<u64>(text.length())); } == 0) {
       return SystemResult.Error(
         Error(1, "Graphics text must be UTF-8 without embedded NUL bytes")
       );
@@ -86,7 +86,7 @@ public module gpu {
       if (vertex.is_empty() or fragment.is_empty()) {
         return SystemResult.Error(Error(1, "Shader sources must not be empty"));
       }
-      this.pointer = unsafe { gu_shader_new(vertex.c_str(), fragment.c_str()); };
+      this.pointer = unsafe { gu_shader_new(try vertex.c_str(), try fragment.c_str()); };
     }
 
     /** Releases source storage after the last frame and GPU cache reference. */
@@ -152,7 +152,7 @@ public module gpu {
       for (var i: i64 = 0; i < count; i += 1) {
         unsafe { gu_uniform_value(_convert<i32>(i), _convert<f32>(values[i])); };
       }
-      if (unsafe { gu_frame_uniform_built(this.pointer, name.c_str(), _convert<i32>(count)); } ==
+      if (unsafe { gu_frame_uniform_built(this.pointer, try name.c_str(), _convert<i32>(count)); } ==
         0) {
         return SystemResult.Error(Error(1, "Invalid uniform or missing draw"));
       }
@@ -186,7 +186,7 @@ public module gpu {
     }
 
     /** Copies the most recent rendering diagnostic, empty after a successful frame. */
-    public const method error() String {
+    public const method error() AllocationResult<String> {
       return from_c_str(make_heap_allocator(), unsafe { gu_surface_error(this.pointer); });
     }
 
@@ -235,7 +235,7 @@ public module gpu {
   }
 }
 manifest {
-  id: "namo-robotics/sun_ui_graphics", libraries: [
+  libraries: [
     "stdlib.moon"
   ], source_files: [
     "raw.sun"

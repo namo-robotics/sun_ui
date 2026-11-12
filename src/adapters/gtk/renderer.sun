@@ -946,7 +946,6 @@ public module ui_gtk {
   }
 }
 manifest {
-  id: "namo-robotics/sun_ui_gtk"
   libraries: [
     "stdlib.moon",
     "sun_ui.moon",

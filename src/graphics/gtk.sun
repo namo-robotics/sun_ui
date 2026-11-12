@@ -59,17 +59,17 @@ public module gpu_gtk {
     }
 
     /** Reports native context failures before renderer-specific diagnostics. */
-    public const method error() String {
-      var error = this.area.error();
+    public const method error() AllocationResult<String> {
+      var error = try this.area.error();
       if (not error.is_empty()) {
-        return error;
+        return AllocationResult.Ok(error);
       }
       return this.state.error();
     }
   }
 }
 manifest {
-  id:"namo-robotics/sun_ui_graphics_gtk",libraries:[
+  libraries:[
     "stdlib.moon",
     "sun_ui_graphics.moon",
     "${namo-robotics/sun_gobject}/lib/sun_gobject.moon",

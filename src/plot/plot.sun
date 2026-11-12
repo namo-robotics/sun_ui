@@ -378,7 +378,7 @@ public module plot {
       }
       var drawing = try ui_drawing.Drawing(width, height);
       try drawing.text(width / 2.0, 41.0, this.title, 28.0, true, 0.0);
-      drawing.text(width / 2.0, 70.0, this.subtitle, 14.0, true, 0.0);
+      try drawing.text(width / 2.0, 70.0, this.subtitle, 14.0, true, 0.0);
       var accent = try String("#147d92");
       try drawing.line(width / 2.0 - 40.0, 88.0, width / 2.0 + 40.0, 88.0, accent, 3.0);
       for (var i: i64 = 0; i < this.panels.size(); i += 1) {
@@ -391,7 +391,6 @@ public module plot {
   }
 }
 manifest {
-  id: "namo-robotics/sun_plot"
   libraries: [
     "stdlib.moon",
     "sun_ui.moon"

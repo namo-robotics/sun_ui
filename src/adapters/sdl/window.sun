@@ -13,11 +13,11 @@ public module gpu_sdl {
       try gpu.validate_text(title);
       this.state = gpu.Surface();
       this.pointer = unsafe {
-        gu_window_new(this.state.raw_handle(), title.c_str(), width, height);
+        gu_window_new(this.state.raw_handle(), try title.c_str(), width, height);
       };
       if (this.pointer == null) {
         return SystemResult.Error(
-          try Error(1, from_c_str(make_heap_allocator(), unsafe { gu_window_error(null); }))
+          try Error(1, try from_c_str(make_heap_allocator(), unsafe { gu_window_error(null); }))
         );
       }
     }
@@ -42,7 +42,7 @@ public module gpu_sdl {
     /** Draws and presents one frame, then releases SDL's cached current context. */
     public method render() SystemResult<void> {
       if (unsafe { gu_window_render(this.pointer); } == 0) {
-        var message = this.error();
+        var message = try this.error();
         return SystemResult.Error(try Error(1, message));
       }
       return SystemResult.Ok;
@@ -54,10 +54,10 @@ public module gpu_sdl {
     }
 
     /** Copies host or rendering diagnostics for application reporting. */
-    public const method error() String {
-      var host = from_c_str(make_heap_allocator(), unsafe { gu_window_error(this.pointer); });
+    public const method error() AllocationResult<String> {
+      var host = try from_c_str(make_heap_allocator(), unsafe { gu_window_error(this.pointer); });
       if (not host.is_empty()) {
-        return host;
+        return AllocationResult.Ok(host);
       }
       return this.state.error();
     }
@@ -70,7 +70,7 @@ public module gpu_sdl {
     /** Requests relative pointer mode; failure is reported explicitly. */
     public method capture(enabled: bool) SystemResult<void> {
       if (unsafe { gu_window_capture(this.pointer, enabled ? 1 : 0); } == 0) {
-        return SystemResult.Error(try Error(1, this.error()));
+        return SystemResult.Error(try Error(1, try this.error()));
       }
       return SystemResult.Ok;
     }
@@ -83,7 +83,7 @@ public module gpu_sdl {
     /** Changes the logical window size without replacing its context. */
     public method resize(width: i32, height: i32) SystemResult<void> {
       if (unsafe { gu_window_resize(this.pointer, width, height); } == 0) {
-        return SystemResult.Error(try Error(1, this.error()));
+        return SystemResult.Error(try Error(1, try this.error()));
       }
       return SystemResult.Ok;
     }
@@ -105,7 +105,7 @@ public module gpu_sdl {
   }
 }
 manifest {
-  id:"namo-robotics/sun_ui_sdl",libraries:[
+  libraries:[
     "stdlib.moon",
     "sun_ui_graphics.moon"
   ],source_files:[

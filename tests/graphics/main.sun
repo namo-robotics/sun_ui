@@ -62,7 +62,7 @@ module graphics_checks {
     var deadline = gpu_sdl.time() + 3.0;
     while (gpu_sdl.time() < deadline and viewport.surface().frames() < target) {
       try pump(renderer, tree, queue, window);
-      var error = viewport.error();
+      var error = try viewport.error();
       if (not error.is_empty()) {
         return SystemResult.Error(try Error(1, error));
       }
@@ -291,7 +291,7 @@ module graphics_checks {
         return SystemResult.Error(Error(1, "Invalid shader succeeded"));
       }
     };
-    var diagnostic = window.surface().error();
+    var diagnostic = try window.surface().error();
     try check(not diagnostic.is_empty(), "Missing shader diagnostic");
     window.submit(blue);
     try window.render();
