@@ -1,51 +1,60 @@
 using std;
 
 /** Verifies reader and attribute spans in the selected compiler's standard library. */
-function main() AllocationResult<i32> {
+function main() i32 throws {
   var a = make_heap_allocator();
-  var input = try String("<probe value=\"1\"/>");
-  var reader = try std.xml.XmlReader(a, input);
-  match reader.next() {
-    Result.Ok(event) => {
-      match event {
-        Option.Some(value) => {
-          match value {
-            std.xml.XmlEvent.Start(element) => {
-              var span = reader.source_span();
-              if (span.start != 0 or span.end != input.length()) {
-                return AllocationResult.Ok(1);
-              }
-              match element.attribute_source_span(0) {
-                std.xml.XmlResult.Ok(attribute) => {
-                  match attribute {
-                    Option.Some(range) => {
-                      return AllocationResult.Ok(range.start == 7 and range.end == 16 ? 0 : 1);
-                    },
-                    Option.None => {
-                      return AllocationResult.Ok(1);
-                    }
-                  };
+  var input = String("<probe value=\"1\"/>");
+  var reader = std.xml.XmlReader(a, input);
+
+  var operation_completed_2 = false;
+  try {
+    var event = reader.next();
+    operation_completed_2 = true;
+    match event {
+      Option.Some(value) => {
+        match value {
+          std.xml.XmlEvent.Start(element) => {
+            var span = reader.source_span();
+            if (span.start != 0 or span.end != input.length()) {
+              return 1;
+            }
+
+            var operation_completed_1 = false;
+            try {
+              var attribute = element.attribute_source_span(0);
+              operation_completed_1 = true;
+              match attribute {
+                Option.Some(range) => {
+                  return range.start == 7 and range.end == 16 ? 0 : 1;
                 },
-                std.xml.XmlResult.Error(_) => {
-                  return AllocationResult.Ok(1);
+                Option.None => {
+                  return 1;
                 }
               };
-            },
-            _ => {
-              return AllocationResult.Ok(1);
+            } catch (error: std.xml.XmlError) {
+              if (operation_completed_1) {
+                throw;
+              }
+              return 1;
             }
-          };
-        },
-        Option.None => {
-          return AllocationResult.Ok(1);
-        }
-      };
-    },
-    _ => {
-      return AllocationResult.Ok(1);
+          },
+          _ => {
+            return 1;
+          }
+        };
+      },
+      Option.None => {
+        return 1;
+      }
+    };
+  } catch {
+    if (operation_completed_2) {
+      throw;
     }
-  };
-  return AllocationResult.Ok(1);
+    return 1;
+  }
+
+  return 1;
 }
 manifest {
   source_files: [

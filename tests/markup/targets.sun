@@ -4,60 +4,70 @@ using std;
 module build_targets {
 
   /** Keeps explicit library and test output names when selecting among multiple entries. */
-  test_function configured_artifact_names() std.test.AssertionResult<void> {
+  test_function configured_artifact_names() {
     var a = make_heap_allocator();
-    var document = try std.json.parse_json(
+    var document = std.json.parse_json(
       a,
       "{\"entrypoints\":[{\"name\":\"other\"},{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"library\",\"output_name\":\"tmp/custom.moon\",\"test_binary_name\":\"tmp/custom-tests\"}]}"
     );
-    var target = try select(document, "sample");
-    try std.test.assert(target.library);
-    try std.test.assert(target.source.equals_literal("src/example.sun"));
-    try std.test.assert(target.output.equals_literal("tmp/custom.moon"));
-    try std.test.assert(target.tests.equals_literal("tmp/custom-tests"));
-    return std.test.AssertionResult.Ok;
+    var target = select(document, "sample");
+    std.test.assert(target.library);
+    std.test.assert(target.source.equals_literal("src/example.sun"));
+    std.test.assert(target.output.equals_literal("tmp/custom.moon"));
+    std.test.assert(target.tests.equals_literal("tmp/custom-tests"));
+    return;
   }
 
   /** Derives a binary's default test artifact from its configured output. */
-  test_function default_test_artifact() std.test.AssertionResult<void> {
+  test_function default_test_artifact() {
     var a = make_heap_allocator();
-    var document = try std.json.parse_json(
+    var document = std.json.parse_json(
       a,
       "{\"entrypoints\":[{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"binary\",\"output_name\":\"tmp/custom\"}]}"
     );
-    var target = try select(document, "sample");
-    try std.test.assert(target.library == false);
-    try std.test.assert(target.tests.equals_literal("tmp/custom_test"));
-    return std.test.AssertionResult.Ok;
+    var target = select(document, "sample");
+    std.test.assert(target.library == false);
+    std.test.assert(target.tests.equals_literal("tmp/custom_test"));
+    return;
   }
 
   /** Reports missing targets and invalid target types instead of compiling a fallback. */
-  test_function invalid_targets() std.test.AssertionResult<void> {
+  test_function invalid_targets() {
     var a = make_heap_allocator();
-    var document = try std.json.parse_json(
+    var document = std.json.parse_json(
       a,
       "{\"entrypoints\":[{\"name\":\"sample\",\"path\":\"src/example.sun\",\"type\":\"invalid\",\"output_name\":\"tmp/custom\"}]}"
     );
-    var missing = match select(document, "absent") {
-      Result.Ok(_) => false,
-      Result.Json(_) => true,
-      (error: const ref IError) => {
-        std.io.eprintln(try error.message());
-        try std.test.fail("Unexpected target selection failure");
-        return std.test.AssertionResult.Ok;
-      }
-    };
-    var invalid = match select(document, "sample") {
-      Result.Ok(_) => false,
-      Result.Json(_) => true,
-      (error: const ref IError) => {
-        std.io.eprintln(try error.message());
-        try std.test.fail("Unexpected target selection failure");
-        return std.test.AssertionResult.Ok;
-      }
-    };
-    try std.test.assert(missing);
-    try std.test.assert(invalid);
-    return std.test.AssertionResult.Ok;
+    var missing: bool = false;
+
+    try {
+      select(document, "absent");
+
+      missing = false;
+    } catch (error: std.json.JsonError) {
+      missing = true;
+    } catch (error: std.Error) {
+      std.io.eprintln(error.message());
+      std.test.fail("Unexpected target selection failure");
+      return;
+    }
+
+    var invalid: bool = false;
+
+    try {
+      select(document, "sample");
+
+      invalid = false;
+    } catch (error: std.json.JsonError) {
+      invalid = true;
+    } catch (error: std.Error) {
+      std.io.eprintln(error.message());
+      std.test.fail("Unexpected target selection failure");
+      return;
+    }
+
+    std.test.assert(missing);
+    std.test.assert(invalid);
+    return;
   }
 }

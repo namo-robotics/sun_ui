@@ -7,7 +7,7 @@
     <Button text="Add task" action="add_task" />
     <Button text="Reverse tasks" action="state.reverse_tasks" />
     <Button text="Remove selected task" action="remove_selected" />
-    <For each="id" in="{try visible_ids(state)}" key="{id}">
+    <For each="id" in="{visible_ids(state)}" key="{id}">
       <Task key="task" id="{id}" selected="{state.selected == id}" />
     </For>
   </View>

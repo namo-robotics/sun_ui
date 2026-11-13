@@ -4,423 +4,448 @@ using std;
 module build_tasks {
 
   /** Runs a child command and preserves its failure as a build error. */
-  function run(command: ref std.process.Command) SystemResult<void> {
-    var status = try command.status();
+  function run(command: ref std.process.Command) void throws {
+    var status = command.status();
     if (status != 0) {
-      return SystemResult.Error(Error(status, "Build command failed"));
+      throw Error(status, "Build command failed");
     }
-    return SystemResult.Ok;
+    return;
   }
 
   /** Reads an explicit environment override or copies the default value. */
-  function setting(name: static_ptr<u8>, fallback: static_ptr<u8>) AllocationResult<String> {
+  function setting(name: static_ptr<u8>, fallback: static_ptr<u8>) String throws {
     var a = make_heap_allocator();
-    var env = try std.env.Env(a);
-    return AllocationResult.Ok(
-      match env.get(name) {
-        Option.Some(value) => try value.clone(a),
-        Option.None => try String(fallback)
-      }
-    );
+    var env = std.env.Env(a);
+    return match env.get(name) {
+      Option.Some(value) => value.clone(a),
+      Option.None => String(fallback)
+    };
   }
 
   /** Configures the compiler with local bundles and an optional GTK dependency. */
-  function compiler(gtk: bool) SystemResult<std.process.Command> {
+  function compiler(gtk: bool) std.process.Command throws {
     var a = make_heap_allocator();
-    var executable = try setting("SUN_EXECUTABLE", "sun");
-    var command = try std.process.Command(a, executable);
-    try command.add_arg("--dynamic");
-    try command.add_arg("--lib-path");
-    try command.add_arg("build");
+    var executable = setting("SUN_EXECUTABLE", "sun");
+    var command = std.process.Command(a, executable);
+    command.add_arg("--dynamic");
+    command.add_arg("--lib-path");
+    command.add_arg("build");
     if (gtk) {
-      var env = try std.env.Env(a);
-      var cache = try setting("SUN_DEPENDENCY_CACHE", "build/dependencies/cache");
-      try env.set("SUN_DEPENDENCY_CACHE", cache);
+      var env = std.env.Env(a);
+      var cache = setting("SUN_DEPENDENCY_CACHE", "build/dependencies/cache");
+      env.set("SUN_DEPENDENCY_CACHE", cache);
       // The native media bindings require the system math library.
-      try command.add_arg("-lm");
-      var pkg = try std.process.Command(a, "pkg-config");
-      try pkg.add_arg("--libs");
-      try pkg.add_arg("gtk4");
-      var platform = try std.process.Command(a, "uname");
-      try platform.add_arg("-s");
-      var platform_output = try platform.output();
+      command.add_arg("-lm");
+      var pkg = std.process.Command(a, "pkg-config");
+      pkg.add_arg("--libs");
+      pkg.add_arg("gtk4");
+      var platform = std.process.Command(a, "uname");
+      platform.add_arg("-s");
+      var platform_output = platform.output();
       var darwin = platform_output.stdout().starts_with("Darwin");
       if (darwin) {
-        try pkg.add_arg("librsvg-2.0");
+        pkg.add_arg("librsvg-2.0");
       }
-      var output = try pkg.output();
+      var output = pkg.output();
       if (output.status() != 0) {
         std.io.eprintln(output.stderr());
-        return SystemResult.Error(Error(1, "Install GTK development dependencies"));
+        throw Error(1, "Install GTK development dependencies");
       }
-      var flags = try output.stdout().split_whitespace(a);
+      var flags = output.stdout().split_whitespace(a);
       for (var flag: ref String in flags) {
-        try command.add_arg(flag);
+        command.add_arg(flag);
       }
       if (not darwin) {
-        try command.add_arg("-l:librsvg-2.so.2");
+        command.add_arg("-l:librsvg-2.so.2");
       }
     }
-    return SystemResult.Ok(command);
+    return command;
   }
 
   /** Compiles a named configuration entry with optional native GTK dependencies. */
-  function compile(name: static_ptr<u8>, gtk: bool) SystemResult<void> {
-    var target = try build_targets.load(name);
-    var command = try compiler(gtk);
-    try command.add_arg(target.library ? "--emit-moon" : "-c");
-    try command.add_arg("-o");
-    try command.add_arg(target.output);
-    try command.add_arg(target.source);
-    var source_path = try target.source.clone(make_heap_allocator());
+  function compile(name: static_ptr<u8>, gtk: bool) void throws {
+    var target = build_targets.load(name);
+    var command = compiler(gtk);
+    command.add_arg(target.library ? "--emit-moon" : "-c");
+    command.add_arg("-o");
+    command.add_arg(target.output);
+    command.add_arg(target.source);
+    var source_path = target.source.clone(make_heap_allocator());
     if (source_path.equals_literal("examples/counter-xml/main.sun") or
       source_path.equals_literal("examples/tasks-xml/main.sun") or
       source_path.equals_literal("examples/forms/main.sun")) {
-      var result = try command.output();
+      var result = command.output();
       std.io.print(result.stdout());
       std.io.eprint(result.stderr());
       if (result.status() != 0) {
         var a = make_heap_allocator();
-        var parts = try source_path.split(a, b'/');
-        var view = try parts[1].clone(a);
-        try view.replace("-xml", "");
-        try view.append(".view.xml");
-        var original = try String("examples/");
-        try original.append(parts[1]);
-        try original.append("/");
-        try original.append(view);
-        var generated = try String("build/generated/");
-        try generated.append(original);
-        try generated.replace(".view.xml", ".view.sun");
-        ignore_error(build_diagnostics.annotate(result.stderr(), generated, original));
-        return SystemResult.Error(
-          Error(result.status(), "Generated view compilation failed")
-        );
+        var parts = source_path.split(a, b'/');
+        var view = parts[1].clone(a);
+        view.replace("-xml", "");
+        view.append(".view.xml");
+        var original = String("examples/");
+        original.append(parts[1]);
+        original.append("/");
+        original.append(view);
+        var generated = String("build/generated/");
+        generated.append(original);
+        generated.replace(".view.xml", ".view.sun");
+        try {
+          build_diagnostics.annotate(result.stderr(), generated, original);
+        } catch {}
+        throw Error(result.status(), "Generated view compilation failed");
       }
-      return SystemResult.Ok;
+      return;
     }
-    try run(command);
-    return SystemResult.Ok;
+    run(command);
+    return;
   }
 
   /** Checks XML support before compiling products that require it. */
-  function check_xml() SystemResult<void> {
+  function check_xml() void throws {
     var a = make_heap_allocator();
-    match compile("xml_probe", false) {
-      SystemResult.Ok => {},
-      (error: const ref IError) => {
-        return SystemResult.Error(
-          Error(
-            1,
-            "XML reader and source-span APIs are required. Run ./scripts/bootstrap-sun.sh --update or set SUN_EXECUTABLE to a current compiler."
-          )
-        );
-      }
-    };
-    var target = try build_targets.load("xml_probe");
-    var check = try std.process.Command(a, target.output);
+    try {
+      compile("xml_probe", false);
+    } catch {
+      throw Error(
+        1,
+        "XML reader and source-span APIs are required. Run ./scripts/bootstrap-sun.sh --update or set SUN_EXECUTABLE to a current compiler."
+      );
+    }
+    var target = build_targets.load("xml_probe");
+    var check = std.process.Command(a, target.output);
     return run(check);
   }
 
   /** Runs a configured GTK program's acceptance scenario under a bounded virtual display. */
-  function acceptance(name: static_ptr<u8>) SystemResult<void> {
+  function acceptance(name: static_ptr<u8>) void throws {
     var a = make_heap_allocator();
-    var target = try build_targets.load(name);
-    var command = try std.process.Command(a, "sh");
-    try command.add_arg("-eu");
-    try command.add_arg("-c");
-    var platform = try std.process.Command(a, "uname");
-    try platform.add_arg("-s");
-    var platform_output = try platform.output();
+    var target = build_targets.load(name);
+    var command = std.process.Command(a, "sh");
+    command.add_arg("-eu");
+    command.add_arg("-c");
+    var platform = std.process.Command(a, "uname");
+    platform.add_arg("-s");
+    var platform_output = platform.output();
     if (platform_output.stdout().starts_with("Darwin")) {
-      try command.add_arg(
+      command.add_arg(
         "export G_DEBUG=fatal-criticals GTK_A11Y=none GSK_RENDERER=cairo; gtimeout 30s \"$1\" --self-test"
       );
     } else {
-      if ((try String(name)).equals_literal("graphics_tests")) {
-        try command.add_arg(
+      if ((String(name)).equals_literal("graphics_tests")) {
+        command.add_arg(
           "export GDK_BACKEND=x11 SDL_VIDEO_DRIVER=x11 SDL_VIDEO_FORCE_EGL=1 LIBGL_ALWAYS_SOFTWARE=1 GTK_A11Y=none; timeout -k 2s 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test"
         );
       } else {
-        try command.add_arg(
+        command.add_arg(
           "export G_DEBUG=fatal-warnings GTK_A11Y=none GSK_RENDERER=cairo; timeout 30s dbus-run-session -- xvfb-run -a \"$1\" --self-test"
         );
       }
     }
-    try command.add_arg("sun-ui-acceptance");
-    try command.add_arg(target.output);
+    command.add_arg("sun-ui-acceptance");
+    command.add_arg(target.output);
     return run(command);
   }
 
   /** Links a named native archive using its configured directory and artifact name. */
-  function link_native(command: ref std.process.Command, name: static_ptr<u8>) SystemResult<void> {
+  function link_native(command: ref std.process.Command, name: static_ptr<u8>) void throws {
     var a = make_heap_allocator();
-    var target = try build_targets.load_native(name);
-    var parts = try target.output.split(a, b'/');
+    var target = build_targets.load_native(name);
+    var parts = target.output.split(a, b'/');
     var file = parts[parts.size() - 1];
     if (not target.library or not file.starts_with("lib") or not file.ends_with(".a")) {
-      return SystemResult.Error(Error(1, "Native linker target must be a static archive"));
+      throw Error(1, "Native linker target must be a static archive");
     }
-    var directory = match try sun_ui_results.substring(
-      target.output,
-      a,
-      0,
-      target.output.length() - file.length()
-    ) {
-      AccessResult.Ok(value) => value,
-      AccessResult.OutOfBounds(_) => try String("")
+    var directory_outcome: std.Option<String> = std.Option.None;
+
+    try {
+      var value = sun_ui_results.substring(
+        target.output,
+        a,
+        0,
+        target.output.length() - file.length()
+      );
+
+      directory_outcome = std.Option.Some(value);
+    } catch (error: std.IndexOutOfBoundsError) {
+      directory_outcome = std.Option.Some(String(""));
+    }
+
+    var directory = match directory_outcome {
+      std.Option.Some(value) => value,
+      std.Option.None => {
+        throw std.Error(1, "Exception handler produced no value");
+      }
     };
-    var library = match try sun_ui_results.substring(file, a, 3, file.length() - 5) {
-      AccessResult.Ok(value) => value,
-      AccessResult.OutOfBounds(_) => try String("")
+    var library_outcome: std.Option<String> = std.Option.None;
+
+    try {
+      var value = sun_ui_results.substring(file, a, 3, file.length() - 5);
+
+      library_outcome = std.Option.Some(value);
+    } catch (error: std.IndexOutOfBoundsError) {
+      library_outcome = std.Option.Some(String(""));
+    }
+
+    var library = match library_outcome {
+      std.Option.Some(value) => value,
+      std.Option.None => {
+        throw std.Error(1, "Exception handler produced no value");
+      }
     };
-    var search = try String("-L");
-    try search.append(directory);
-    try command.add_arg(search);
-    var flag = try String("-l");
-    try flag.append(library);
-    try command.add_arg(flag);
-    return SystemResult.Ok;
+    var search = String("-L");
+    search.append(directory);
+    command.add_arg(search);
+    var flag = String("-l");
+    flag.append(library);
+    command.add_arg(flag);
+    return;
   }
 
   /** Compiles one configured graphics target with its optional native dependencies. */
-  function compile_graphics(name: static_ptr<u8>) SystemResult<void> {
-    var target = try build_targets.load(name);
-    var command = try compiler(true);
-    if ((try String(name)).equals_literal("graphics_tests")) {
-      try link_native(command, "graphics-test-input");
+  function compile_graphics(name: static_ptr<u8>) void throws {
+    var target = build_targets.load(name);
+    var command = compiler(true);
+    if ((String(name)).equals_literal("graphics_tests")) {
+      link_native(command, "graphics-test-input");
     }
-    try link_native(command, "graphics-sdl");
-    try link_native(command, "graphics-executor");
-    try command.add_arg("-lm");
-    var pkg = try std.process.Command(make_heap_allocator(), "pkg-config");
+    link_native(command, "graphics-sdl");
+    link_native(command, "graphics-executor");
+    command.add_arg("-lm");
+    var pkg = std.process.Command(make_heap_allocator(), "pkg-config");
     // Sun accepts library names and search paths, not compiler-driver flags such as -Wl.
-    try pkg.add_arg("--libs-only-L");
-    try pkg.add_arg("--libs-only-l");
-    try pkg.add_arg("sdl3");
-    try pkg.add_arg("epoxy");
-    try pkg.add_arg("glib-2.0");
-    var output = try pkg.output();
+    pkg.add_arg("--libs-only-L");
+    pkg.add_arg("--libs-only-l");
+    pkg.add_arg("sdl3");
+    pkg.add_arg("epoxy");
+    pkg.add_arg("glib-2.0");
+    var output = pkg.output();
     if (output.status() != 0) {
-      return SystemResult.Error(Error(1, "Install SDL3 and libepoxy development dependencies"));
+      throw Error(1, "Install SDL3 and libepoxy development dependencies");
     }
-    var flags = try output.stdout().split_whitespace(make_heap_allocator());
+    var flags = output.stdout().split_whitespace(make_heap_allocator());
     for (var flag: ref String in flags) {
-      try command.add_arg(flag);
+      command.add_arg(flag);
     }
-    try command.add_arg(target.library ? "--emit-moon" : "-c");
-    try command.add_arg("-o");
-    try command.add_arg(target.output);
-    try command.add_arg(target.source);
+    command.add_arg(target.library ? "--emit-moon" : "-c");
+    command.add_arg("-o");
+    command.add_arg(target.output);
+    command.add_arg(target.source);
     return run(command);
   }
 
   /** Builds the shared executor, checked host bundles, and graphics programs. */
-  public function graphics() SystemResult<void> {
+  public function graphics() void throws {
     var a = make_heap_allocator();
-    var project = try build_targets.load_native("graphics-native");
-    var configure = try std.process.Command(a, "cmake");
-    try configure.add_arg("-S");
-    try configure.add_arg(project.source);
-    try configure.add_arg("-B");
-    try configure.add_arg(project.output);
-    try configure.add_arg("-DBUILD_SDL_HOST=ON");
-    try configure.add_arg("-DBUILD_GRAPHICS_TESTS=ON");
-    try run(configure);
-    var native = try std.process.Command(a, "cmake");
-    try native.add_arg("--build");
-    try native.add_arg(project.output);
-    try native.add_arg("-j2");
-    try run(native);
-    try compile("sun_ui_gtk", true);
-    try compile_graphics("sun_ui_graphics");
-    try compile_graphics("sun_ui_graphics_gtk");
-    try compile_graphics("sun_ui_sdl");
-    try compile_graphics("graphics_tests");
+    var project = build_targets.load_native("graphics-native");
+    var configure = std.process.Command(a, "cmake");
+    configure.add_arg("-S");
+    configure.add_arg(project.source);
+    configure.add_arg("-B");
+    configure.add_arg(project.output);
+    configure.add_arg("-DBUILD_SDL_HOST=ON");
+    configure.add_arg("-DBUILD_GRAPHICS_TESTS=ON");
+    run(configure);
+    var native = std.process.Command(a, "cmake");
+    native.add_arg("--build");
+    native.add_arg(project.output);
+    native.add_arg("-j2");
+    run(native);
+    compile("sun_ui_gtk", true);
+    compile_graphics("sun_ui_graphics");
+    compile_graphics("sun_ui_graphics_gtk");
+    compile_graphics("sun_ui_sdl");
+    compile_graphics("graphics_tests");
     return compile_graphics("graphics");
   }
 
   /** Runs the public graphics integration under the platform's available display host. */
-  public function test_graphics() SystemResult<void> {
+  public function test_graphics() void throws {
     return acceptance("graphics_tests");
   }
 
   /** Builds core products without requiring GTK or sun_gobject. */
-  public function build() SystemResult<void> {
+  public function build() void throws {
     var a = make_heap_allocator();
-    var mkdir = try std.process.Command(a, "mkdir");
-    try mkdir.add_arg("-p");
-    try mkdir.add_arg("build");
-    try mkdir.add_arg("tmp");
-    try run(mkdir);
-    try check_xml();
-    var executable = try setting("SUN_EXECUTABLE", "sun");
-    var version = try std.process.Command(a, executable);
-    try version.add_arg("--version");
-    var output = try version.output();
-    var path = try String("build/sun-version.txt");
-    var text = try output.stdout().clone(a);
-    try text.append(output.stderr());
-    try std.io.write_string(path, text);
-    try compile("sun_ui", false);
-    try compile("sun_plot", false);
-    try compile("sun_ui_tests", false);
-    try compile("sun_plot_tests", false);
-    try compile("plot_export", false);
-    return SystemResult.Ok;
+    var mkdir = std.process.Command(a, "mkdir");
+    mkdir.add_arg("-p");
+    mkdir.add_arg("build");
+    mkdir.add_arg("tmp");
+    run(mkdir);
+    check_xml();
+    var executable = setting("SUN_EXECUTABLE", "sun");
+    var version = std.process.Command(a, executable);
+    version.add_arg("--version");
+    var output = version.output();
+    var path = String("build/sun-version.txt");
+    var text = output.stdout().clone(a);
+    text.append(output.stderr());
+    std.io.write_string(path, text);
+    compile("sun_ui", false);
+    compile("sun_plot", false);
+    compile("sun_ui_tests", false);
+    compile("sun_plot_tests", false);
+    compile("plot_export", false);
+    return;
   }
 
   /** Builds and tests markup tools using the selected compiler and its standard library. */
-  public function markup() SystemResult<void> {
+  public function markup() void throws {
     var a = make_heap_allocator();
-    var directory = try std.process.Command(a, "mkdir");
-    try directory.add_arg("-p");
-    try directory.add_arg("build/generated/examples");
-    try run(directory);
-    try check_xml();
-    try compile("sun_viewc", false);
-    try compile("markup_tests", false);
-    var markup_target = try build_targets.load("markup_tests");
-    var tests = try std.process.Command(a, markup_target.tests);
-    try run(tests);
-    var viewc = try build_targets.load("sun_viewc");
-    var names = try (try String("counter tasks forms")).split_whitespace(a);
+    var directory = std.process.Command(a, "mkdir");
+    directory.add_arg("-p");
+    directory.add_arg("build/generated/examples");
+    run(directory);
+    check_xml();
+    compile("sun_viewc", false);
+    compile("markup_tests", false);
+    var markup_target = build_targets.load("markup_tests");
+    var tests = std.process.Command(a, markup_target.tests);
+    run(tests);
+    var viewc = build_targets.load("sun_viewc");
+    var names = (String("counter tasks forms")).split_whitespace(a);
     for (var name: ref String in names) {
-      var generate = try std.process.Command(a, viewc.output);
-      var example = try name.clone(a);
+      var generate = std.process.Command(a, viewc.output);
+      var example = name.clone(a);
       if (name.equals_literal("forms") == false) {
-        try example.append("-xml");
+        example.append("-xml");
       }
-      var input = try String("examples/");
-      try input.append(example);
-      try input.append("/");
-      try input.append(name);
-      try input.append(".view.xml");
-      var output = try String("build/generated/examples/");
-      try output.append(example);
-      try output.append("/");
-      try output.append(name);
-      try output.append(".view.sun");
-      try generate.add_arg(input);
-      try generate.add_arg(output);
-      try run(generate);
+      var input = String("examples/");
+      input.append(example);
+      input.append("/");
+      input.append(name);
+      input.append(".view.xml");
+      var output = String("build/generated/examples/");
+      output.append(example);
+      output.append("/");
+      output.append(name);
+      output.append(".view.sun");
+      generate.add_arg(input);
+      generate.add_arg(output);
+      run(generate);
     }
-    var scoped = try std.process.Command(a, viewc.output);
-    try scoped.add_arg("tests/markup/scoped.view.xml");
-    try scoped.add_arg("build/generated/tests/markup/scoped.view.sun");
-    try run(scoped);
-    var actions = try std.process.Command(a, viewc.output);
-    try actions.add_arg("tests/markup/actions.view.xml");
-    try actions.add_arg("build/generated/tests/markup/actions.view.sun");
-    try run(actions);
-    var reusable = try std.process.Command(a, viewc.output);
-    try reusable.add_arg("tests/markup/reusable.view.xml");
-    try reusable.add_arg("build/generated/tests/markup/reusable.view.sun");
-    try reusable.add_arg("--registry");
-    try reusable.add_arg("tests/markup/reusable.registry.xml");
-    try run(reusable);
-    try compile("generated_view_tests", false);
-    var generated_target = try build_targets.load("generated_view_tests");
-    var generated_tests = try std.process.Command(a, generated_target.tests);
+    var scoped = std.process.Command(a, viewc.output);
+    scoped.add_arg("tests/markup/scoped.view.xml");
+    scoped.add_arg("build/generated/tests/markup/scoped.view.sun");
+    run(scoped);
+    var actions = std.process.Command(a, viewc.output);
+    actions.add_arg("tests/markup/actions.view.xml");
+    actions.add_arg("build/generated/tests/markup/actions.view.sun");
+    run(actions);
+    var reusable = std.process.Command(a, viewc.output);
+    reusable.add_arg("tests/markup/reusable.view.xml");
+    reusable.add_arg("build/generated/tests/markup/reusable.view.sun");
+    reusable.add_arg("--registry");
+    reusable.add_arg("tests/markup/reusable.registry.xml");
+    run(reusable);
+    compile("generated_view_tests", false);
+    var generated_target = build_targets.load("generated_view_tests");
+    var generated_tests = std.process.Command(a, generated_target.tests);
 
-    try run(generated_tests);
-    return SystemResult.Ok;
+    run(generated_tests);
+    return;
   }
 
   /** Generates and compiles XML examples before their native acceptance checks. */
-  public function markup_gtk() SystemResult<void> {
-    try markup();
-    try compile("counter_xml", true);
-    try compile("tasks_xml", true);
-    try compile("forms_xml", true);
-    try acceptance("counter_xml");
-    try acceptance("tasks_xml");
+  public function markup_gtk() void throws {
+    markup();
+    compile("counter_xml", true);
+    compile("tasks_xml", true);
+    compile("forms_xml", true);
+    acceptance("counter_xml");
+    acceptance("tasks_xml");
     return acceptance("forms_xml");
   }
 
   /** Builds the optional adapter and both native prototypes against an existing dependency build. */
-  public function gtk() SystemResult<void> {
-    try compile("sun_ui_gtk", true);
-    try compile("counter", true);
-    try compile("tasks", true);
-    try compile("drawing_controls", true);
-    try plot_gtk();
-    return SystemResult.Ok;
+  public function gtk() void throws {
+    compile("sun_ui_gtk", true);
+    compile("counter", true);
+    compile("tasks", true);
+    compile("drawing_controls", true);
+    plot_gtk();
+    return;
   }
 
   /** Builds the vector viewer against the checked GTK drawing bindings. */
-  public function plot_gtk() SystemResult<void> {
-    try compile("sun_ui_gtk_drawing", true);
+  public function plot_gtk() void throws {
+    compile("sun_ui_gtk_drawing", true);
     return compile("plot_viewer", true);
   }
 
   /** Exercises native vector drawing, replacement, and resize under a virtual display. */
-  public function test_plot_gtk() SystemResult<void> {
+  public function test_plot_gtk() void throws {
     return acceptance("plot_viewer");
   }
 
   /** Runs the core tests or bounded GTK acceptance scenarios on a virtual display. */
-  public function test(gtk: bool) SystemResult<void> {
+  public function test(gtk: bool) void throws {
     var a = make_heap_allocator();
     if (gtk == false) {
-      var core = try build_targets.load("sun_ui_tests");
-      var tests = try std.process.Command(a, core.tests);
-      try run(tests);
-      var plot = try build_targets.load("sun_plot_tests");
-      var plot_tests = try std.process.Command(a, plot.tests);
-      try run(plot_tests);
-      var export_target = try build_targets.load("plot_export");
-      var example = try std.process.Command(a, export_target.output);
+      var core = build_targets.load("sun_ui_tests");
+      var tests = std.process.Command(a, core.tests);
+      run(tests);
+      var plot = build_targets.load("sun_plot_tests");
+      var plot_tests = std.process.Command(a, plot.tests);
+      run(plot_tests);
+      var export_target = build_targets.load("plot_export");
+      var example = std.process.Command(a, export_target.output);
       return run(example);
     }
-    try acceptance("counter");
-    try acceptance("tasks");
-    try acceptance("drawing_controls");
+    acceptance("counter");
+    acceptance("tasks");
+    acceptance("drawing_controls");
     return test_plot_gtk();
   }
 }
 
 /** Dispatches build and test tasks from the repository root. */
-function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) AllocationResult<i32> {
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 throws {
   var a = make_heap_allocator();
-  var env = try std.env.Env(a);
-  var args = try env.args(argc, argv);
-  var result: SystemResult<void> = SystemResult.Ok;
-  if (args.size() == 2 and args[1].equals_literal("build")) {
-    result = build_tasks.build();
-  } else if (args.size() == 2 and args[1].equals_literal("graphics")) {
-    result = build_tasks.graphics();
-  } else if (args.size() == 2 and args[1].equals_literal("test-graphics")) {
-    result = build_tasks.test_graphics();
-  } else if (args.size() == 2 and args[1].equals_literal("gtk")) {
-    result = build_tasks.gtk();
-  } else if (args.size() == 2 and args[1].equals_literal("test")) {
-    result = build_tasks.test(false);
-  } else if (args.size() == 2 and args[1].equals_literal("test-gtk")) {
-    result = build_tasks.test(true);
-  } else if (args.size() == 2 and args[1].equals_literal("plot-gtk")) {
-    result = build_tasks.plot_gtk();
-  } else if (args.size() == 2 and args[1].equals_literal("test-plot-gtk")) {
-    result = build_tasks.test_plot_gtk();
-  } else if (args.size() == 2 and args[1].equals_literal("markup")) {
-    result = build_tasks.markup();
-  } else if (args.size() == 2 and args[1].equals_literal("markup-gtk")) {
-    result = build_tasks.markup_gtk();
-  } else {
-    std.io.eprintln(
-      "Usage: sun src/tools/build.sun -- [build|test|graphics|test-graphics|gtk|test-gtk|plot-gtk|test-plot-gtk|markup|markup-gtk]"
-    );
-    return AllocationResult.Ok(1);
-  }
-  return AllocationResult.Ok(
-    match result {
-      SystemResult.Ok => 0,
-      (error: const ref IError) => {
-        std.io.eprintln(try error.message());
-        return AllocationResult.Ok(1);
-      }
+  var env = std.env.Env(a);
+  var args = env.args(argc, argv);
+  try {
+    if (args.size() == 2 and args[1].equals_literal("build")) {
+      build_tasks.build();
+    } else if (args.size() == 2 and args[1].equals_literal("graphics")) {
+      build_tasks.graphics();
+    } else if (args.size() == 2 and args[1].equals_literal("test-graphics")) {
+      build_tasks.test_graphics();
+    } else if (args.size() == 2 and args[1].equals_literal("gtk")) {
+      build_tasks.gtk();
+    } else if (args.size() == 2 and args[1].equals_literal("test")) {
+      build_tasks.test(false);
+    } else if (args.size() == 2 and args[1].equals_literal("test-gtk")) {
+      build_tasks.test(true);
+    } else if (args.size() == 2 and args[1].equals_literal("plot-gtk")) {
+      build_tasks.plot_gtk();
+    } else if (args.size() == 2 and args[1].equals_literal("test-plot-gtk")) {
+      build_tasks.test_plot_gtk();
+    } else if (args.size() == 2 and args[1].equals_literal("markup")) {
+      build_tasks.markup();
+    } else if (args.size() == 2 and args[1].equals_literal("markup-gtk")) {
+      build_tasks.markup_gtk();
+    } else {
+      std.io.eprintln(
+        "Usage: sun src/tools/build.sun -- [build|test|graphics|test-graphics|gtk|test-gtk|plot-gtk|test-plot-gtk|markup|markup-gtk]"
+      );
+      return 1;
     }
-  );
+
+    return 0;
+  } catch (error: std.Error) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.AllocationError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.InvalidArgumentError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.OverflowError) {
+    std.io.eprintln(error.message());
+    return 1;
+  }
 }
 manifest {
   libraries: [

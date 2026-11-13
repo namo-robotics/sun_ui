@@ -30,9 +30,9 @@ public module gpu_gtk {
     var area: gtk.GLArea;
 
     /** Creates an initially empty viewport with checked GTK ownership. */
-    init() SystemResult<void> {
+    init() throws {
       this.state = gpu.Surface();
-      this.area = try gtk.GLArea(
+      this.area = gtk.GLArea(
         unsafe { this.state.raw_handle(); },
         gu_surface_render,
         gu_surface_reset,
@@ -59,10 +59,10 @@ public module gpu_gtk {
     }
 
     /** Reports native context failures before renderer-specific diagnostics. */
-    public const method error() AllocationResult<String> {
-      var error = try this.area.error();
+    public const method error() String throws {
+      var error = this.area.error();
       if (not error.is_empty()) {
-        return AllocationResult.Ok(error);
+        return error;
       }
       return this.state.error();
     }

@@ -9,114 +9,114 @@ module plot_example {
     phase: ref plot.Series,
     energy: ref plot.Series,
     damping: f64
-  ) AllocationResult<void> {
+  ) void throws {
     var x: f64 = 1.0;
     var velocity: f64 = 0.0;
     var dt: f64 = 0.005;
     for (var i: i64 = 0; i <= 6000; i += 1) {
       if (i % 10 == 0) {
-        try displacement.add(_convert<f64>(i) * dt, x);
-        try phase.add(x, velocity);
-        try energy.add(_convert<f64>(i) * dt, x * x + velocity * velocity);
+        displacement.add(_convert<f64>(i) * dt, x);
+        phase.add(x, velocity);
+        energy.add(_convert<f64>(i) * dt, x * x + velocity * velocity);
       }
       velocity += (0.0 - x - 2.0 * damping * velocity) * dt;
       x += velocity * dt;
     }
-    return AllocationResult.Ok;
+    return;
   }
 
   /** Builds related time, phase, energy, and frequency-domain views of damped oscillators. */
-  public function figure() SystemResult<plot.Grid> {
-    var grid = try plot.Grid(
+  public function figure() plot.Grid throws {
+    var grid = plot.Grid(
       2,
       2,
-      try String("The anatomy of a damped oscillator"),
-      try String(
+      String("The anatomy of a damped oscillator"),
+      String(
         "SYNTHETIC DYNAMICS STUDY   /   Unit natural frequency   /   Two damping regimes"
       )
     );
-    var motion = try plot.Figure(
-      try String("A   |   Transient response"),
-      try String("Dimensionless time, ω₀t"),
-      try String("Displacement, x / x₀")
+    var motion = plot.Figure(
+      String("A   |   Transient response"),
+      String("Dimensionless time, ω₀t"),
+      String("Displacement, x / x₀")
     );
-    var phase = try plot.Figure(
-      try String("B   |   Phase portrait"),
-      try String("Displacement, x / x₀"),
-      try String("Velocity, v / (ω₀x₀)")
+    var phase = plot.Figure(
+      String("B   |   Phase portrait"),
+      String("Displacement, x / x₀"),
+      String("Velocity, v / (ω₀x₀)")
     );
-    var energy = try plot.Figure(
-      try String("C   |   Energy dissipation"),
-      try String("Dimensionless time, ω₀t"),
-      try String("Normalized energy, E / E₀")
+    var energy = plot.Figure(
+      String("C   |   Energy dissipation"),
+      String("Dimensionless time, ω₀t"),
+      String("Normalized energy, E / E₀")
     );
-    var resonance = try plot.Figure(
-      try String("D   |   Resonance spectrum"),
-      try String("Frequency ratio, ω / ω₀"),
-      try String("Power gain, |H(ω)|²")
+    var resonance = plot.Figure(
+      String("D   |   Resonance spectrum"),
+      String("Frequency ratio, ω / ω₀"),
+      String("Power gain, |H(ω)|²")
     );
-    var light_motion = try plot.Series(
-      try String("Light damping · ζ = 0.08"),
-      try String("#147d92"),
+    var light_motion = plot.Series(
+      String("Light damping · ζ = 0.08"),
+      String("#147d92"),
       false
     );
-    var light_phase = try plot.Series(
-      try String("Spiral toward equilibrium"),
-      try String("#147d92"),
+    var light_phase = plot.Series(
+      String("Spiral toward equilibrium"),
+      String("#147d92"),
       false
     );
-    var light_energy = try plot.Series(
-      try String("Light damping · ζ = 0.08"),
-      try String("#147d92"),
+    var light_energy = plot.Series(
+      String("Light damping · ζ = 0.08"),
+      String("#147d92"),
       false
     );
-    var heavy_motion = try plot.Series(
-      try String("Strong damping · ζ = 0.30"),
-      try String("#d0653c"),
+    var heavy_motion = plot.Series(
+      String("Strong damping · ζ = 0.30"),
+      String("#d0653c"),
       false
     );
-    var heavy_phase = try plot.Series(
-      try String("Faster relaxation"),
-      try String("#d0653c"),
+    var heavy_phase = plot.Series(
+      String("Faster relaxation"),
+      String("#d0653c"),
       false
     );
-    var heavy_energy = try plot.Series(
-      try String("Strong damping · ζ = 0.30"),
-      try String("#d0653c"),
+    var heavy_energy = plot.Series(
+      String("Strong damping · ζ = 0.30"),
+      String("#d0653c"),
       false
     );
-    try oscillator(light_motion, light_phase, light_energy, 0.08);
-    try oscillator(heavy_motion, heavy_phase, heavy_energy, 0.30);
-    try motion.add(light_motion);
-    try motion.add(heavy_motion);
-    try phase.add(light_phase);
-    try phase.add(heavy_phase);
-    try energy.add(light_energy);
-    try energy.add(heavy_energy);
-    var light_spectrum = try plot.Series(
-      try String("Narrow resonance · ζ = 0.08"),
-      try String("#147d92"),
+    oscillator(light_motion, light_phase, light_energy, 0.08);
+    oscillator(heavy_motion, heavy_phase, heavy_energy, 0.30);
+    motion.add(light_motion);
+    motion.add(heavy_motion);
+    phase.add(light_phase);
+    phase.add(heavy_phase);
+    energy.add(light_energy);
+    energy.add(heavy_energy);
+    var light_spectrum = plot.Series(
+      String("Narrow resonance · ζ = 0.08"),
+      String("#147d92"),
       false
     );
-    var heavy_spectrum = try plot.Series(
-      try String("Broad response · ζ = 0.30"),
-      try String("#d0653c"),
+    var heavy_spectrum = plot.Series(
+      String("Broad response · ζ = 0.30"),
+      String("#d0653c"),
       false
     );
     for (var i: i64 = 0; i <= 500; i += 1) {
       var ratio = _convert<f64>(i) / 250.0;
       var detuning = 1.0 - ratio * ratio;
-      try light_spectrum.add(
+      light_spectrum.add(
         ratio,
         1.0 / (detuning * detuning + 4.0 * 0.08 * 0.08 * ratio * ratio)
       );
-      try heavy_spectrum.add(
+      heavy_spectrum.add(
         ratio,
         1.0 / (detuning * detuning + 4.0 * 0.30 * 0.30 * ratio * ratio)
       );
     }
-    try resonance.add(light_spectrum);
-    try resonance.add(heavy_spectrum);
+    resonance.add(light_spectrum);
+    resonance.add(heavy_spectrum);
     motion.x_limits = Option.Some(plot.Limits(0.0, 30.0));
     motion.y_limits = Option.Some(plot.Limits(-1.1, 1.1));
     phase.x_limits = Option.Some(plot.Limits(-1.1, 1.1));
@@ -125,10 +125,10 @@ module plot_example {
     energy.y_limits = Option.Some(plot.Limits(0.0, 1.05));
     resonance.x_limits = Option.Some(plot.Limits(0.0, 2.0));
     resonance.y_limits = Option.Some(plot.Limits(0.0, 42.0));
-    try grid.add(try motion.draw(684.0, 471.0));
-    try grid.add(try phase.draw(684.0, 471.0));
-    try grid.add(try energy.draw(684.0, 471.0));
-    try grid.add(try resonance.draw(684.0, 471.0));
-    return SystemResult.Ok(grid);
+    grid.add(motion.draw(684.0, 471.0));
+    grid.add(phase.draw(684.0, 471.0));
+    grid.add(energy.draw(684.0, 471.0));
+    grid.add(resonance.draw(684.0, 471.0));
+    return grid;
   }
 }

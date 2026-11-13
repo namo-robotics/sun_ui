@@ -4,35 +4,31 @@ using std;
 module drawing_controls {
 
   /** Describes a drawing leaf beside an ordinary control. */
-  function view(id: const ref i64) SystemResult<ui.View> {
+  function view(id: const ref i64) ui.View throws {
     var a = make_heap_allocator();
-    var v = try ui.View(a);
-    try v.button(1, try String("Drawing surface"), 1, 0);
-    var e = try ui.Element(try ui.Key(2), ui.Kind.Drawing);
+    var v = ui.View(a);
+    v.button(1, String("Drawing surface"), 1, 0);
+    var e = ui.Element(ui.Key(2), ui.Kind.Drawing);
     e.drawing_id = id;
     e.min_width = 400;
     e.min_height = 300;
-    try v.append(-1, e);
-    return SystemResult.Ok(v);
+    v.append(-1, e);
+    return v;
   }
 
   /** Leaves the example state unchanged when its illustrative button is clicked. */
-  function handle(
-    id: ref i64,
-    event: const ref ui.Event,
-    queue: ref ui.EventQueue
-  ) SystemResult<void> {
-    return SystemResult.Ok;
+  function handle(id: ref i64, event: const ref ui.Event, queue: ref ui.EventQueue) void throws {
+    return;
   }
 
   /** Paints a document after its temporary SVG owner leaves scope. */
-  function update(area: ref gtk.DrawingArea, text: static_ptr<u8>) SystemResult<void> {
-    var d = try ui_drawing.Drawing(400.0, 300.0);
-    try d.text(30.0, 50.0, try String(text), 24.0, false, 0.0);
-    var content = try d.svg();
-    var document = try svg.Document(content);
+  function update(area: ref gtk.DrawingArea, text: static_ptr<u8>) void throws {
+    var d = ui_drawing.Drawing(400.0, 300.0);
+    d.text(30.0, 50.0, String(text), 24.0, false, 0.0);
+    var content = d.svg();
+    var document = svg.Document(content);
     area.set_document(document);
-    return SystemResult.Ok;
+    return;
   }
 
   /** Waits for a native frame with a bounded deadline. */
@@ -40,111 +36,138 @@ module drawing_controls {
     renderer: ref ui_gtk.Renderer,
     session: ref ui.Session<i64>,
     area: const ref gtk.DrawingArea
-  ) std.Result<void> {
+  ) void throws {
     for (var i: i64 = 0; i < 200; i += 1) {
-      try renderer.poll(session.tree, session.queue, false);
-      try session.dispatch(renderer);
+      renderer.poll(session.tree, session.queue, false);
+      session.dispatch(renderer);
       if (area.rendered()) {
-        return std.Result.Ok;
+        return;
       }
       std.time.sleep(std.time.create_duration_millis(10));
     }
-    return std.Result.Error(Error(1, "Embedded drawing did not paint"));
+    throw Error(1, "Embedded drawing did not paint");
   }
 
   /** Validates registrations, replacements, retention, redraw, and mounted cleanup rules. */
-  public function run() std.Result<void> {
-    var title = try String("Embedded drawings");
-    var renderer = try ui_gtk.Renderer(title);
-    var first = try gtk.DrawingArea();
-    var second = try gtk.DrawingArea();
-    try update(first, "First drawing");
-    try update(second, "Second drawing");
-    try renderer.register_drawing(1, gtk.DrawingArea(first));
-    match renderer.register_drawing(2, gtk.DrawingArea(first)) {
-      SystemResult.Error(_) => {},
-      SystemResult.Allocation(error) => {
-        return std.Result.Allocation(error);
-      },
-      SystemResult.InvalidArgument(error) => {
-        return std.Result.InvalidArgument(error);
-      },
-      SystemResult.Overflow(error) => {
-        return std.Result.Overflow(error);
-      },
-      SystemResult.Ok => {
-        return std.Result.Error(Error(1, "Duplicate surface accepted"));
+  public function run() void throws {
+    var title = String("Embedded drawings");
+    var renderer = ui_gtk.Renderer(title);
+    var first = gtk.DrawingArea();
+    var second = gtk.DrawingArea();
+    update(first, "First drawing");
+    update(second, "Second drawing");
+    renderer.register_drawing(1, gtk.DrawingArea(first));
+
+    var operation_completed_3 = false;
+    try {
+      renderer.register_drawing(2, gtk.DrawingArea(first));
+      operation_completed_3 = true;
+      throw Error(1, "Duplicate surface accepted");
+    } catch (error: std.Error) {
+      if (operation_completed_3) {
+        throw;
       }
-    };
-    match renderer.register_drawing(1, gtk.DrawingArea(second)) {
-      SystemResult.Error(_) => {},
-      SystemResult.Allocation(error) => {
-        return std.Result.Allocation(error);
-      },
-      SystemResult.InvalidArgument(error) => {
-        return std.Result.InvalidArgument(error);
-      },
-      SystemResult.Overflow(error) => {
-        return std.Result.Overflow(error);
-      },
-      SystemResult.Ok => {
-        return std.Result.Error(Error(1, "Duplicate identifier accepted"));
-      }
-    };
-    try renderer.register_drawing(2, gtk.DrawingArea(second));
-    var session = try ui.Session<i64>(1, view, handle);
-    try session.render(renderer);
-    try paint(renderer, session, first);
-    var identity = try session.tree.identity(2);
-    match renderer.unregister_drawing(1) {
-      SystemResult.Error(_) => {},
-      SystemResult.Allocation(error) => {
-        return std.Result.Allocation(error);
-      },
-      SystemResult.InvalidArgument(error) => {
-        return std.Result.InvalidArgument(error);
-      },
-      SystemResult.Overflow(error) => {
-        return std.Result.Overflow(error);
-      },
-      SystemResult.Ok => {
-        return std.Result.Error(Error(1, "Mounted surface released"));
-      }
-    };
-    session.state = 2;
-    try session.render(renderer);
-    try paint(renderer, session, second);
-    if (try session.tree.identity(2) != identity) {
-      return std.Result.Error(Error(1, "Replacement changed keyed identity"));
     }
-    try renderer.unregister_drawing(1);
-    try update(second, "Updated drawing");
-    try paint(renderer, session, second);
-    var retained = try renderer.drawing(2);
+
+    var operation_completed_2 = false;
+    try {
+      renderer.register_drawing(1, gtk.DrawingArea(second));
+      operation_completed_2 = true;
+      throw Error(1, "Duplicate identifier accepted");
+    } catch (error: std.Error) {
+      if (operation_completed_2) {
+        throw;
+      }
+    }
+
+    renderer.register_drawing(2, gtk.DrawingArea(second));
+    var session = ui.Session<i64>(1, view, handle);
+    session.render(renderer);
+    paint(renderer, session, first);
+    var identity = session.tree.identity(2);
+
+    var operation_completed_1 = false;
+    try {
+      renderer.unregister_drawing(1);
+      operation_completed_1 = true;
+      throw Error(1, "Mounted surface released");
+    } catch (error: std.Error) {
+      if (operation_completed_1) {
+        throw;
+      }
+    }
+
+    session.state = 2;
+    session.render(renderer);
+    paint(renderer, session, second);
+    if (session.tree.identity(2) != identity) {
+      throw Error(1, "Replacement changed keyed identity");
+    }
+    renderer.unregister_drawing(1);
+    update(second, "Updated drawing");
+    paint(renderer, session, second);
+    var retained = renderer.drawing(2);
     if (not retained.same(second)) {
-      return std.Result.Error(Error(1, "Retained surface changed identity"));
+      throw Error(1, "Retained surface changed identity");
     }
     session.tree.shutdown(renderer);
-    try renderer.unregister_drawing(2);
+    renderer.unregister_drawing(2);
     if (renderer.creates != renderer.removals) {
-      return std.Result.Error(Error(1, "Mounted controls leaked"));
+      throw Error(1, "Mounted controls leaked");
     }
     std.io.println("Drawing controls acceptance passed");
-    return std.Result.Ok;
+    return;
   }
 }
 
 /** Runs the bounded drawing integration scenario. */
-function main() AllocationResult<i32> {
-  return AllocationResult.Ok(
-    match drawing_controls.run() {
-      std.Result.Ok => 0,
-      (error: const ref IError) => {
-        std.io.eprintln(try error.message());
-        return AllocationResult.Ok(1);
-      }
-    }
-  );
+function main() i32 throws {
+  try {
+    drawing_controls.run();
+    return 0;
+  } catch (error: std.Error) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.AllocationError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.InvalidArgumentError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.OverflowError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.IndexOutOfBoundsError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.NotFoundError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.EmptyError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.IOError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ConversionError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.DivisionByZeroError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ArithmeticError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.json.JsonError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.xml.XmlError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ProtoDecodeError) {
+    std.io.eprintln(error.message());
+    return 1;
+  }
 }
 manifest {
   libraries: [

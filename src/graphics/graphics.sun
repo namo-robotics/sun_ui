@@ -4,13 +4,11 @@ using std;
 public module gpu {
 
   /** Rejects embedded NUL bytes and invalid UTF-8 before a native string call. */
-  public function validate_text(text: ref String) SystemResult<void> {
-    if (unsafe { gu_text_valid(try text.c_str(), _convert<u64>(text.length())); } == 0) {
-      return SystemResult.Error(
-        Error(1, "Graphics text must be UTF-8 without embedded NUL bytes")
-      );
+  public function validate_text(text: ref String) void throws {
+    if (unsafe { gu_text_valid(text.c_str(), _convert<u64>(text.length())); } == 0) {
+      throw Error(1, "Graphics text must be UTF-8 without embedded NUL bytes");
     }
-    return SystemResult.Ok;
+    return;
   }
 
   /** Selects triangle or line assembly from position triples. */
@@ -40,20 +38,20 @@ public module gpu {
     var pointer: raw_ptr<u8> = null;
 
     /** Copies position triples and optional indices after validating their bounds. */
-    init(vertices: const ref Vec<f64>, indices: const ref Vec<i64>) SystemResult<void> {
+    init(vertices: const ref Vec<f64>, indices: const ref Vec<i64>) throws {
       if (vertices.size() == 0 or vertices.size() % 3 != 0 or vertices.size() > 16777216 or
         indices.size() > 16777216) {
-        return SystemResult.Error(Error(1, "Invalid mesh dimensions"));
+        throw Error(1, "Invalid mesh dimensions");
       }
       for (var i: i64 = 0; i < vertices.size(); i += 1) {
         var v = vertices[i];
         if (v != v or v > 3.4e38 or v < -3.4e38) {
-          return SystemResult.Error(Error(1, "Mesh positions must be finite"));
+          throw Error(1, "Mesh positions must be finite");
         }
       }
       for (var i: i64 = 0; i < indices.size(); i += 1) {
         if (_convert<i64>(indices[i]) >= vertices.size() / 3 or indices[i] < 0) {
-          return SystemResult.Error(Error(1, "Mesh index exceeds vertex count"));
+          throw Error(1, "Mesh index exceeds vertex count");
         }
       }
       this.pointer = unsafe {
@@ -80,13 +78,13 @@ public module gpu {
     var pointer: raw_ptr<u8> = null;
 
     /** Copies source text; shader compilation errors are reported by the drawing surface. */
-    init(vertex: ref String, fragment: ref String) SystemResult<void> {
-      try validate_text(vertex);
-      try validate_text(fragment);
+    init(vertex: ref String, fragment: ref String) throws {
+      validate_text(vertex);
+      validate_text(fragment);
       if (vertex.is_empty() or fragment.is_empty()) {
-        return SystemResult.Error(Error(1, "Shader sources must not be empty"));
+        throw Error(1, "Shader sources must not be empty");
       }
-      this.pointer = unsafe { gu_shader_new(try vertex.c_str(), try fragment.c_str()); };
+      this.pointer = unsafe { gu_shader_new(vertex.c_str(), fragment.c_str()); };
     }
 
     /** Releases source storage after the last frame and GPU cache reference. */
@@ -102,10 +100,10 @@ public module gpu {
     var pointer: raw_ptr<u8> = null;
 
     /** Starts an empty frame with a normalized, finite clear color. */
-    init(r: f64, g: f64, b: f64, a: f64) SystemResult<void> {
+    init(r: f64, g: f64, b: f64, a: f64) throws {
       if (not (r >= 0.0 and r <= 1.0 and g >= 0.0 and g <= 1.0 and b >= 0.0 and b <= 1.0 and
         a >= 0.0 and a <= 1.0)) {
-        return SystemResult.Error(Error(1, "Invalid clear color"));
+        throw Error(1, "Invalid clear color");
       }
       this.pointer = unsafe {
         gu_frame_new(_convert<f32>(r), _convert<f32>(g), _convert<f32>(b), _convert<f32>(a));
@@ -126,7 +124,7 @@ public module gpu {
       primitive: Primitive,
       depth: bool,
       blend: bool
-    ) SystemResult<void> {
+    ) void throws {
       if (unsafe {
         gu_frame_draw(
           this.pointer,
@@ -137,26 +135,26 @@ public module gpu {
           blend ? 1 : 0
         );
       } == 0) {
-        return SystemResult.Error(Error(1, "Invalid draw primitive count"));
+        throw Error(1, "Invalid draw primitive count");
       }
-      return SystemResult.Ok;
+      return;
     }
 
     /** Copies a float scalar, vector, or column-major matrix onto the most recent draw. */
-    public method uniform(name: ref String, values: const ref Vec<f64>) SystemResult<void> {
-      try validate_text(name);
+    public method uniform(name: ref String, values: const ref Vec<f64>) void throws {
+      validate_text(name);
       var count = values.size();
       if (not (count == 1 or count == 2 or count == 3 or count == 4 or count == 16)) {
-        return SystemResult.Error(Error(1, "Uniform requires scalar, vector, or matrix values"));
+        throw Error(1, "Uniform requires scalar, vector, or matrix values");
       }
       for (var i: i64 = 0; i < count; i += 1) {
         unsafe { gu_uniform_value(_convert<i32>(i), _convert<f32>(values[i])); };
       }
-      if (unsafe { gu_frame_uniform_built(this.pointer, try name.c_str(), _convert<i32>(count)); } ==
+      if (unsafe { gu_frame_uniform_built(this.pointer, name.c_str(), _convert<i32>(count)); } ==
         0) {
-        return SystemResult.Error(Error(1, "Invalid uniform or missing draw"));
+        throw Error(1, "Invalid uniform or missing draw");
       }
-      return SystemResult.Ok;
+      return;
     }
   }
 
@@ -186,7 +184,7 @@ public module gpu {
     }
 
     /** Copies the most recent rendering diagnostic, empty after a successful frame. */
-    public const method error() AllocationResult<String> {
+    public const method error() String throws {
       return from_c_str(make_heap_allocator(), unsafe { gu_surface_error(this.pointer); });
     }
 

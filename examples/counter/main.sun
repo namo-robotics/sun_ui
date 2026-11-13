@@ -4,11 +4,11 @@ using std;
 module counter {
 
   /** Creates a button whose label is derived only from application state. */
-  function view(state: const ref i64) SystemResult<ui.View> {
+  function view(state: const ref i64) ui.View throws {
     var a = make_heap_allocator();
-    var view = try ui.View(a);
-    try view.button(1, try `Count: ${state}`, 1, 0);
-    return SystemResult.Ok(view);
+    var view = ui.View(a);
+    view.button(1, `Count: ${state}`, 1, 0);
+    return view;
   }
 
   /** Mutates borrowed application state after native event dispatch has returned. */
@@ -16,70 +16,107 @@ module counter {
     state: ref i64,
     event: const ref ui.Event,
     queue: ref ui.EventQueue
-  ) SystemResult<void> {
+  ) void throws {
     state += 1;
-    return SystemResult.Ok;
+    return;
   }
 
   /** Runs the interactive counter or a real-signal acceptance scenario. */
-  public function run(automated: bool) std.Result<void> {
-    var title = try String("Sun UI — Counter");
-    var renderer = try ui_gtk.Renderer(title);
-    var session = try ui.Session<i64>(0, view, increment);
-    try session.render(renderer);
-    var original = try session.tree.identity(1);
+  public function run(automated: bool) void throws {
+    var title = String("Sun UI — Counter");
+    var renderer = ui_gtk.Renderer(title);
+    var session = ui.Session<i64>(0, view, increment);
+    session.render(renderer);
+    var original = session.tree.identity(1);
     if (automated) {
       renderer.click(original);
-      try renderer.poll(session.tree, session.queue, false);
-      try session.dispatch(renderer);
-      if (session.state != 1 or try session.tree.identity(1) != original or renderer.updates != 1 or
+      renderer.poll(session.tree, session.queue, false);
+      session.dispatch(renderer);
+      if (session.state != 1 or session.tree.identity(1) != original or renderer.updates != 1 or
         renderer.creates != 1) {
-        return std.Result.Error(Error(1, "Counter did not perform one targeted text update"));
+        throw Error(1, "Counter did not perform one targeted text update");
       }
       // More clicks than one native collection turn must remain runnable without new input.
       for (var i: i64 = 0; i < 65; i += 1) {
         renderer.click(original);
       }
-      try renderer.poll(session.tree, session.queue, true);
+      renderer.poll(session.tree, session.queue, true);
       if (session.queue.size() != 64) {
-        return std.Result.Error(Error(1, "Native batch was not bounded"));
+        throw Error(1, "Native batch was not bounded");
       }
-      try session.dispatch(renderer);
-      try renderer.poll(session.tree, session.queue, true);
-      try session.dispatch(renderer);
+      session.dispatch(renderer);
+      renderer.poll(session.tree, session.queue, true);
+      session.dispatch(renderer);
       if (session.state != 66 or renderer.creates != 1) {
-        return std.Result.Error(Error(1, "Pending native clicks were stranded"));
+        throw Error(1, "Pending native clicks were stranded");
       }
       session.tree.shutdown(renderer);
       if (renderer.removals != 1) {
-        return std.Result.Error(Error(1, "Counter subscription was not removed"));
+        throw Error(1, "Counter subscription was not removed");
       }
       std.io.println("Counter acceptance passed");
-      return std.Result.Ok;
+      return;
     }
     while (renderer.running()) {
-      try renderer.poll(session.tree, session.queue, true);
-      try session.dispatch(renderer);
+      renderer.poll(session.tree, session.queue, true);
+      session.dispatch(renderer);
     }
     session.tree.shutdown(renderer);
-    return std.Result.Ok;
+    return;
   }
 }
 
 /** Selects interactive execution or the bounded automated scenario. */
-function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) AllocationResult<i32> {
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 throws {
   var a = make_heap_allocator();
-  var env = try std.env.Env(a);
-  var args = try env.args(argc, argv);
-  return AllocationResult.Ok(
-    match counter.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
-      std.Result.Ok => 0,
-      (error: const ref IError) => {
-        std.io.eprintln(try error.message());
-        return AllocationResult.Ok(1);
-      }
-    }
-  );
+  var env = std.env.Env(a);
+  var args = env.args(argc, argv);
+  try {
+    counter.run(args.size() == 2 and args[1].equals_literal("--self-test"));
+    return 0;
+  } catch (error: std.Error) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.AllocationError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.InvalidArgumentError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.OverflowError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.IndexOutOfBoundsError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.NotFoundError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.EmptyError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.IOError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ConversionError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.DivisionByZeroError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ArithmeticError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.json.JsonError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.xml.XmlError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ProtoDecodeError) {
+    std.io.eprintln(error.message());
+    return 1;
+  }
 }
 manifest {
   libraries: [

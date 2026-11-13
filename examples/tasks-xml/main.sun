@@ -11,56 +11,53 @@ module tasks {
     var reversed: bool = false;
 
     /** Reverses display order when the generated dispatcher delivers the action. */
-    public method reverse_tasks(
-      event: const ref ui.Event,
-      queue: ref ui.EventQueue
-    ) SystemResult<void> {
+    public method reverse_tasks(event: const ref ui.Event, queue: ref ui.EventQueue) void throws {
       this.reversed = not this.reversed;
-      return SystemResult.Ok;
+      return;
     }
 
     /** Seeds two tasks with stable keys. */
-    init() AllocationResult<void> {
+    init() throws {
       var a = make_heap_allocator();
-      this.ids = try Vec<i64>(a, 8);
-      try this.ids.push(1);
-      try this.ids.push(2);
+      this.ids = Vec<i64>(a, 8);
+      this.ids.push(1);
+      this.ids.push(2);
     }
   }
 
   /** Composes a task button using its durable ID as both key and event payload. */
-  function task(view: ref ui.View, parent: i64, id: i64, selected: bool) AllocationResult<void> {
-    var label = try `Task ${id}`;
+  function task(view: ref ui.View, parent: i64, id: i64, selected: bool) void throws {
+    var label = `Task ${id}`;
     if (selected) {
-      try label.append(" — selected");
+      label.append(" — selected");
     }
-    var node = try ui.Element(try ui.Key(id), ui.Kind.Button);
+    var node = ui.Element(ui.Key(id), ui.Kind.Button);
     node.text = label;
     node.action = 4;
     node.payload = id;
-    try view.append(parent, node);
+    view.append(parent, node);
 
-    return AllocationResult.Ok;
+    return;
   }
 
   /** Copies visible IDs in display order for a keyed XML repetition. */
-  function visible_ids(state: const ref State) AllocationResult<Vec<i64>> {
+  function visible_ids(state: const ref State) Vec<i64> throws {
     var a = make_heap_allocator();
-    var result = try Vec<i64>(a, state.ids.size());
+    var result = Vec<i64>(a, state.ids.size());
     for (var i: i64 = 0; i < state.ids.size(); i += 1) {
-      try result.push(state.ids[state.reversed ? state.ids.size() - 1 - i : i]);
+      result.push(state.ids[state.reversed ? state.ids.size() - 1 - i : i]);
     }
-    return AllocationResult.Ok(result);
+    return result;
   }
 
   /** Resolves a task's scoped button using its durable application key. */
-  function identity(tree: const ref ui.Tree, key: i64) AllocationResult<u64> {
+  function identity(tree: const ref ui.Tree, key: i64) u64 throws {
     var a = make_heap_allocator();
-    var path = try Vec<ui.Key>(a, 3);
-    try path.push(try ui.Key(key));
-    try path.push(try ui.Key(try String("task")));
-    try path.push(try ui.Key(key));
-    return AllocationResult.Ok(tree.identity_path(path));
+    var path = Vec<ui.Key>(a, 3);
+    path.push(ui.Key(key));
+    path.push(ui.Key(String("task")));
+    path.push(ui.Key(key));
+    return tree.identity_path(path);
   }
 
   /** Appends a task when the generated action dispatcher calls this function. */
@@ -68,10 +65,10 @@ module tasks {
     state: ref State,
     event: const ref ui.Event,
     queue: ref ui.EventQueue
-  ) SystemResult<void> {
-    try state.ids.push(state.next_id);
+  ) void throws {
+    state.ids.push(state.next_id);
     state.next_id += 1;
-    return SystemResult.Ok;
+    return;
   }
 
   /** Removes the selected task while retaining the remaining items' stable keys. */
@@ -79,18 +76,17 @@ module tasks {
     state: ref State,
     event: const ref ui.Event,
     queue: ref ui.EventQueue
-  ) SystemResult<void> {
+  ) void throws {
     for (var i: i64 = 0; i < state.ids.size(); i += 1) {
       if (state.ids[i] == state.selected) {
-        match state.ids.remove(i) {
-          AccessResult.Ok(_) => {},
-          AccessResult.OutOfBounds(_) => {}
-        };
+        try {
+          state.ids.remove(i);
+        } catch (error: std.IndexOutOfBoundsError) {}
         state.selected = 0;
         break;
       }
     }
-    return SystemResult.Ok;
+    return;
   }
 
   /** Handles numeric actions from the handwritten task component. */
@@ -98,11 +94,11 @@ module tasks {
     state: ref State,
     event: const ref ui.Event,
     queue: ref ui.EventQueue
-  ) SystemResult<void> {
+  ) void throws {
     if (event.action == 4) {
       state.selected = event.payload;
     }
-    return SystemResult.Ok;
+    return;
   }
 
   /** Delivers a real native click through the framework's explicit dispatch boundary. */
@@ -110,108 +106,142 @@ module tasks {
     renderer: ref ui_gtk.Renderer,
     session: ref ui.Session<State>,
     key: i64
-  ) std.Result<void> {
+  ) void throws {
     if (key < 0) {
       // Tests read generated toolbar keys instead of depending on their spelling.
       var a = make_heap_allocator();
-      var description = try view(session.state);
-      var path = try Vec<ui.Key>(a, 1);
-      try path.push(try description.elements[-key - 1].key.clone(a));
+      var description = view(session.state);
+      var path = Vec<ui.Key>(a, 1);
+      path.push(description.elements[-key - 1].key.clone(a));
 
       renderer.click(session.tree.identity_path(path));
     } else {
-      renderer.click(try identity(session.tree, key));
+      renderer.click(identity(session.tree, key));
     }
-    try renderer.poll(session.tree, session.queue, false);
+    renderer.poll(session.tree, session.queue, false);
     return session.dispatch(renderer);
   }
 
   /** Checks identity, native order, focus, targeted updates, and subscription cleanup. */
-  function acceptance(
-    renderer: ref ui_gtk.Renderer,
-    session: ref ui.Session<State>
-  ) std.Result<void> {
-    var first = try identity(session.tree, 1);
-    var second = try identity(session.tree, 2);
-    try click(renderer, session, 2);
+  function acceptance(renderer: ref ui_gtk.Renderer, session: ref ui.Session<State>) void throws {
+    var first = identity(session.tree, 1);
+    var second = identity(session.tree, 2);
+    click(renderer, session, 2);
     if (session.state.selected != 2 or renderer.updates != 1) {
-      return std.Result.Error(Error(1, "Task payload or targeted selection update failed"));
+      throw Error(1, "Task payload or targeted selection update failed");
     }
     // Collection must preserve native order across controls, independently of tree order.
     renderer.click(second);
     renderer.click(first);
-    try renderer.poll(session.tree, session.queue, false);
-    try session.dispatch(renderer);
+    renderer.poll(session.tree, session.queue, false);
+    session.dispatch(renderer);
     if (session.state.selected != 1) {
-      return std.Result.Error(Error(1, "Cross-widget native event order was changed"));
+      throw Error(1, "Cross-widget native event order was changed");
     }
-    try click(renderer, session, 2);
+    click(renderer, session, 2);
     renderer.focus(second);
     if (renderer.focused(second) == false) {
-      return std.Result.Error(Error(1, "Initial native focus failed"));
+      throw Error(1, "Initial native focus failed");
     }
-    try click(renderer, session, -2);
+    click(renderer, session, -2);
     if (renderer.focused(second) == false) {
-      return std.Result.Error(Error(1, "Reorder did not preserve native focus and order"));
+      throw Error(1, "Reorder did not preserve native focus and order");
     }
-    try click(renderer, session, -1);
-    var third = try identity(session.tree, 3);
+    click(renderer, session, -1);
+    var third = identity(session.tree, 3);
     if (third == 0 or renderer.focused(second) == false) {
-      return std.Result.Error(Error(1, "Insertion did not preserve focus or order"));
+      throw Error(1, "Insertion did not preserve focus or order");
     }
-    if (try identity(session.tree, 1) != first or try identity(session.tree, 2) != second or
+    if (identity(session.tree, 1) != first or identity(session.tree, 2) != second or
       renderer.creates != 12) {
-      return std.Result.Error(Error(1, "Surviving tasks were remounted"));
+      throw Error(1, "Surviving tasks were remounted");
     }
-    try click(renderer, session, -3);
-    if (try identity(session.tree, 2) != 0 or renderer.removals != 3) {
-      return std.Result.Error(Error(1, "Removal did not clean up the selected task"));
+    click(renderer, session, -3);
+    if (identity(session.tree, 2) != 0 or renderer.removals != 3) {
+      throw Error(1, "Removal did not clean up the selected task");
     }
-    try session.tree.enqueue(second, session.queue);
+    session.tree.enqueue(second, session.queue);
     if (session.queue.size() != 0) {
-      return std.Result.Error(Error(1, "Removed task still delivers events"));
+      throw Error(1, "Removed task still delivers events");
     }
     session.tree.shutdown(renderer);
     if (renderer.removals != renderer.creates) {
-      return std.Result.Error(Error(1, "Subscriptions survived shutdown"));
+      throw Error(1, "Subscriptions survived shutdown");
     }
     std.io.println("Task list acceptance passed");
-    return std.Result.Ok;
+    return;
   }
 
   /** Runs the native task list with explicitly owned state and bounded dispatch turns. */
-  public function run(automated: bool) std.Result<void> {
-    var title = try String("Sun UI — Keyed tasks");
-    var renderer = try ui_gtk.Renderer(title);
-    var state = try State();
-    var session = try ui.Session<State>(state, view, view_handle);
-    try session.render(renderer);
+  public function run(automated: bool) void throws {
+    var title = String("Sun UI — Keyed tasks");
+    var renderer = ui_gtk.Renderer(title);
+    var state = State();
+    var session = ui.Session<State>(state, view, view_handle);
+    session.render(renderer);
     if (automated) {
       return acceptance(renderer, session);
     }
     while (renderer.running()) {
-      try renderer.poll(session.tree, session.queue, true);
-      try session.dispatch(renderer);
+      renderer.poll(session.tree, session.queue, true);
+      session.dispatch(renderer);
     }
     session.tree.shutdown(renderer);
-    return std.Result.Ok;
+    return;
   }
 }
 
 /** Runs the interactive demo or its display-backed acceptance scenario. */
-function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) AllocationResult<i32> {
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 throws {
   var a = make_heap_allocator();
-  var env = try std.env.Env(a);
-  var args = try env.args(argc, argv);
-  return AllocationResult.Ok(
-    match tasks.run(args.size() == 2 and args[1].equals_literal("--self-test")) {
-      std.Result.Ok => 0,
-      (error: const ref IError) => {
-        std.io.eprintln(try error.message());
-        return AllocationResult.Ok(1);
-      }
-    }
-  );
+  var env = std.env.Env(a);
+  var args = env.args(argc, argv);
+  try {
+    tasks.run(args.size() == 2 and args[1].equals_literal("--self-test"));
+    return 0;
+  } catch (error: std.Error) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.AllocationError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.InvalidArgumentError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.OverflowError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.IndexOutOfBoundsError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.NotFoundError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.EmptyError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.IOError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ConversionError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.DivisionByZeroError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ArithmeticError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.json.JsonError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.xml.XmlError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ProtoDecodeError) {
+    std.io.eprintln(error.message());
+    return 1;
+  }
 }
 manifest {
   source_files: [

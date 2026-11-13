@@ -90,7 +90,7 @@ break identity when items are reordered or removed.
 
 A bare action name refers to a Sun function, including qualified names such as
 `handlers.add_task`. The function takes `(state: ref State, event: const ref
-ui.Event, queue: ref ui.EventQueue)` and returns `SystemResult<void>`. A name
+ui.Event, queue: ref ui.EventQueue)` and declares `void throws`. A name
 starting with `state.` calls a method on the owned application state; the method
 takes only `(event: const ref ui.Event, queue: ref ui.EventQueue)` and returns the
 same result type. Sun checks handler names, accessibility, and signatures.
@@ -166,7 +166,7 @@ subtree even when the instance key stays the same.
 
 ```xml
 <Template name="Footer">
-  <Param name="content" type="function (ref ui.View, i64) AllocationResult&lt;void&gt;" />
+  <Param name="content" type="function (ref ui.View, i64) void throws" />
   <Column key="footer"><Slot name="content" /></Column>
 </Template>
 ```
@@ -266,7 +266,7 @@ another `.view.xml` file:
 
 ```xml
 <Import name="Footer" function="form_parts.Footer" source="parts/footer.view.xml">
-  <Param name="content" type="function (ref ui.View, i64) AllocationResult&lt;void&gt;" />
+  <Param name="content" type="function (ref ui.View, i64) void throws" />
 </Import>
 ```
 
@@ -370,7 +370,7 @@ the component's typed inputs. They cannot specify application/theme `scope`.
 </View>
 ```
 
-The view's `resources` expression returns `SystemResult<ui.Resources>` and supplies
+The view's `resources` expression returns `ui.Resources` and may throw and supplies
 application/theme definitions. Lookup searches the current component, enclosing
 scopes, application, then theme. Use `styleResource`, `foregroundResource`,
 `backgroundResource`, `fontResource`, `spacingResource`, and `marginResource` for

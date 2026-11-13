@@ -10,15 +10,15 @@ public module ui {
     var name: String;
 
     /** Creates an integer key. */
-    init(value: i64) AllocationResult<void> {
-      this.name = try String("");
+    init(value: i64) throws {
+      this.name = String("");
 
       this.number = value;
     }
 
     /** Creates an owned symbolic key. */
-    init(value: String) AllocationResult<void> {
-      this.name = try String("");
+    init(value: String) throws {
+      this.name = String("");
 
       this.symbolic = true;
       this.name = value;
@@ -31,22 +31,22 @@ public module ui {
     }
 
     /** Encodes a key for a native event snapshot without losing its type. */
-    public const method encoded() AllocationResult<String> {
-      var result = try String(this.symbolic ? "s:" : "n:");
+    public const method encoded() String throws {
+      var result = String(this.symbolic ? "s:" : "n:");
       if (this.symbolic) {
-        try result.append(this.name);
+        result.append(this.name);
       } else {
-        try result.append(this.number);
+        result.append(this.number);
       }
-      return AllocationResult.Ok(result);
+      return result;
     }
 
     /** Explicitly copies a key for a path or retained description. */
-    public const method clone(a: const ref HeapAllocator) AllocationResult<Key> {
+    public const method clone(a: const ref HeapAllocator) Key throws {
       if (this.symbolic) {
-        return AllocationResult.Ok(try Key(try this.name.clone(a)));
+        return Key(this.name.clone(a));
       }
-      return AllocationResult.Ok(try Key(this.number));
+      return Key(this.number);
     }
   }
 
@@ -145,24 +145,24 @@ public module ui {
     public var columns: Vec<Track>;
 
     /** Allocates property collections explicitly for a typed node. */
-    init(key: Key, kind: Kind) AllocationResult<void> {
-      this.overrides = try Style();
+    init(key: Key, kind: Kind) throws {
+      this.overrides = Style();
 
-      this.style = try Style();
+      this.style = Style();
 
-      this.tooltip = try String("");
-      this.icon = try String("");
-      this.template_id = try String("");
-      this.text = try String("");
-      this.action_scope = try String("");
+      this.tooltip = String("");
+      this.icon = String("");
+      this.template_id = String("");
+      this.text = String("");
+      this.action_scope = String("");
 
       var a = make_heap_allocator();
       this.key = key;
       this.kind = kind;
-      this.trim_ranges = try Vec<TrimRange>(a, 4);
-      this.choices = try Vec<Choice>(a, 4);
-      this.rows = try Vec<Track>(a, 4);
-      this.columns = try Vec<Track>(a, 4);
+      this.trim_ranges = Vec<TrimRange>(a, 4);
+      this.choices = Vec<Choice>(a, 4);
+      this.rows = Vec<Track>(a, 4);
+      this.columns = Vec<Track>(a, 4);
     }
 
     /** Reports whether a node can own children. */
@@ -246,153 +246,203 @@ public module ui {
     public var focus_path: Vec<Key>;
 
     /** Allocates this render's descriptions and focus path. */
-    init(a: const ref HeapAllocator) AllocationResult<void> {
-      this.theme = try Style();
+    init(a: const ref HeapAllocator) throws {
+      this.theme = Style();
 
-      this.control_defaults = try Vec<ThemeDefault>(make_heap_allocator(), 4);
-      this.construction_error = try String("");
+      this.control_defaults = Vec<ThemeDefault>(make_heap_allocator(), 4);
+      this.construction_error = String("");
 
-      this.resources = try Resources(a);
-      this.elements = try Vec<Element>(a, 8);
-      this.focus_path = try Vec<Key>(a, 4);
+      this.resources = Resources(a);
+      this.elements = Vec<Element>(a, 8);
+      this.focus_path = Vec<Key>(a, 4);
     }
 
     /** Retains the first construction failure for atomic rejection before rendering. */
-    public method reject(error: const ref IError) AllocationResult<void> {
+    public method reject(error: const ref IError) void throws {
       if (this.construction_error.is_empty()) {
-        this.construction_error = try error.message();
+        this.construction_error = error.message();
       }
 
-      return AllocationResult.Ok;
+      return;
     }
 
-    /** Installs an owned application dictionary or retains its construction error. */
-    public method set_resources(resources: SystemResult<Resources>) AllocationResult<void> {
-      match resources {
-        SystemResult.Ok(value) => {
-          this.resources = value;
-        },
-        (error: const ref IError) => {
-          try this.reject(error);
-        }
-      };
-
-      return AllocationResult.Ok;
+    /** Installs an owned application dictionary after successful construction. */
+    public method set_resources(resources: Resources) void {
+      this.resources = resources;
     }
 
     /** Applies an owned theme, retaining validation failures for atomic preflight. */
-    public method set_theme(value: Theme) AllocationResult<void> {
-      match value.validate() {
-        SystemResult.Ok => {},
-        (error: const ref IError) => {
-          try this.reject(error);
-        }
-      };
+    public method set_theme(value: Theme) void throws {
+      try {
+        value.validate();
+      } catch (error: std.Error) {
+        this.reject(error);
+      } catch (error: std.AllocationError) {
+        this.reject(error);
+      } catch (error: std.InvalidArgumentError) {
+        this.reject(error);
+      } catch (error: std.OverflowError) {
+        this.reject(error);
+      }
       this.theme = value.base;
       this.control_defaults = value.defaults;
 
-      return AllocationResult.Ok;
+      return;
     }
 
     /** Resolves a theme from the active resource scope. */
-    public method theme_resource(name: String) AllocationResult<void> {
-      match this.resources.theme(this.resource_scope, name) {
-        SystemResult.Ok(value) => {
-          try this.set_theme(value);
-        },
-        (error: const ref IError) => {
-          try this.reject(error);
+    public method theme_resource(name: String) void throws {
+      var operation_completed_4 = false;
+      try {
+        var value = this.resources.theme(this.resource_scope, name);
+        operation_completed_4 = true;
+        this.set_theme(value);
+      } catch (error: std.Error) {
+        if (operation_completed_4) {
+          throw;
         }
-      };
+        this.reject(error);
+      } catch (error: std.AllocationError) {
+        if (operation_completed_4) {
+          throw;
+        }
+        this.reject(error);
+      } catch (error: std.InvalidArgumentError) {
+        if (operation_completed_4) {
+          throw;
+        }
+        this.reject(error);
+      } catch (error: std.OverflowError) {
+        if (operation_completed_4) {
+          throw;
+        }
+        this.reject(error);
+      }
 
-      return AllocationResult.Ok;
+      return;
     }
 
     /** Opens a component dictionary and returns the enclosing scope for restoration. */
-    public method push_resources() AllocationResult<i64> {
+    public method push_resources() i64 throws {
       var previous = this.resource_scope;
-      match this.resources.scope(previous) {
-        SystemResult.Ok(scope) => {
-          this.resource_scope = scope;
-        },
-        (error: const ref IError) => {
-          try this.reject(error);
-        }
-      };
-      return AllocationResult.Ok(previous);
+      try {
+        var scope = this.resources.scope(previous);
+        this.resource_scope = scope;
+      } catch (error: std.Error) {
+        this.reject(error);
+      } catch (error: std.AllocationError) {
+        this.reject(error);
+      } catch (error: std.InvalidArgumentError) {
+        this.reject(error);
+      } catch (error: std.OverflowError) {
+        this.reject(error);
+      }
+      return previous;
     }
 
     /** Adds an owned local definition while retaining duplicate errors for preflight. */
-    public method define(resource: Resource) AllocationResult<void> {
-      match this.resources.add(this.resource_scope, resource) {
-        SystemResult.Ok => {},
-        (error: const ref IError) => {
-          try this.reject(error);
-        }
-      };
+    public method define(resource: Resource) void throws {
+      try {
+        this.resources.add(this.resource_scope, resource);
+      } catch (error: std.Error) {
+        this.reject(error);
+      } catch (error: std.AllocationError) {
+        this.reject(error);
+      } catch (error: std.InvalidArgumentError) {
+        this.reject(error);
+      } catch (error: std.OverflowError) {
+        this.reject(error);
+      }
 
-      return AllocationResult.Ok;
+      return;
     }
 
     /** Resolves a named style in the active component scope without retaining borrows. */
-    public method style_resource(name: String) AllocationResult<Style> {
-      match this.resources.style(this.resource_scope, name) {
-        SystemResult.Ok(value) => {
-          return AllocationResult.Ok(value);
-        },
-        (error: const ref IError) => {
-          try this.reject(error);
-        }
-      };
-      return AllocationResult.Ok(try Style());
+    public method style_resource(name: String) Style throws {
+      try {
+        var value = this.resources.style(this.resource_scope, name);
+        return value;
+      } catch (error: std.Error) {
+        this.reject(error);
+      } catch (error: std.AllocationError) {
+        this.reject(error);
+      } catch (error: std.InvalidArgumentError) {
+        this.reject(error);
+      } catch (error: std.OverflowError) {
+        this.reject(error);
+      }
+      return Style();
     }
 
     /** Resolves a typed color or spacing and retains lookup failures for preflight. */
-    public method number_resource(name: String, kind: ResourceKind) AllocationResult<i32> {
-      match this.resources.number(this.resource_scope, name, kind) {
-        SystemResult.Ok(value) => {
-          if (value <= 2147483647) {
-            return AllocationResult.Ok(_convert<i32>(value));
-          }
-          try this.reject(Error(1, "Resource exceeds layout integer range"));
-        },
-        (error: const ref IError) => {
-          try this.reject(error);
+    public method number_resource(name: String, kind: ResourceKind) i32 throws {
+      var operation_completed_3 = false;
+      try {
+        var value = this.resources.number(this.resource_scope, name, kind);
+        operation_completed_3 = true;
+        if (value <= 2147483647) {
+          return _convert<i32>(value);
         }
-      };
-      return AllocationResult.Ok(0);
+        this.reject(Error(1, "Resource exceeds layout integer range"));
+      } catch (error: std.Error) {
+        if (operation_completed_3) {
+          throw;
+        }
+        this.reject(error);
+      } catch (error: std.AllocationError) {
+        if (operation_completed_3) {
+          throw;
+        }
+        this.reject(error);
+      } catch (error: std.InvalidArgumentError) {
+        if (operation_completed_3) {
+          throw;
+        }
+        this.reject(error);
+      } catch (error: std.OverflowError) {
+        if (operation_completed_3) {
+          throw;
+        }
+        this.reject(error);
+      }
+
+      return 0;
     }
 
     /** Copies a named font from the nearest dictionary and retains lookup failures. */
-    public method font_resource(name: String) AllocationResult<String> {
-      match this.resources.text(this.resource_scope, name, ResourceKind.Font) {
-        SystemResult.Ok(value) => {
-          return AllocationResult.Ok(value);
-        },
-        (error: const ref IError) => {
-          try this.reject(error);
-        }
-      };
-      return AllocationResult.Ok(try String(""));
+    public method font_resource(name: String) String throws {
+      try {
+        var value = this.resources.text(this.resource_scope, name, ResourceKind.Font);
+        return value;
+      } catch (error: std.Error) {
+        this.reject(error);
+      } catch (error: std.AllocationError) {
+        this.reject(error);
+      } catch (error: std.InvalidArgumentError) {
+        this.reject(error);
+      } catch (error: std.OverflowError) {
+        this.reject(error);
+      }
+      return String("");
     }
 
     /** Appends a node under an earlier parent, or at the root for parent -1. */
-    public method append(parent: i64, element: Element) AllocationResult<i64> {
+    public method append(parent: i64, element: Element) i64 throws {
       element.parent = parent;
       var index = this.elements.size();
-      try this.elements.push(element);
-      return AllocationResult.Ok(index);
+      this.elements.push(element);
+      return index;
     }
 
     /** Appends a root button for existing handwritten views. */
-    public method button(key: i64, text: String, action: i64, payload: i64) AllocationResult<void> {
-      var node = try Element(try Key(key), Kind.Button);
+    public method button(key: i64, text: String, action: i64, payload: i64) void throws {
+      var node = Element(Key(key), Kind.Button);
       node.text = text;
       node.action = action;
       node.payload = payload;
-      try this.append(-1, node);
+      this.append(-1, node);
 
-      return AllocationResult.Ok;
+      return;
     }
   }
 
@@ -411,37 +461,37 @@ public module ui {
     public var selection: Key;
 
     /** Creates a valueless activation event. */
-    init() AllocationResult<void> {
-      this.selection = try Key(0);
+    init() throws {
+      this.selection = Key(0);
 
-      this.text = try String("");
+      this.text = String("");
     }
 
     /** Takes ownership of captured editable text. */
-    init(value: String) AllocationResult<void> {
-      this.selection = try Key(0);
+    init(value: String) throws {
+      this.selection = Key(0);
 
-      this.text = try String("");
+      this.text = String("");
 
       this.kind = ValueKind.Text;
       this.text = value;
     }
 
     /** Captures a checkbox state. */
-    init(value: bool) AllocationResult<void> {
-      this.selection = try Key(0);
+    init(value: bool) throws {
+      this.selection = Key(0);
 
-      this.text = try String("");
+      this.text = String("");
 
       this.kind = ValueKind.Boolean;
       this.boolean = value;
     }
 
     /** Captures a media range and playhead in microseconds without platform references. */
-    init(start: i64, end: i64, position: i64) AllocationResult<void> {
-      this.selection = try Key(0);
+    init(start: i64, end: i64, position: i64) throws {
+      this.selection = Key(0);
 
-      this.text = try String("");
+      this.text = String("");
 
       this.kind = ValueKind.Range;
       this.range_start = start;
@@ -450,10 +500,10 @@ public module ui {
     }
 
     /** Takes ownership of a selected application key. */
-    init(value: Key) AllocationResult<void> {
-      this.selection = try Key(0);
+    init(value: Key) throws {
+      this.selection = Key(0);
 
-      this.text = try String("");
+      this.text = String("");
 
       this.kind = ValueKind.Selection;
       this.selection = value;
@@ -469,10 +519,10 @@ public module ui {
     public var value: EventValue;
 
     /** Captures routing without retaining application or widget references. */
-    init(identity: u64, action: i64, payload: i64) AllocationResult<void> {
-      this.value = try EventValue();
+    init(identity: u64, action: i64, payload: i64) throws {
+      this.value = EventValue();
 
-      this.action_scope = try String("");
+      this.action_scope = String("");
 
       this.identity = identity;
       this.action = action;
@@ -485,15 +535,15 @@ public module ui {
     var pending: Vec<Event>;
 
     /** Allocates FIFO event storage. */
-    init(a: const ref HeapAllocator) AllocationResult<void> {
-      this.pending = try Vec<Event>(a, 8);
+    init(a: const ref HeapAllocator) throws {
+      this.pending = Vec<Event>(a, 8);
     }
 
     /** Transfers a captured event without running application code. */
-    public method post(event: Event) AllocationResult<void> {
-      try this.pending.push(event);
+    public method post(event: Event) void throws {
+      this.pending.push(event);
 
-      return AllocationResult.Ok;
+      return;
     }
 
     /** Reports pending work to a platform loop. */
@@ -505,16 +555,16 @@ public module ui {
   /** Receives typed descriptions while owning platform resources and subscriptions. */
   public interface Renderer {
     /** Creates an unparented control or logical scope. */
-    public method create(identity: u64, element: const ref Element) SystemResult<void>;
+    public method create(identity: u64, element: const ref Element) void throws;
 
     /** Applies changed native properties without emitting user-edit events. */
-    public method update(identity: u64, element: const ref Element) SystemResult<void>;
+    public method update(identity: u64, element: const ref Element) void throws;
 
     /** Places a node under its parent; zero denotes root or first sibling. */
-    public method place(identity: u64, parent: u64, previous: u64) SystemResult<void>;
+    public method place(identity: u64, parent: u64, previous: u64) void throws;
 
     /** Finishes deferred placement after every node's parent and sibling are known. */
-    public method finish() SystemResult<void>;
+    public method finish() void throws;
 
     /** Disconnects and releases a node after its descendants have been removed. */
     public method remove(identity: u64) void;
@@ -548,8 +598,8 @@ public module ui {
     var stopped: bool = false;
 
     /** Allocates retained descriptions. */
-    init(a: const ref HeapAllocator) AllocationResult<void> {
-      this.mounted = try Vec<Mounted>(a, 8);
+    init(a: const ref HeapAllocator) throws {
+      this.mounted = Vec<Mounted>(a, 8);
     }
 
     /** Finds a key within one mounted parent scope. */
@@ -563,10 +613,10 @@ public module ui {
     }
 
     /** Looks up an integer key at the root, returning zero when absent. */
-    public const method identity(key: i64) AllocationResult<u64> {
-      var value = try Key(key);
+    public const method identity(key: i64) u64 throws {
+      var value = Key(key);
       var i = this.index(0, value);
-      return AllocationResult.Ok(i < 0 ? 0 : this.mounted[i].identity);
+      return i < 0 ? 0 : this.mounted[i].identity;
     }
 
     /** Resolves a path through parent scopes, returning zero when absent. */
@@ -592,35 +642,35 @@ public module ui {
     }
 
     /** Validates the full tree before making any platform changes. */
-    method validate(view: const ref View) SystemResult<void> {
+    method validate(view: const ref View) void throws {
       if (not view.construction_error.is_empty()) {
-        return SystemResult.Error(try Error(1, view.construction_error));
+        throw Error(1, view.construction_error);
       }
-      try view.resources.validate();
+      view.resources.validate();
       for (var i: i64 = 0; i < view.elements.size(); i += 1) {
         var node = view.elements[i];
         if (node.parent < -1 or node.parent >= i) {
-          return SystemResult.Error(Error(1, "Parent must precede its child"));
+          throw Error(1, "Parent must precede its child");
         }
         if (node.parent >= 0 and not view.elements[node.parent].container()) {
-          return SystemResult.Error(Error(1, "Control cannot contain children"));
+          throw Error(1, "Control cannot contain children");
         }
         if (not node.style.valid()) {
-          return SystemResult.Error(Error(1, "Invalid control style"));
+          throw Error(1, "Invalid control style");
         }
         if (node.spacing < 0 or node.margin < 0 or node.min_width < 0 or node.min_height < 0 or
           node.width < -1 or node.height < -1 or node.row < 0 or node.column < 0 or
           node.row_span < 1 or node.column_span < 1) {
-          return SystemResult.Error(Error(1, "Invalid layout property"));
+          throw Error(1, "Invalid layout property");
         }
         for (var t: i64 = 0; t < node.rows.size(); t += 1) {
           if (node.rows[t].kind != TrackKind.Auto and node.rows[t].value <= 0) {
-            return SystemResult.Error(Error(1, "Invalid grid row track"));
+            throw Error(1, "Invalid grid row track");
           }
         }
         for (var t: i64 = 0; t < node.columns.size(); t += 1) {
           if (node.columns[t].kind != TrackKind.Auto and node.columns[t].value <= 0) {
-            return SystemResult.Error(Error(1, "Invalid grid column track"));
+            throw Error(1, "Invalid grid column track");
           }
         }
         var physical = this.physical_parent(view, i);
@@ -631,28 +681,28 @@ public module ui {
           var columns = grid.columns.size() == 0 ? 1 : grid.columns.size();
           if (_convert<i64>(node.row) + node.row_span > rows or
             _convert<i64>(node.column) + node.column_span > columns) {
-            return SystemResult.Error(Error(1, "Grid child exceeds declared tracks"));
+            throw Error(1, "Grid child exceeds declared tracks");
           }
         }
         if (node.kind == Kind.Viewport) {
           if (node.viewport_id <= 0) {
-            return SystemResult.Error(Error(1, "Viewport requires a positive identifier"));
+            throw Error(1, "Viewport requires a positive identifier");
           }
           for (var previous: i64 = 0; previous < i; previous += 1) {
             if (view.elements[previous].kind == Kind.Viewport and
               view.elements[previous].viewport_id == node.viewport_id) {
-              return SystemResult.Error(Error(1, "Viewport is mounted more than once"));
+              throw Error(1, "Viewport is mounted more than once");
             }
           }
         }
         if (node.kind == Kind.Drawing) {
           if (node.drawing_id <= 0) {
-            return SystemResult.Error(Error(1, "Drawing requires a positive identifier"));
+            throw Error(1, "Drawing requires a positive identifier");
           }
           for (var previous: i64 = 0; previous < i; previous += 1) {
             if (view.elements[previous].kind == Kind.Drawing and
               view.elements[previous].drawing_id == node.drawing_id) {
-              return SystemResult.Error(Error(1, "Drawing is mounted more than once"));
+              throw Error(1, "Drawing is mounted more than once");
             }
           }
         }
@@ -664,11 +714,11 @@ public module ui {
             node.trim_end < node.trim_start or node.trim_end > node.duration or node.position < 0 or
             node.position > node.duration or
             (node.duration > 0 and node.trim_start == node.trim_end))) {
-          return SystemResult.Error(Error(1, "Invalid video range"));
+          throw Error(1, "Invalid video range");
         }
         if (node.trim_ranges.size() > 64 or
           (not node.icon.is_empty() and node.kind != Kind.Button)) {
-          return SystemResult.Error(Error(1, "Invalid icon or excessive trim ranges"));
+          throw Error(1, "Invalid icon or excessive trim ranges");
         }
         var active_found = node.trim_ranges.size() == 0;
         for (var r: i64 = 0; r < node.trim_ranges.size(); r += 1) {
@@ -676,26 +726,26 @@ public module ui {
           if (node.kind != Kind.Video or range.id < 0 or range.start < 0 or
             range.end <= range.start or range.end > node.duration or
             (r > 0 and range.start < node.trim_ranges[r - 1].end)) {
-            return SystemResult.Error(Error(1, "Invalid or overlapping kept video ranges"));
+            throw Error(1, "Invalid or overlapping kept video ranges");
           }
           for (var previous: i64 = 0; previous < r; previous += 1) {
             if (node.trim_ranges[previous].id == range.id) {
-              return SystemResult.Error(Error(1, "Duplicate video range identifier"));
+              throw Error(1, "Duplicate video range identifier");
             }
           }
           active_found = active_found or range.id == node.active_range;
         }
         if (not active_found) {
-          return SystemResult.Error(Error(1, "Unknown active video range"));
+          throw Error(1, "Unknown active video range");
         }
         if (node.selected < -1 or
           (node.kind == Kind.Select and node.selected >= node.choices.size())) {
-          return SystemResult.Error(Error(1, "Invalid selected option"));
+          throw Error(1, "Invalid selected option");
         }
         for (var c: i64 = 0; c < node.choices.size(); c += 1) {
           for (var previous: i64 = 0; previous < c; previous += 1) {
             if (node.choices[c].key.equals(node.choices[previous].key)) {
-              return SystemResult.Error(Error(1, "Duplicate select option key"));
+              throw Error(1, "Duplicate select option key");
             }
           }
         }
@@ -703,27 +753,27 @@ public module ui {
           if (node.kind != Kind.Group and view.elements[j].kind != Kind.Group and physical >= 0 and
             view.elements[physical].kind == Kind.Scroll and
             this.physical_parent(view, j) == physical) {
-            return SystemResult.Error(Error(1, "Scroll requires a single physical child"));
+            throw Error(1, "Scroll requires a single physical child");
           }
           if (view.elements[j].parent == node.parent) {
             if (view.elements[j].key.equals(node.key)) {
-              return SystemResult.Error(Error(1, "Duplicate sibling key"));
+              throw Error(1, "Duplicate sibling key");
             }
           }
         }
       }
-      return SystemResult.Ok;
+      return;
     }
 
     /** Removes unmatched subtrees before placement, including single-child replacements. */
-    method prune(renderer: ref Renderer, view: const ref View) AllocationResult<void> {
+    method prune(renderer: ref Renderer, view: const ref View) void throws {
       var a = make_heap_allocator();
-      var identities = try Vec<u64>(a, view.elements.size());
+      var identities = Vec<u64>(a, view.elements.size());
       for (var i: i64 = 0; i < view.elements.size(); i += 1) {
         var node = view.elements[i];
         var parent: u64 = node.parent < 0 ? 0 : identities[node.parent];
         var index = node.parent >= 0 and parent == 0 ? -1 : this.index(parent, node.key);
-        try identities.push(
+        identities.push(
           index >= 0 and this.mounted[index].element.kind == node.kind and
             this.mounted[index].element.template_id.equals(node.template_id) ? this.mounted[index].identity : 0
         );
@@ -738,26 +788,35 @@ public module ui {
         }
         if (not keep) {
           renderer.remove(this.mounted[i].identity);
-          match this.mounted.remove(i) {
-            AccessResult.Ok(_) => {},
-            AccessResult.OutOfBounds(_) => {}
-          };
+          try {
+            this.mounted.remove(i);
+          } catch (error: std.IndexOutOfBoundsError) {}
         }
       }
 
-      return AllocationResult.Ok;
+      return;
     }
 
     /** Builds the next mounted order and releases unmatched descendants before parents. */
-    method commit(renderer: ref Renderer, view: ref View) SystemResult<void> {
+    method commit(renderer: ref Renderer, view: ref View) void throws {
       var a = make_heap_allocator();
-      var next = try Vec<Mounted>(a, view.elements.size());
-      try this.prune(renderer, view);
+      var next = Vec<Mounted>(a, view.elements.size());
+      this.prune(renderer, view);
       while (view.elements.size() > 0) {
-        var element = match view.elements.remove(0) {
-          AccessResult.Ok(value) => value,
-          AccessResult.OutOfBounds(_) => {
-            return SystemResult.Error(Error(1, "Internal index error"));
+        var element_outcome: std.Option<Element> = std.Option.None;
+
+        try {
+          var value = view.elements.remove(0);
+
+          element_outcome = std.Option.Some(value);
+        } catch (error: std.IndexOutOfBoundsError) {
+          throw Error(1, "Internal index error");
+        }
+
+        var element = match element_outcome {
+          std.Option.Some(value) => value,
+          std.Option.None => {
+            throw std.Error(1, "Exception handler produced no value");
           }
         };
         var parent: u64 = element.parent < 0 ? 0 : next[element.parent].identity;
@@ -772,31 +831,41 @@ public module ui {
         var id: u64 = 0;
         if (index >= 0 and this.mounted[index].element.kind == element.kind and
           this.mounted[index].element.template_id.equals(element.template_id)) {
-          var old = match this.mounted.remove(index) {
-            AccessResult.Ok(value) => value,
-            AccessResult.OutOfBounds(_) => {
-              return SystemResult.Error(Error(1, "Internal index error"));
+          var old_outcome: std.Option<Mounted> = std.Option.None;
+
+          try {
+            var value = this.mounted.remove(index);
+
+            old_outcome = std.Option.Some(value);
+          } catch (error: std.IndexOutOfBoundsError) {
+            throw Error(1, "Internal index error");
+          }
+
+          var old = match old_outcome {
+            std.Option.Some(value) => value,
+            std.Option.None => {
+              throw std.Error(1, "Exception handler produced no value");
             }
           };
           id = old.identity;
           if (old.dirty or not old.element.equals(element)) {
-            try renderer.update(id, element);
+            renderer.update(id, element);
           }
         } else {
           if (this.next_identity == 0) {
-            return SystemResult.Error(Error(1, "Mounted identities exhausted"));
+            throw Error(1, "Mounted identities exhausted");
           }
           id = this.next_identity;
           this.next_identity += 1;
-          try renderer.create(id, element);
+          renderer.create(id, element);
         }
-        try renderer.place(id, parent, previous);
-        try next.push(Mounted(id, parent, element));
+        renderer.place(id, parent, previous);
+        next.push(Mounted(id, parent, element));
       }
       for (var i = this.mounted.size() - 1; i >= 0; i -= 1) {
         renderer.remove(this.mounted[i].identity);
       }
-      try renderer.finish();
+      renderer.finish();
       this.mounted = next;
       if (view.focus_path.size() > 0) {
         var id = this.identity_path(view.focus_path);
@@ -806,7 +875,7 @@ public module ui {
       } else {
         match view.focus_key {
           Option.Some(key) => {
-            var id = try this.identity(key);
+            var id = this.identity(key);
             if (id != 0) {
               renderer.focus(id);
             }
@@ -814,56 +883,45 @@ public module ui {
           Option.None => {}
         };
       }
-      return SystemResult.Ok;
+      return;
     }
 
     /** Commits a valid description or clears resources after a renderer failure. */
-    public method render(renderer: ref Renderer, view: View) SystemResult<void> {
+    public method render(renderer: ref Renderer, view: View) void throws {
       if (this.stopped) {
-        return SystemResult.Error(Error(1, "Tree is stopped"));
+        throw Error(1, "Tree is stopped");
       }
       if (not view.theme.valid()) {
-        return SystemResult.Error(Error(1, "Invalid theme base"));
+        throw Error(1, "Invalid theme base");
       }
-      try validate_theme_defaults(view.control_defaults);
+      validate_theme_defaults(view.control_defaults);
       for (var element: ref Element in view.elements) {
-        var resolved = try Style();
-        try resolved.overlay(view.theme);
+        var resolved = Style();
+        resolved.overlay(view.theme);
         for (var entry: ref ThemeDefault in view.control_defaults) {
           if (entry.kind == element.kind) {
-            try resolved.overlay(entry.style);
+            resolved.overlay(entry.style);
           }
         }
-        try resolved.overlay(element.style);
-        try resolved.overlay(element.overrides);
+        resolved.overlay(element.style);
+        resolved.overlay(element.overrides);
         element.style = resolved;
       }
-      try this.validate(view);
-      match this.commit(renderer, view) {
-        SystemResult.Ok => {
-          return SystemResult.Ok;
-        },
-        SystemResult.Error(error) => {
-          this.shutdown(renderer);
-          return SystemResult.Error(error);
-        },
-        SystemResult.Allocation(error) => {
-          return SystemResult.Allocation(error);
-        },
-        SystemResult.InvalidArgument(error) => {
-          return SystemResult.InvalidArgument(error);
-        },
-        SystemResult.Overflow(error) => {
-          return SystemResult.Overflow(error);
-        }
-      };
+      this.validate(view);
+      try {
+        this.commit(renderer, view);
+        return;
+      } catch (error: std.Error) {
+        this.shutdown(renderer);
+        throw error;
+      }
     }
 
     /** Captures a button action from a live identity. */
-    public method enqueue(identity: u64, queue: ref EventQueue) AllocationResult<void> {
-      try this.enqueue_value(identity, try EventValue(), queue);
+    public method enqueue(identity: u64, queue: ref EventQueue) void throws {
+      this.enqueue_value(identity, EventValue(), queue);
 
-      return AllocationResult.Ok;
+      return;
     }
 
     /** Transfers an owned native edit value and captures current routing. */
@@ -871,21 +929,21 @@ public module ui {
       identity: u64,
       value: EventValue,
       queue: ref EventQueue
-    ) AllocationResult<void> {
+    ) void throws {
       for (var item: ref Mounted in this.mounted) {
         if (item.identity == identity) {
           if (value.kind != ValueKind.None) {
             item.dirty = true;
           }
-          var event = try Event(identity, item.element.action, item.element.payload);
-          event.action_scope = try item.element.action_scope.clone(make_heap_allocator());
+          var event = Event(identity, item.element.action, item.element.payload);
+          event.action_scope = item.element.action_scope.clone(make_heap_allocator());
           event.value = value;
-          try queue.post(event);
-          return AllocationResult.Ok;
+          queue.post(event);
+          return;
         }
       }
 
-      return AllocationResult.Ok;
+      return;
     }
 
     /** Checks whether an event's mounted source still exists. */
@@ -917,66 +975,70 @@ public module ui {
     public var tree: Tree;
     public var queue: EventQueue;
     var dispatching: bool = false;
-    var view: function (const ref State) SystemResult<View>;
-    var handle: function (ref State, const ref Event, ref EventQueue) SystemResult<void>;
+    var view: function (const ref State) View throws;
+    var handle: function (ref State, const ref Event, ref EventQueue) void throws;
 
     /** Takes state ownership; named functions borrow it only for the duration of a call. */
     init(
       state: State,
-      view: function (const ref State) SystemResult<View>,
-      handle: function (ref State, const ref Event, ref EventQueue) SystemResult<void>
-    ) AllocationResult<void> {
+      view: function (const ref State) View throws,
+      handle: function (ref State, const ref Event, ref EventQueue) void throws
+    ) throws {
       var a = make_heap_allocator();
       this.state = state;
-      this.tree = try Tree(a);
-      this.queue = try EventQueue(a);
+      this.tree = Tree(a);
+      this.queue = EventQueue(a);
       this.view = view;
       this.handle = handle;
     }
 
     /** Evaluates the pure view and commits it; call once before platform dispatch. */
-    public method render(renderer: ref Renderer) SystemResult<void> {
-      var view = try this.view(this.state);
-      var result = this.tree.render(renderer, view);
+    public method render(renderer: ref Renderer) void throws {
+      var view = this.view(this.state);
+      try {
+        this.tree.render(renderer, view);
+      } catch {
+        if (not this.tree.active()) {
+          this.queue.pending.clear();
+        }
+        throw;
+      }
       if (not this.tree.active()) {
         this.queue.pending.clear();
       }
-      return result;
     }
 
     /** Processes only the current queue snapshot and batches one render afterwards. */
-    public method dispatch(renderer: ref Renderer) std.Result<void> {
+    public method dispatch(renderer: ref Renderer) void throws {
       if (not this.tree.active()) {
         this.queue.pending.clear();
-        return std.Result.Error(Error(1, "Tree is stopped"));
+        throw Error(1, "Tree is stopped");
       }
       if (this.dispatching) {
-        return std.Result.Error(Error(1, "Recursive dispatch is forbidden"));
+        throw Error(1, "Recursive dispatch is forbidden");
       }
       this.dispatching = true;
       var count = this.queue.pending.size();
       var changed = false;
       for (var i: i64 = 0; i < count; i += 1) {
-        var event = try this.queue.pending.remove(0);
+        var event = this.queue.pending.remove(0);
         if (this.tree.alive(event.identity)) {
-          var result = this.handle(this.state, event, this.queue);
-          match result {
-            (error: const ref IError) => {
-              this.tree.shutdown(renderer);
-              this.queue.pending.clear();
-              this.dispatching = false;
-            },
-            _ => {}
-          };
-          try result;
+          try {
+            this.handle(this.state, event, this.queue);
+          } catch {
+            this.tree.shutdown(renderer);
+            this.queue.pending.clear();
+            this.dispatching = false;
+            throw;
+          }
           changed = true;
         }
       }
       this.dispatching = false;
       if (changed) {
-        try this.render(renderer);
+        this.render(renderer);
       }
-      return std.Result.Ok;
+      return;
     }
   }
 }

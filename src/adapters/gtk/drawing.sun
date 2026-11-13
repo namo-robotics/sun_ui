@@ -16,110 +16,136 @@ public module ui_gtk_drawing {
     var svg: String;
 
     /** Creates checked widgets and installs the initial figure; GTK owns native lifetimes. */
-    init(title: ref String, drawing: const ref ui_drawing.Drawing) SystemResult<void> {
-      this.svg = try String("");
+    init(title: ref String, drawing: const ref ui_drawing.Drawing) throws {
+      this.svg = String("");
 
-      try validate(drawing);
-      var id = try String("org.sunlang.PlotViewer");
-      this.app = try gtk.Application(id);
+      validate(drawing);
+      var id = String("org.sunlang.PlotViewer");
+      this.app = gtk.Application(id);
       this.window = gtk.Window(this.app);
-      this.layout = try gtk.Box(gtk.Orientation.Vertical, 8);
-      this.toolbar = try gtk.Box(gtk.Orientation.Horizontal, 12);
-      var label = try String("Export SVG…");
-      this.export_button = try gtk.Button(label);
-      var empty = try String("");
-      this.status = try gtk.Label(empty);
-      this.area = try gtk.DrawingArea();
+      this.layout = gtk.Box(gtk.Orientation.Vertical, 8);
+      this.toolbar = gtk.Box(gtk.Orientation.Horizontal, 12);
+      var label = String("Export SVG…");
+      this.export_button = gtk.Button(label);
+      var empty = String("");
+      this.status = gtk.Label(empty);
+      this.area = gtk.DrawingArea();
       this.chooser = gtk.SaveDialog();
-      try this.toolbar.append(this.export_button);
-      try this.toolbar.append(this.status);
-      try this.layout.append(this.toolbar);
-      try this.layout.append(this.area);
+      this.toolbar.append(this.export_button);
+      this.toolbar.append(this.status);
+      this.layout.append(this.toolbar);
+      this.layout.append(this.area);
       this.area.set_vexpand(true);
-      try this.window.set_box(this.layout);
-      try this.window.set_title(title);
-      try this.window.set_default_size(
+      this.window.set_box(this.layout);
+      this.window.set_title(title);
+      this.window.set_default_size(
         _convert<i32>(drawing.width),
         _convert<i32>(drawing.height)
       );
-      try this.update(drawing);
-      try this.window.present();
+      this.update(drawing);
+      this.window.present();
     }
 
     /** Parses a replacement before changing the surface or exported content. */
-    public method update(drawing: const ref ui_drawing.Drawing) SystemResult<void> {
+    public method update(drawing: const ref ui_drawing.Drawing) void throws {
       if (this.running() == false) {
-        return SystemResult.Error(Error(1, "Plot window is closed"));
+        throw Error(1, "Plot window is closed");
       }
-      try validate(drawing);
-      var content = try drawing.svg();
-      var document = try svg.Document(content);
+      validate(drawing);
+      var content = drawing.svg();
+      var document = svg.Document(content);
       this.area.set_document(document);
       this.svg = content;
-      return SystemResult.Ok;
+      return;
     }
 
     /** Saves the current figure and reports the outcome through a checked toolbar label. */
-    public method export_svg(path: ref String) SystemResult<void> {
+    public method export_svg(path: ref String) void throws {
       if (this.running() == false) {
-        return SystemResult.Error(Error(1, "Plot window is closed"));
+        throw Error(1, "Plot window is closed");
       }
-      match std.io.write_string(path, this.svg) {
-        SystemResult.Ok => {
-          var message = try `Saved: ${path}`;
-          ignore_error(this.status.set_text(message));
-          return SystemResult.Ok;
-        },
-        SystemResult.Error(error) => {
-          try this.report_export_failure();
-          return SystemResult.Error(error);
-        },
-        SystemResult.Allocation(error) => {
-          ignore_error(this.report_export_failure());
-          return SystemResult.Allocation(error);
-        },
-        SystemResult.InvalidArgument(error) => {
-          try this.report_export_failure();
-          return SystemResult.InvalidArgument(error);
-        },
-        SystemResult.Overflow(error) => {
-          try this.report_export_failure();
-          return SystemResult.Overflow(error);
+
+      var operation_completed_2 = false;
+      try {
+        std.io.write_string(path, this.svg);
+        operation_completed_2 = true;
+        var message = `Saved: ${path}`;
+        try {
+          this.status.set_text(message);
+        } catch {}
+        return;
+      } catch (error: std.Error) {
+        if (operation_completed_2) {
+          throw;
         }
-      };
+        this.report_export_failure();
+        throw error;
+      } catch (error: std.AllocationError) {
+        if (operation_completed_2) {
+          throw;
+        }
+        try {
+          this.report_export_failure();
+        } catch {}
+        throw error;
+      } catch (error: std.InvalidArgumentError) {
+        if (operation_completed_2) {
+          throw;
+        }
+        this.report_export_failure();
+        throw error;
+      } catch (error: std.OverflowError) {
+        if (operation_completed_2) {
+          throw;
+        }
+        this.report_export_failure();
+        throw error;
+      }
     }
 
     /** Shows a failed export in the toolbar when a status message can be allocated. */
-    method report_export_failure() AllocationResult<void> {
-      var message = try String("Export failed. Check the destination and try again.");
-      ignore_error(this.status.set_text(message));
-      return AllocationResult.Ok;
+    method report_export_failure() void throws {
+      var message = String("Export failed. Check the destination and try again.");
+      try {
+        this.status.set_text(message);
+      } catch {}
+      return;
     }
 
     /** Opens one chooser and consumes its result at the application dispatch boundary. */
-    method process_export() AllocationResult<void> {
+    method process_export() void throws {
       if (this.export_button.take_click() and this.chooser.is_open() == false) {
-        var title = try String("Export plot as SVG");
-        var filename = try String("scientific-plot.svg");
-        ignore_error(this.chooser.show(this.window, title, filename));
+        var title = String("Export plot as SVG");
+        var filename = String("scientific-plot.svg");
+        try {
+          this.chooser.show(this.window, title, filename);
+        } catch {}
       }
-      match this.chooser.take_path() {
-        SystemResult.Ok(result) => {
-          match result {
-            Option.Some(path) => {
-              ignore_error(this.export_svg(path));
-            },
-            Option.None => {}
-          };
-        },
-        _ => {
-          var message = try String("Export requires a local file destination.");
 
-          ignore_error(this.status.set_text(message));
+      var operation_completed_1 = false;
+      try {
+        var result = this.chooser.take_path();
+        operation_completed_1 = true;
+        match result {
+          Option.Some(path) => {
+            try {
+              this.export_svg(path);
+            } catch {}
+          },
+          Option.None => {}
+        };
+      } catch {
+        if (operation_completed_1) {
+          throw;
         }
-      };
+        var message = String("Export requires a local file destination.");
 
-      return AllocationResult.Ok;
+        try {
+          this.status.set_text(message);
+        } catch {}
+      }
+
+      return;
     }
 
     /** Reports successful native rendering of the current figure. */
@@ -128,23 +154,25 @@ public module ui_gtk_drawing {
     }
 
     /** Pumps the native context, then applies export and render-error presentation policy. */
-    public method poll(block: bool) AllocationResult<void> {
+    public method poll(block: bool) void throws {
       if (this.running() == false) {
         this.chooser.cancel();
-        return AllocationResult.Ok;
+        return;
       }
       this.app.iterate(block);
       if (this.running()) {
-        try this.process_export();
+        this.process_export();
         if (this.area.render_failed()) {
-          var message = try String("Could not render the current figure.");
-          ignore_error(this.status.set_text(message));
+          var message = String("Could not render the current figure.");
+          try {
+            this.status.set_text(message);
+          } catch {}
         }
       } else {
         this.chooser.cancel();
       }
 
-      return AllocationResult.Ok;
+      return;
     }
 
     /** Reports whether the plot window is still open. */
@@ -153,7 +181,7 @@ public module ui_gtk_drawing {
     }
 
     /** Requests positive default dimensions through the checked GTK API. */
-    public method resize(width: i32, height: i32) SystemResult<void> {
+    public method resize(width: i32, height: i32) void throws {
       return this.window.set_default_size(width, height);
     }
 
@@ -165,12 +193,12 @@ public module ui_gtk_drawing {
   }
 
   /** Rejects invalid dimensions before converting them to native integers. */
-  function validate(drawing: const ref ui_drawing.Drawing) SystemResult<void> {
+  function validate(drawing: const ref ui_drawing.Drawing) void throws {
     if (drawing.width >= 1.0 and drawing.width <= 16384.0 and drawing.height >= 1.0 and
       drawing.height <= 16384.0) {
-      return SystemResult.Ok;
+      return;
     }
-    return SystemResult.Error(Error(1, "Drawing dimensions must be between 1 and 16384"));
+    throw Error(1, "Drawing dimensions must be between 1 and 16384");
   }
 }
 manifest {

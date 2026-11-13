@@ -26,89 +26,94 @@ class Generation {
   var line: i64 = 0;
 
   /** Allocates explicit recursion and deduplication storage. */
-  init(a: const ref HeapAllocator) AllocationResult<void> {
-    this.source = try String("");
-    this.mapping = try String("");
+  init(a: const ref HeapAllocator) throws {
+    this.source = String("");
+    this.mapping = String("");
 
-    this.active = try Vec<String>(a, 4);
-    this.seen = try Vec<String>(a, 4);
-    this.units = try Vec<SourceUnit>(a, 4);
+    this.active = Vec<String>(a, 4);
+    this.seen = Vec<String>(a, 4);
+    this.units = Vec<SourceUnit>(a, 4);
   }
 
   /** Adds one module exactly once and adjusts its map to the combined source. */
-  method append(
-    input: const ref String,
-    compiler: const ref markup.Compiler
-  ) AllocationResult<void> {
+  method append(input: const ref String, compiler: const ref markup.Compiler) void throws {
     var a = make_heap_allocator();
-    var fields = try compiler.source_map.split_whitespace(a);
+    var fields = compiler.source_map.split_whitespace(a);
     for (var i: i64 = 0; i + 1 < fields.size(); i += 2) {
       var line = match fields[i].parse_i64() {
         Option.Some(value) => value,
         Option.None => 0
       };
-      try this.mapping.append(this.line + line);
-      try this.mapping.append("\t");
-      try this.mapping.append(fields[i + 1]);
-      try this.mapping.append("\t");
-      try this.mapping.append(input);
-      try this.mapping.append("\n");
+      this.mapping.append(this.line + line);
+      this.mapping.append("\t");
+      this.mapping.append(fields[i + 1]);
+      this.mapping.append("\t");
+      this.mapping.append(input);
+      this.mapping.append("\n");
     }
-    try this.source.append(compiler.output);
+    this.source.append(compiler.output);
     for (var i: i64 = 0; i < compiler.output.length(); i += 1) {
-      match compiler.output.at(i) {
-        AccessResult.Ok(c) => {
-          if (c == 10) {
-            this.line += 1;
-          }
-        },
-        AccessResult.OutOfBounds(_) => {}
-      };
+      var operation_completed_2 = false;
+      try {
+        var c = compiler.output.at(i);
+        operation_completed_2 = true;
+        if (c == 10) {
+          this.line += 1;
+        }
+      } catch (error: std.IndexOutOfBoundsError) {
+        if (operation_completed_2) {
+          throw;
+        }
+      }
     }
 
-    return AllocationResult.Ok;
+    return;
   }
 }
 
 /** Copies a path's directory, retaining its trailing separator. */
-function directory(path: const ref String) std.Result<String> {
+function directory(path: const ref String) String throws {
   var a = make_heap_allocator();
   var last: i64 = -1;
   for (var i: i64 = 0; i < path.length(); i += 1) {
-    match path.at(i) {
-      AccessResult.Ok(c) => {
-        if (c == 47) {
-          last = i;
-        }
-      },
-      AccessResult.OutOfBounds(_) => {}
-    };
+    var operation_completed_1 = false;
+    try {
+      var c = path.at(i);
+      operation_completed_1 = true;
+      if (c == 47) {
+        last = i;
+      }
+    } catch (error: std.IndexOutOfBoundsError) {
+      if (operation_completed_1) {
+        throw;
+      }
+    }
   }
   if (last < 0) {
-    return std.Result.Ok(try String("./"));
+    return String("./");
   }
-  return std.Result.Ok(
-    match try sun_ui_results.substring(path, a, 0, last + 1) {
-      AccessResult.Ok(value) => value,
-      AccessResult.OutOfBounds(_) => try String("./")
-    }
-  );
+  try {
+    var value = sun_ui_results.substring(path, a, 0, last + 1);
+    return value;
+  } catch (error: std.IndexOutOfBoundsError) {
+    return String("./");
+  }
 }
 
 /** Writes one generated artifact after creating its containing directory. */
-function publish(output: ref String, source: ref String, mapping: ref String) std.Result<void> {
+function publish(output: ref String, source: ref String, mapping: ref String) void throws {
   var a = make_heap_allocator();
-  var mkdir = try std.process.Command(a, "mkdir");
-  try mkdir.add_arg("-p");
-  try mkdir.add_arg(try directory(output));
-  if (try mkdir.status() != 0) {
-    return std.Result.Error(Error(1, "Cannot create generated view directory"));
+  var mkdir = std.process.Command(a, "mkdir");
+  mkdir.add_arg("-p");
+  mkdir.add_arg(directory(output));
+  if (mkdir.status() != 0) {
+    throw Error(1, "Cannot create generated view directory");
   }
-  var map = try output.clone(a);
-  try map.append(".map");
-  try std.io.write_string(map, mapping);
-  try std.io.write_string(output, source);
-  return std.Result.Ok;
+  var map = output.clone(a);
+  map.append(".map");
+  std.io.write_string(map, mapping);
+  std.io.write_string(output, source);
+  return;
 }
 
 /** Parses the dependency graph before resolving registered component names. */
@@ -117,123 +122,160 @@ function collect(
   output: ref String,
   generation: ref Generation,
   registered: bool
-) std.Result<void> {
+) void throws {
   var a = make_heap_allocator();
   for (var i: i64 = 0; i < generation.active.size(); i += 1) {
     if (generation.active[i].equals(input)) {
-      return std.Result.Error(Error(1, "Markup import cycle"));
+      throw Error(1, "Markup import cycle");
     }
   }
   for (var i: i64 = 0; i < generation.seen.size(); i += 1) {
     if (generation.seen[i].equals(input)) {
-      return std.Result.Ok;
+      return;
     }
   }
-  try generation.active.push(try input.clone(a));
-  var compiler = try markup.Compiler(
-    try input.clone(a),
-    try std.io.read_to_string(a, input)
+  generation.active.push(input.clone(a));
+  var compiler = markup.Compiler(
+    input.clone(a),
+    std.io.read_to_string(a, input)
   );
-  try compiler.prepare();
+  compiler.prepare();
   for (var relative: ref String in compiler.imports) {
-    var imported_input = try directory(input);
-    try imported_input.append(relative);
-    var imported_output = try directory(output);
-    try imported_output.append(relative);
-    try imported_output.replace(".view.xml", ".view.sun");
-    try collect(imported_input, imported_output, generation, registered);
+    var imported_input = directory(input);
+    imported_input.append(relative);
+    var imported_output = directory(output);
+    imported_output.append(relative);
+    imported_output.replace(".view.xml", ".view.sun");
+    collect(imported_input, imported_output, generation, registered);
   }
   match generation.active.pop() {
     Option.Some(_) => {},
     Option.None => {}
   };
-  try generation.seen.push(try input.clone(a));
-  try generation.units.push(
+  generation.seen.push(input.clone(a));
+  generation.units.push(
     SourceUnit(
-      try input.clone(a),
-      try output.clone(a),
+      input.clone(a),
+      output.clone(a),
       compiler,
       registered
     )
   );
 
-  return std.Result.Ok;
+  return;
 }
 
 /** Reads explicitly listed sources from an XML application registry. */
-function registry_sources(path: ref String) std.Result<Vec<String>> {
+function registry_sources(path: ref String) Vec<String> throws {
   var a = make_heap_allocator();
-  var compiler = try markup.Compiler(
-    try path.clone(a),
-    try std.io.read_to_string(a, path)
+  var compiler = markup.Compiler(
+    path.clone(a),
+    std.io.read_to_string(a, path)
   );
-  return std.Result.Ok(try compiler.registry_sources());
+  return compiler.registry_sources();
 }
 
 /** Compiles registered components and views after discovering every typed signature. */
-function run(input: ref String, output: ref String, registry_path: ref String) std.Result<void> {
+function run(input: ref String, output: ref String, registry_path: ref String) void throws {
   var a = make_heap_allocator();
-  var generation = try Generation(a);
+  var generation = Generation(a);
   if (not registry_path.is_empty()) {
-    var sources = try registry_sources(registry_path);
+    var sources = registry_sources(registry_path);
     for (var relative: ref String in sources) {
-      var source = try directory(registry_path);
-      try source.append(relative);
-      var artifact = try directory(output);
-      try artifact.append("registered/");
-      try artifact.append(relative);
-      try artifact.replace(".view.xml", ".view.sun");
-      try collect(source, artifact, generation, true);
+      var source = directory(registry_path);
+      source.append(relative);
+      var artifact = directory(output);
+      artifact.append("registered/");
+      artifact.append(relative);
+      artifact.replace(".view.xml", ".view.sun");
+      collect(source, artifact, generation, true);
     }
   }
-  try collect(input, output, generation, false);
-  var registry = try markup.Registry(a);
+  collect(input, output, generation, false);
+  var registry = markup.Registry(a);
   for (var unit: ref SourceUnit in generation.units) {
     if (unit.registered) {
-      try unit.compiler.register_components(registry);
+      unit.compiler.register_components(registry);
     }
   }
   for (var unit: ref SourceUnit in generation.units) {
-    try unit.compiler.use_registry(registry);
-    try unit.compiler.compile();
-    try generation.append(unit.input, unit.compiler);
+    unit.compiler.use_registry(registry);
+    unit.compiler.compile();
+    generation.append(unit.input, unit.compiler);
   }
   // Publish only after every source has passed generation checks.
   for (var unit: ref SourceUnit in generation.units) {
-    try publish(unit.output, unit.compiler.output, unit.compiler.source_map);
+    publish(unit.output, unit.compiler.output, unit.compiler.source_map);
   }
   return publish(output, generation.source, generation.mapping);
 }
 
 /** Generates a view with an optional explicit or adjacent application registry. */
-function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) std.Result<i32> {
+function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 throws {
   var a = make_heap_allocator();
-  var env = try std.env.Env(a);
-  var args = try env.args(argc, argv);
+  var env = std.env.Env(a);
+  var args = env.args(argc, argv);
   if (args.size() != 3 and args.size() != 5) {
     std.io.eprintln("Usage: sun_viewc INPUT.view.xml OUTPUT.sun [--registry COMPONENTS.xml]");
-    return std.Result.Ok(1);
+    return 1;
   }
-  var registry_path = try directory(args[1]);
-  try registry_path.append("components.registry.xml");
+  var registry_path = directory(args[1]);
+  registry_path.append("components.registry.xml");
   if (args.size() == 5) {
     if (not args[3].equals_literal("--registry")) {
       std.io.eprintln("Expected --registry COMPONENTS.xml");
-      return std.Result.Ok(1);
+      return 1;
     }
-    registry_path = try args[4].clone(a);
-  } else if (not try std.io.exists(registry_path)) {
-    registry_path = try String("");
+    registry_path = args[4].clone(a);
+  } else if (not std.io.exists(registry_path)) {
+    registry_path = String("");
   }
-  return std.Result.Ok(
-    match run(args[1], args[2], registry_path) {
-      std.Result.Ok => 0,
-      (error: const ref IError) => {
-        std.io.eprintln(try error.message());
-        return std.Result.Ok(1);
-      }
-    }
-  );
+  try {
+    run(args[1], args[2], registry_path);
+    return 0;
+  } catch (error: std.Error) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.AllocationError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.InvalidArgumentError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.OverflowError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.IndexOutOfBoundsError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.NotFoundError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.EmptyError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.IOError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ConversionError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.DivisionByZeroError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ArithmeticError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.json.JsonError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.xml.XmlError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.ProtoDecodeError) {
+    std.io.eprintln(error.message());
+    return 1;
+  }
 }
 manifest {
   libraries: [

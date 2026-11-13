@@ -4,23 +4,23 @@ using std;
 module counter {
 
   /** Compares generated counter descriptions with the handwritten public API. */
-  test_function generated_counter_equivalence() std.test.AssertionResult<void> {
+  test_function generated_counter_equivalence() {
     var a = make_heap_allocator();
     var state: i64 = 7;
-    var generated = try view(state);
-    var handwritten = try ui.View(a);
-    try handwritten.button(1, try String("Count: 7"), 1, 0);
-    try std.test.assert_eq(generated.elements.size(), handwritten.elements.size());
-    try std.test.assert(
+    var generated = view(state);
+    var handwritten = ui.View(a);
+    handwritten.button(1, String("Count: 7"), 1, 0);
+    std.test.assert_eq(generated.elements.size(), handwritten.elements.size());
+    std.test.assert(
       generated.elements[0].key.equals(handwritten.elements[0].key),
       "keys match"
     );
-    try std.test.assert(
+    std.test.assert(
       generated.elements[0].equals(handwritten.elements[0]),
       "native descriptions match"
     );
-    try std.test.assert_eq(generated.elements[0].action, handwritten.elements[0].action);
-    try std.test.assert_eq(generated.elements[0].payload, handwritten.elements[0].payload);
+    std.test.assert_eq(generated.elements[0].action, handwritten.elements[0].action);
+    std.test.assert_eq(generated.elements[0].payload, handwritten.elements[0].payload);
   }
 }
 
@@ -28,23 +28,23 @@ module counter {
 module scoped {
 
   /** Resolves theme, application, view, and component scopes without leaking sibling overrides. */
-  test_function scoped_resources_and_typed_templates() std.test.AssertionResult<void> {
+  test_function scoped_resources_and_typed_templates() {
     var state: i64 = 4;
-    var result = try view(state);
-    try std.test.assert(result.construction_error.is_empty(), "construction succeeds");
-    try result.resources.validate();
-    try std.test.assert_eq(result.elements.size(), 8);
-    try std.test.assert_eq(result.elements[0].style.normal.foreground, 3);
-    try std.test.assert_eq(result.elements[2].style.normal.foreground, 4);
-    try std.test.assert_eq(result.elements[4].style.normal.foreground, 5);
-    try std.test.assert_eq(result.elements[5].style.normal.foreground, 3);
-    try std.test.assert_eq(result.elements[2].margin, 6);
-    try std.test.assert_eq(result.resource_scope, 1);
-    try std.test.assert(
+    var result = view(state);
+    std.test.assert(result.construction_error.is_empty(), "construction succeeds");
+    result.resources.validate();
+    std.test.assert_eq(result.elements.size(), 8);
+    std.test.assert_eq(result.elements[0].style.normal.foreground, 3);
+    std.test.assert_eq(result.elements[2].style.normal.foreground, 4);
+    std.test.assert_eq(result.elements[4].style.normal.foreground, 5);
+    std.test.assert_eq(result.elements[5].style.normal.foreground, 3);
+    std.test.assert_eq(result.elements[2].margin, 6);
+    std.test.assert_eq(result.resource_scope, 1);
+    std.test.assert(
       result.elements[7].text.equals_literal("Root"),
       "theme aliases resolve within their defining dictionary"
     );
-    try std.test.assert(
+    std.test.assert(
       result.elements[1].template_id.equals_literal("Card"),
       "local template overrides root"
     );
@@ -60,20 +60,20 @@ module action_checks {
     var text: String;
 
     /** Creates empty application state. */
-    init() AllocationResult<void> {
-      this.text = try String("");
+    init() throws {
+      this.text = String("");
     }
 
     /** Handles a method action without exposing application state to native callbacks. */
-    public method advance(event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
+    public method advance(event: const ref ui.Event, queue: ref ui.EventQueue) void throws {
       this.count += 10;
-      return SystemResult.Ok;
+      return;
     }
 
     /** Accepts the text value captured when an editable control changed. */
-    public method edit(event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {
-      this.text = try event.value.text.clone(make_heap_allocator());
-      return SystemResult.Ok;
+    public method edit(event: const ref ui.Event, queue: ref ui.EventQueue) void throws {
+      this.text = event.value.text.clone(make_heap_allocator());
+      return;
     }
   }
 
@@ -82,9 +82,9 @@ module action_checks {
     state: ref State,
     event: const ref ui.Event,
     queue: ref ui.EventQueue
-  ) SystemResult<void> {
+  ) void throws {
     state.count += event.payload;
-    return SystemResult.Ok;
+    return;
   }
 
   /** Handles explicit numeric actions even when their IDs match generated IDs. */
@@ -92,73 +92,70 @@ module action_checks {
     state: ref State,
     event: const ref ui.Event,
     queue: ref ui.EventQueue
-  ) SystemResult<void> {
+  ) void throws {
     state.count += 100;
-    return SystemResult.Ok;
+    return;
   }
 
   /** Copies a description's route as the framework does when capturing a native signal. */
-  function event(element: const ref ui.Element) AllocationResult<ui.Event> {
-    var value = try ui.Event(1, element.action, element.payload);
-    value.action_scope = try element.action_scope.clone(make_heap_allocator());
-    return AllocationResult.Ok(value);
+  function event(element: const ref ui.Element) ui.Event throws {
+    var value = ui.Event(1, element.action, element.payload);
+    value.action_scope = element.action_scope.clone(make_heap_allocator());
+    return value;
   }
 
   /** Verifies typed calls, edit values, collision-free numeric fallback, and stable automatic keys. */
-  test_function named_actions_and_automatic_keys() std.test.AssertionResult<void> {
+  test_function named_actions_and_automatic_keys() {
     var a = make_heap_allocator();
-    var state = try State();
-    var queue = try ui.EventQueue(a);
-    var description = try view(state);
-    try std.test.assert(description.elements[0].tooltip.equals_literal("Increment the counter"));
-    try std.test.assert(description.elements[0].icon.equals_literal("list-add-symbolic"));
-    try std.test.assert_eq(state.count, 0);
-    var first = try event(description.elements[0]);
-    try view_handle(state, first, queue);
-    var second = try event(description.elements[1]);
-    try view_handle(state, second, queue);
-    try std.test.assert_eq(state.count, 13);
-    var edit = try event(description.elements[2]);
-    edit.value = try ui.EventValue(try String("captured"));
-    try view_handle(state, edit, queue);
-    try std.test.assert(
+    var state = State();
+    var queue = ui.EventQueue(a);
+    var description = view(state);
+    std.test.assert(description.elements[0].tooltip.equals_literal("Increment the counter"));
+    std.test.assert(description.elements[0].icon.equals_literal("list-add-symbolic"));
+    std.test.assert_eq(state.count, 0);
+    var first = event(description.elements[0]);
+    view_handle(state, first, queue);
+    var second = event(description.elements[1]);
+    view_handle(state, second, queue);
+    std.test.assert_eq(state.count, 13);
+    var edit = event(description.elements[2]);
+    edit.value = ui.EventValue(String("captured"));
+    view_handle(state, edit, queue);
+    std.test.assert(
       state.text.equals_literal("captured"),
       "change action receives owned captured text"
     );
-    var fallback = try event(description.elements[3]);
-    try std.test.assert_eq(fallback.action, first.action);
-    try view_handle(state, fallback, queue);
-    try std.test.assert_eq(state.count, 113);
-    var next = try view(state);
+    var fallback = event(description.elements[3]);
+    std.test.assert_eq(fallback.action, first.action);
+    view_handle(state, fallback, queue);
+    std.test.assert_eq(state.count, 113);
+    var next = view(state);
     for (var i: i64 = 0; i < description.elements.size(); i += 1) {
-      try std.test.assert(
+      std.test.assert(
         description.elements[i].key.equals(next.elements[i].key),
         "automatic static keys survive state updates"
       );
       for (var j: i64 = 0; j < i; j += 1) {
-        try std.test.assert(
+        std.test.assert(
           not description.elements[i].key.equals(description.elements[j].key),
           "automatic sibling keys are unique"
         );
       }
     }
-    first.action_scope = try String("another-view");
-    match view_handle(state, first, queue) {
-      SystemResult.Error(_) => {},
-      SystemResult.Allocation(error) => {
-        return std.test.AssertionResult.Allocation(error);
-      },
-      SystemResult.InvalidArgument(error) => {
-        return std.test.AssertionResult.InvalidArgument(error);
-      },
-      SystemResult.Overflow(error) => {
-        return std.test.AssertionResult.Overflow(error);
-      },
-      SystemResult.Ok => {
-        try std.test.assert(false, "foreign generated action must not enter numeric fallback");
+    first.action_scope = String("another-view");
+
+    var operation_completed_1 = false;
+    try {
+      view_handle(state, first, queue);
+      operation_completed_1 = true;
+      std.test.assert(false, "foreign generated action must not enter numeric fallback");
+    } catch (error: std.Error) {
+      if (operation_completed_1) {
+        throw;
       }
-    };
-    try std.test.assert_eq(state.count, 113);
+    }
+
+    std.test.assert_eq(state.count, 113);
   }
 }
 
@@ -166,11 +163,11 @@ module action_checks {
 module reusable_checks {
 
   /** Supplies stable keys for repeated caller content. */
-  function ids() AllocationResult<Vec<i64>> {
-    var values = try Vec<i64>(make_heap_allocator(), 2);
-    try values.push(10);
-    try values.push(20);
-    return AllocationResult.Ok(values);
+  function ids() Vec<i64> throws {
+    var values = Vec<i64>(make_heap_allocator(), 2);
+    values.push(10);
+    values.push(20);
+    return values;
   }
 
   /** Receives a named action from caller-owned XML content. */
@@ -178,53 +175,53 @@ module reusable_checks {
     state: ref i64,
     event: const ref ui.Event,
     queue: ref ui.EventQueue
-  ) SystemResult<void> {
+  ) void throws {
     state += 1;
-    return SystemResult.Ok;
+    return;
   }
 
   /** Preserves caller resources, component resources, parent order, and named event routing. */
-  test_function reusable_content_and_theme() std.test.AssertionResult<void> {
+  test_function reusable_content_and_theme() {
     var a = make_heap_allocator();
     var state: i64 = 4;
-    var result = try view(state);
-    try std.test.assert(result.construction_error.is_empty());
-    try result.resources.validate();
-    try std.test.assert_eq(result.resource_scope, 1);
-    try std.test.assert_eq(result.theme.normal.font_size, 14);
-    try std.test.assert_eq(result.control_defaults.size(), 1);
-    try std.test.assert_eq(result.control_defaults[0].style.normal.foreground, 7);
-    try std.test.assert_eq(result.control_defaults[0].style.hover.background, 7);
+    var result = view(state);
+    std.test.assert(result.construction_error.is_empty());
+    result.resources.validate();
+    std.test.assert_eq(result.resource_scope, 1);
+    std.test.assert_eq(result.theme.normal.font_size, 14);
+    std.test.assert_eq(result.control_defaults.size(), 1);
+    std.test.assert_eq(result.control_defaults[0].style.normal.foreground, 7);
+    std.test.assert_eq(result.control_defaults[0].style.hover.background, 7);
     var own: i64 = 0;
     var caller: i64 = 0;
     var clicks: i64 = 0;
     for (var i: i64 = 0; i < result.elements.size(); i += 1) {
       var node = result.elements[i];
-      try std.test.assert(node.parent < i);
+      std.test.assert(node.parent < i);
       if (node.text.equals_literal("Component")) {
         own += 1;
-        try std.test.assert_eq(node.overrides.normal.foreground, 99);
+        std.test.assert_eq(node.overrides.normal.foreground, 99);
       }
       if (node.overrides.normal.foreground == 7) {
         caller += 1;
       }
       if (node.kind == ui.Kind.Button) {
-        try std.test.assert(node.text.equals_literal("Value: 4"));
-        var event = try ui.Event(1, node.action, 0);
-        event.action_scope = try node.action_scope.clone(a);
-        var queue = try ui.EventQueue(a);
-        try view_handle(state, event, queue);
+        std.test.assert(node.text.equals_literal("Value: 4"));
+        var event = ui.Event(1, node.action, 0);
+        event.action_scope = node.action_scope.clone(a);
+        var queue = ui.EventQueue(a);
+        view_handle(state, event, queue);
         clicks += 1;
       }
     }
-    try std.test.assert_eq(own, 3);
-    try std.test.assert_eq(caller, 6);
-    try std.test.assert_eq(clicks, 1);
-    try std.test.assert_eq(state, 5);
-    var again = try view(state);
-    try std.test.assert_eq(again.elements.size(), result.elements.size());
+    std.test.assert_eq(own, 3);
+    std.test.assert_eq(caller, 6);
+    std.test.assert_eq(clicks, 1);
+    std.test.assert_eq(state, 5);
+    var again = view(state);
+    std.test.assert_eq(again.elements.size(), result.elements.size());
     for (var i: i64 = 0; i < result.elements.size(); i += 1) {
-      try std.test.assert(result.elements[i].key.equals(again.elements[i].key));
+      std.test.assert(result.elements[i].key.equals(again.elements[i].key));
     }
   }
 }

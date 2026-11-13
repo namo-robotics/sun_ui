@@ -14,12 +14,12 @@ public module ui {
     public var padding: i32 = -1;
 
     /** Creates an empty override; colors use packed RGB values. */
-    init() AllocationResult<void> {
-      this.font = try String("");
+    init() throws {
+      this.font = String("");
     }
 
     /** Copies only explicitly supplied properties from a higher-precedence appearance. */
-    public method overlay(other: const ref Appearance) AllocationResult<void> {
+    public method overlay(other: const ref Appearance) void throws {
       var a = make_heap_allocator();
       if (other.foreground >= 0) {
         this.foreground = other.foreground;
@@ -28,7 +28,7 @@ public module ui {
         this.background = other.background;
       }
       if (not other.font.is_empty()) {
-        this.font = try other.font.clone(a);
+        this.font = other.font.clone(a);
       }
       if (other.border_width >= 0) {
         this.border_width = other.border_width;
@@ -43,7 +43,7 @@ public module ui {
         this.font_size = other.font_size;
       }
 
-      return AllocationResult.Ok;
+      return;
     }
 
     /** Compares resolved properties without allocating. */
@@ -62,10 +62,14 @@ public module ui {
         return false;
       }
       for (var i: i64 = 0; i < this.font.length(); i += 1) {
-        var c = match this.font.at(i) {
-          AccessResult.Ok(c) => c,
-          AccessResult.OutOfBounds(_) => 0
-        };
+        var c: u8 = 0;
+
+        try {
+          c = this.font.at(i);
+        } catch (error: std.IndexOutOfBoundsError) {
+          c = 0;
+        }
+
         if (c < 32 or c == 34 or c == 42 or c == 92) {
           return false;
         }
@@ -82,21 +86,21 @@ public module ui {
     public var disabled: Appearance;
 
     /** Creates an empty style that inherits native defaults. */
-    init() AllocationResult<void> {
-      this.normal = try Appearance();
-      this.hover = try Appearance();
-      this.focus = try Appearance();
-      this.disabled = try Appearance();
+    init() throws {
+      this.normal = Appearance();
+      this.hover = Appearance();
+      this.focus = Appearance();
+      this.disabled = Appearance();
     }
 
     /** Applies a higher-precedence style without retaining references. */
-    public method overlay(other: const ref Style) AllocationResult<void> {
-      try this.normal.overlay(other.normal);
-      try this.hover.overlay(other.hover);
-      try this.focus.overlay(other.focus);
-      try this.disabled.overlay(other.disabled);
+    public method overlay(other: const ref Style) void throws {
+      this.normal.overlay(other.normal);
+      this.hover.overlay(other.hover);
+      this.focus.overlay(other.focus);
+      this.disabled.overlay(other.disabled);
 
-      return AllocationResult.Ok;
+      return;
     }
 
     /** Compares all interaction states. */
@@ -126,14 +130,14 @@ public module ui {
     public var padding: String;
 
     /** Creates an appearance without palette references. */
-    init() AllocationResult<void> {
-      this.foreground = try String("");
-      this.background = try String("");
-      this.font = try String("");
-      this.font_size = try String("");
-      this.border_width = try String("");
-      this.radius = try String("");
-      this.padding = try String("");
+    init() throws {
+      this.foreground = String("");
+      this.background = String("");
+      this.font = String("");
+      this.font_size = String("");
+      this.border_width = String("");
+      this.radius = String("");
+      this.padding = String("");
     }
   }
 
@@ -155,34 +159,34 @@ public module ui {
     public var defaults: Vec<ThemeDefault>;
 
     /** Allocates an empty theme without replacing native defaults. */
-    init(a: const ref HeapAllocator) AllocationResult<void> {
-      this.base = try Style();
+    init(a: const ref HeapAllocator) throws {
+      this.base = Style();
 
-      this.defaults = try Vec<ThemeDefault>(a, 4);
+      this.defaults = Vec<ThemeDefault>(a, 4);
     }
 
     /** Rejects duplicate defaults and invalid appearances. */
-    public const method validate() SystemResult<void> {
+    public const method validate() void throws {
       if (not this.base.valid()) {
-        return SystemResult.Error(Error(1, "Invalid theme base"));
+        throw Error(1, "Invalid theme base");
       }
       return validate_theme_defaults(this.defaults);
     }
   }
 
   /** Validates control defaults even when a handwritten view supplies them directly. */
-  function validate_theme_defaults(defaults: const ref Vec<ThemeDefault>) SystemResult<void> {
+  function validate_theme_defaults(defaults: const ref Vec<ThemeDefault>) void throws {
     for (var i: i64 = 0; i < defaults.size(); i += 1) {
       if (defaults[i].kind == Kind.Group or not defaults[i].style.valid()) {
-        return SystemResult.Error(Error(1, "Invalid theme default"));
+        throw Error(1, "Invalid theme default");
       }
       for (var j: i64 = 0; j < i; j += 1) {
         if (defaults[j].kind == defaults[i].kind) {
-          return SystemResult.Error(Error(1, "Duplicate theme control kind"));
+          throw Error(1, "Duplicate theme control kind");
         }
       }
     }
-    return SystemResult.Ok;
+    return;
   }
 
   /** Names a style used by one control kind in a theme resource. */
@@ -214,18 +218,18 @@ public module ui {
     var scope: i64 = 0;
 
     /** Transfers the resource name into a typed definition. */
-    init(name: String, kind: ResourceKind) AllocationResult<void> {
-      this.style = try Style();
+    init(name: String, kind: ResourceKind) throws {
+      this.style = Style();
 
-      this.normal_references = try AppearanceReferences();
-      this.hover_references = try AppearanceReferences();
-      this.focus_references = try AppearanceReferences();
-      this.disabled_references = try AppearanceReferences();
+      this.normal_references = AppearanceReferences();
+      this.hover_references = AppearanceReferences();
+      this.focus_references = AppearanceReferences();
+      this.disabled_references = AppearanceReferences();
 
-      this.text = try String("");
-      this.reference = try String("");
-      this.based_on = try String("");
-      this.defaults = try Vec<ThemeReference>(make_heap_allocator(), 4);
+      this.text = String("");
+      this.reference = String("");
+      this.based_on = String("");
+      this.defaults = Vec<ThemeReference>(make_heap_allocator(), 4);
 
       this.name = name;
       this.kind = kind;
@@ -238,36 +242,36 @@ public module ui {
     var parents: Vec<i64>;
 
     /** Creates theme scope zero and application scope one. */
-    init(a: const ref HeapAllocator) AllocationResult<void> {
-      this.entries = try Vec<Resource>(a, 8);
-      this.parents = try Vec<i64>(a, 4);
-      try this.parents.push(-1);
-      try this.parents.push(0);
+    init(a: const ref HeapAllocator) throws {
+      this.entries = Vec<Resource>(a, 8);
+      this.parents = Vec<i64>(a, 4);
+      this.parents.push(-1);
+      this.parents.push(0);
     }
 
     /** Creates a component dictionary with an explicitly selected enclosing scope. */
-    public method scope(parent: i64) SystemResult<i64> {
+    public method scope(parent: i64) i64 throws {
       if (parent < 0 or parent >= this.parents.size()) {
-        return SystemResult.Error(Error(1, "Invalid resource parent scope"));
+        throw Error(1, "Invalid resource parent scope");
       }
       var index = this.parents.size();
-      try this.parents.push(parent);
-      return SystemResult.Ok(index);
+      this.parents.push(parent);
+      return index;
     }
 
     /** Adds an owned definition after rejecting duplicates within the dictionary. */
-    public method add(scope: i64, resource: Resource) SystemResult<void> {
+    public method add(scope: i64, resource: Resource) void throws {
       if (scope < 0 or scope >= this.parents.size() or resource.name.is_empty()) {
-        return SystemResult.Error(Error(1, "Invalid resource declaration"));
+        throw Error(1, "Invalid resource declaration");
       }
       for (var i: i64 = 0; i < this.entries.size(); i += 1) {
         if (this.entries[i].scope == scope and this.entries[i].name.equals(resource.name)) {
-          return SystemResult.Error(Error(1, "Duplicate resource name"));
+          throw Error(1, "Duplicate resource name");
         }
       }
       resource.scope = scope;
-      try this.entries.push(resource);
-      return SystemResult.Ok;
+      this.entries.push(resource);
+      return;
     }
 
     /** Finds the nearest visible definition without following references. */
@@ -285,80 +289,72 @@ public module ui {
     }
 
     /** Resolves aliases with bounded traversal and strict resource type checking. */
-    const method resolve(scope: i64, name: const ref String, kind: ResourceKind) SystemResult<i64> {
+    const method resolve(scope: i64, name: const ref String, kind: ResourceKind) i64 throws {
       var index = this.find(scope, name);
       for (var count: i64 = 0; count <= this.entries.size(); count += 1) {
         if (index < 0) {
-          return SystemResult.Error(Error(1, "Missing resource"));
+          throw Error(1, "Missing resource");
         }
         if (this.entries[index].kind != kind) {
-          return SystemResult.Error(Error(1, "Resource type mismatch"));
+          throw Error(1, "Resource type mismatch");
         }
         if (this.entries[index].reference.is_empty()) {
-          return SystemResult.Ok(index);
+          return index;
         }
         index = this.find(this.entries[index].scope, this.entries[index].reference);
       }
-      return SystemResult.Error(Error(1, "Resource reference cycle"));
+      throw Error(1, "Resource reference cycle");
     }
 
     /** Validates every definition, including unused aliases and inherited styles. */
-    public const method validate() SystemResult<void> {
+    public const method validate() void throws {
       var a = make_heap_allocator();
       for (var i: i64 = 0; i < this.entries.size(); i += 1) {
         var resource = this.entries[i];
-        var index = try this.resolve(resource.scope, resource.name, resource.kind);
+        var index = this.resolve(resource.scope, resource.name, resource.kind);
         if (resource.kind == ResourceKind.Style) {
-          var value = try this.style(resource.scope, resource.name);
+          var value = this.style(resource.scope, resource.name);
         } else if (resource.kind == ResourceKind.Theme) {
-          var value = try this.theme(resource.scope, resource.name);
+          var value = this.theme(resource.scope, resource.name);
         } else if (resource.kind == ResourceKind.Color or resource.kind == ResourceKind.Spacing) {
-          var value = try this.number(resource.scope, resource.name, resource.kind);
+          var value = this.number(resource.scope, resource.name, resource.kind);
         } else {
           if (this.entries[index].text.is_empty()) {
-            return SystemResult.Error(Error(1, "Empty text resource"));
+            throw Error(1, "Empty text resource");
           }
           if (resource.kind == ResourceKind.Font) {
-            var appearance = try Appearance();
-            appearance.font = try this.entries[index].text.clone(a);
+            var appearance = Appearance();
+            appearance.font = this.entries[index].text.clone(a);
             if (not appearance.valid()) {
-              return SystemResult.Error(Error(1, "Invalid font resource"));
+              throw Error(1, "Invalid font resource");
             }
           }
         }
       }
-      return SystemResult.Ok;
+      return;
     }
 
     /** Resolves a color or spacing value without implicit conversion. */
-    public const method number(
-      scope: i64,
-      name: const ref String,
-      kind: ResourceKind
-    ) SystemResult<i64> {
+    public const method number(scope: i64, name: const ref String, kind: ResourceKind) i64 throws {
       if (kind != ResourceKind.Color and kind != ResourceKind.Spacing) {
-        return SystemResult.Error(Error(1, "Resource is not numeric"));
+        throw Error(1, "Resource is not numeric");
       }
-      var i = try this.resolve(scope, name, kind);
+      var i = this.resolve(scope, name, kind);
       var value = this.entries[i].number;
       if (value < 0 or (kind == ResourceKind.Color and value > 16777215)) {
-        return SystemResult.Error(Error(1, "Invalid numeric resource"));
+        throw Error(1, "Invalid numeric resource");
       }
-      return SystemResult.Ok(value);
+      return value;
     }
 
     /** Explicitly copies a font or template name from a resolved resource. */
-    public const method text(
-      scope: i64,
-      name: const ref String,
-      kind: ResourceKind
-    ) SystemResult<String> {
+    public const method text(scope: i64, name: const ref String, kind: ResourceKind) String throws {
       if (kind != ResourceKind.Font and kind != ResourceKind.Template) {
-        return SystemResult.Error(Error(1, "Resource is not text"));
+        throw Error(1, "Resource is not text");
       }
       var a = make_heap_allocator();
-      var i = try this.resolve(scope, name, kind);
-      return SystemResult.Ok(try this.entries[i].text.clone(a));
+      var i = this.resolve(scope, name, kind);
+      return this.entries[i].text.clone(a);
     }
 
     /** Resolves a palette-backed appearance in the dictionary that defines it. */
@@ -366,139 +362,139 @@ public module ui {
       scope: i64,
       value: const ref Appearance,
       references: const ref AppearanceReferences
-    ) SystemResult<Appearance> {
-      var result = try Appearance();
-      try result.overlay(value);
+    ) Appearance throws {
+      var result = Appearance();
+      result.overlay(value);
       if (not references.foreground.is_empty()) {
         if (value.foreground >= 0) {
-          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+          throw Error(1, "Conflicting appearance value and resource");
         }
-        var number = try this.number(scope, references.foreground, ResourceKind.Color);
+        var number = this.number(scope, references.foreground, ResourceKind.Color);
         result.foreground = number;
       }
       if (not references.background.is_empty()) {
         if (value.background >= 0) {
-          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+          throw Error(1, "Conflicting appearance value and resource");
         }
-        var number = try this.number(scope, references.background, ResourceKind.Color);
+        var number = this.number(scope, references.background, ResourceKind.Color);
         result.background = number;
       }
       if (not references.font.is_empty()) {
         if (not value.font.is_empty()) {
-          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+          throw Error(1, "Conflicting appearance value and resource");
         }
-        result.font = try this.text(scope, references.font, ResourceKind.Font);
+        result.font = this.text(scope, references.font, ResourceKind.Font);
       }
       if (not references.font_size.is_empty()) {
         if (value.font_size >= 0) {
-          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+          throw Error(1, "Conflicting appearance value and resource");
         }
-        var number = try this.number(scope, references.font_size, ResourceKind.Spacing);
+        var number = this.number(scope, references.font_size, ResourceKind.Spacing);
         if (number > 2147483647) {
-          return SystemResult.Error(Error(1, "Appearance resource exceeds integer range"));
+          throw Error(1, "Appearance resource exceeds integer range");
         }
         result.font_size = _convert<i32>(number);
       }
       if (not references.border_width.is_empty()) {
         if (value.border_width >= 0) {
-          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+          throw Error(1, "Conflicting appearance value and resource");
         }
-        var number = try this.number(scope, references.border_width, ResourceKind.Spacing);
+        var number = this.number(scope, references.border_width, ResourceKind.Spacing);
         if (number > 2147483647) {
-          return SystemResult.Error(Error(1, "Appearance resource exceeds integer range"));
+          throw Error(1, "Appearance resource exceeds integer range");
         }
         result.border_width = _convert<i32>(number);
       }
       if (not references.radius.is_empty()) {
         if (value.radius >= 0) {
-          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+          throw Error(1, "Conflicting appearance value and resource");
         }
-        var number = try this.number(scope, references.radius, ResourceKind.Spacing);
+        var number = this.number(scope, references.radius, ResourceKind.Spacing);
         if (number > 2147483647) {
-          return SystemResult.Error(Error(1, "Appearance resource exceeds integer range"));
+          throw Error(1, "Appearance resource exceeds integer range");
         }
         result.radius = _convert<i32>(number);
       }
       if (not references.padding.is_empty()) {
         if (value.padding >= 0) {
-          return SystemResult.Error(Error(1, "Conflicting appearance value and resource"));
+          throw Error(1, "Conflicting appearance value and resource");
         }
-        var number = try this.number(scope, references.padding, ResourceKind.Spacing);
+        var number = this.number(scope, references.padding, ResourceKind.Spacing);
         if (number > 2147483647) {
-          return SystemResult.Error(Error(1, "Appearance resource exceeds integer range"));
+          throw Error(1, "Appearance resource exceeds integer range");
         }
         result.padding = _convert<i32>(number);
       }
       if (not result.valid()) {
-        return SystemResult.Error(Error(1, "Invalid resolved appearance"));
+        throw Error(1, "Invalid resolved appearance");
       }
-      return SystemResult.Ok(result);
+      return result;
     }
 
     /** Resolves all defaults using the theme resource's defining dictionary. */
-    public const method theme(scope: i64, name: const ref String) SystemResult<Theme> {
-      var i = try this.resolve(scope, name, ResourceKind.Theme);
+    public const method theme(scope: i64, name: const ref String) Theme throws {
+      var i = this.resolve(scope, name, ResourceKind.Theme);
       var resource = this.entries[i];
-      var result = try Theme(make_heap_allocator());
+      var result = Theme(make_heap_allocator());
       if (not resource.based_on.is_empty()) {
-        result.base = try this.style(resource.scope, resource.based_on);
+        result.base = this.style(resource.scope, resource.based_on);
       }
       for (var entry: ref ThemeReference in resource.defaults) {
-        try result.defaults.push(
-          ThemeDefault(entry.kind, try this.style(resource.scope, entry.name))
+        result.defaults.push(
+          ThemeDefault(entry.kind, this.style(resource.scope, entry.name))
         );
       }
-      try result.validate();
-      return SystemResult.Ok(result);
+      result.validate();
+      return result;
     }
 
     /** Resolves a style's inheritance chain from base to derived. */
-    public const method style(scope: i64, name: const ref String) SystemResult<Style> {
+    public const method style(scope: i64, name: const ref String) Style throws {
       var a = make_heap_allocator();
-      var chain = try Vec<i64>(a, 4);
-      var i = try this.resolve(scope, name, ResourceKind.Style);
+      var chain = Vec<i64>(a, 4);
+      var i = this.resolve(scope, name, ResourceKind.Style);
       while (true) {
         for (var j: i64 = 0; j < chain.size(); j += 1) {
           if (chain[j] == i) {
-            return SystemResult.Error(Error(1, "Style inheritance cycle"));
+            throw Error(1, "Style inheritance cycle");
           }
         }
-        try chain.push(i);
+        chain.push(i);
         if (this.entries[i].based_on.is_empty()) {
           break;
         }
-        i = try this.resolve(this.entries[i].scope, this.entries[i].based_on, ResourceKind.Style);
+        i = this.resolve(this.entries[i].scope, this.entries[i].based_on, ResourceKind.Style);
       }
-      var result = try Style();
+      var result = Style();
       for (var j = chain.size() - 1; j >= 0; j -= 1) {
         var resource = this.entries[chain[j]];
-        var resolved = try Style();
-        resolved.normal = try this.appearance(
+        var resolved = Style();
+        resolved.normal = this.appearance(
           resource.scope,
           resource.style.normal,
           resource.normal_references
         );
-        resolved.hover = try this.appearance(
+        resolved.hover = this.appearance(
           resource.scope,
           resource.style.hover,
           resource.hover_references
         );
-        resolved.focus = try this.appearance(
+        resolved.focus = this.appearance(
           resource.scope,
           resource.style.focus,
           resource.focus_references
         );
-        resolved.disabled = try this.appearance(
+        resolved.disabled = this.appearance(
           resource.scope,
           resource.style.disabled,
           resource.disabled_references
         );
-        try result.overlay(resolved);
+        result.overlay(resolved);
       }
       if (not result.valid()) {
-        return SystemResult.Error(Error(1, "Invalid style resource"));
+        throw Error(1, "Invalid style resource");
       }
-      return SystemResult.Ok(result);
+      return result;
     }
   }
 }

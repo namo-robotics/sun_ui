@@ -4,30 +4,30 @@ using std;
 module build_diagnostics {
 
   /** Copies a validated substring or returns an empty value. */
-  function slice(text: const ref String, start: i64, length: i64) AllocationResult<String> {
+  function slice(text: const ref String, start: i64, length: i64) String throws {
     var a = make_heap_allocator();
-    return AllocationResult.Ok(
-      match try sun_ui_results.substring(text, a, start, length) {
-        AccessResult.Ok(value) => value,
-        AccessResult.OutOfBounds(_) => try String("")
-      }
-    );
+    try {
+      var value = sun_ui_results.substring(text, a, start, length);
+      return value;
+    } catch (error: std.IndexOutOfBoundsError) {
+      return String("");
+    }
   }
 
   /** Converts an original byte offset to a filename, Unicode column, and line. */
-  function location(
-    path: const ref String,
-    input: const ref String,
-    offset: i64
-  ) AllocationResult<String> {
+  function location(path: const ref String, input: const ref String, offset: i64) String throws {
     var line: i64 = 1;
     var column: i64 = 1;
     var previous: u8 = 0;
     for (var i: i64 = 0; i < offset and i < input.length(); i += 1) {
-      var c = match input.at(i) {
-        AccessResult.Ok(c) => c,
-        AccessResult.OutOfBounds(_) => 0
-      };
+      var c: u8 = 0;
+
+      try {
+        c = input.at(i);
+      } catch (error: std.IndexOutOfBoundsError) {
+        c = 0;
+      }
+
       if (c == 13) {
         line += 1;
         column = 1;
@@ -41,7 +41,7 @@ module build_diagnostics {
       }
       previous = c;
     }
-    return AllocationResult.Ok(try `${path}:${line}:${column}`);
+    return `${path}:${line}:${column}`;
   }
 
   /** Resolves generated diagnostics into additional original XML location messages. */
@@ -49,16 +49,16 @@ module build_diagnostics {
     diagnostic: const ref String,
     generated: ref String,
     original: ref String
-  ) SystemResult<String> {
+  ) String throws {
     var a = make_heap_allocator();
-    var result = try String("");
-    var map_path = try generated.clone(a);
-    try map_path.append(".map");
-    var mapping = try std.io.read_to_string(a, map_path);
-    var records = try mapping.split(a, b'\n');
-    var lines = try diagnostic.split(a, b'\n');
-    var needle = try generated.clone(a);
-    try needle.append(":");
+    var result = String("");
+    var map_path = generated.clone(a);
+    map_path.append(".map");
+    var mapping = std.io.read_to_string(a, map_path);
+    var records = mapping.split(a, b'\n');
+    var lines = diagnostic.split(a, b'\n');
+    var needle = generated.clone(a);
+    needle.append(":");
     for (var line: ref String in lines) {
       var begin = match line.find(needle) {
         Option.Some(index) => index + needle.length(),
@@ -69,24 +69,28 @@ module build_diagnostics {
       }
       var end = begin;
       while (end < line.length()) {
-        var c = match line.at(end) {
-          AccessResult.Ok(c) => c,
-          AccessResult.OutOfBounds(_) => 0
-        };
+        var c: u8 = 0;
+
+        try {
+          c = line.at(end);
+        } catch (error: std.IndexOutOfBoundsError) {
+          c = 0;
+        }
+
         if (c < 48 or c > 57) {
           break;
         }
         end += 1;
       }
-      var digits = try slice(line, begin, end - begin);
+      var digits = slice(line, begin, end - begin);
       var generated_line = match digits.parse_i64() {
         Option.Some(value) => value,
         Option.None => 0
       };
       var offset: i64 = -1;
-      var mapped_file = try original.clone(a);
+      var mapped_file = original.clone(a);
       for (var record: ref String in records) {
-        var fields = try record.split(a, b'\t');
+        var fields = record.split(a, b'\t');
         if (fields.size() < 2) {
           continue;
         }
@@ -102,18 +106,18 @@ module build_diagnostics {
           Option.None => -1
         };
         if (fields.size() >= 3) {
-          mapped_file = try fields[2].clone(a);
+          mapped_file = fields[2].clone(a);
         }
       }
       if (offset >= 0) {
-        var input = try std.io.read_to_string(a, mapped_file);
-        var source = try location(mapped_file, input, offset);
-        try result.append(
-          try `${source}: generated Sun diagnostic above refers to this declaration\n`
+        var input = std.io.read_to_string(a, mapped_file);
+        var source = location(mapped_file, input, offset);
+        result.append(
+          `${source}: generated Sun diagnostic above refers to this declaration\n`
         );
       }
     }
-    return SystemResult.Ok(result);
+    return result;
   }
 
   /** Prints additional XML locations without replacing the original compiler diagnostic. */
@@ -121,9 +125,9 @@ module build_diagnostics {
     diagnostic: const ref String,
     generated: ref String,
     original: ref String
-  ) SystemResult<void> {
-    var messages = try mapped(diagnostic, generated, original);
+  ) void throws {
+    var messages = mapped(diagnostic, generated, original);
     std.io.eprint(messages);
-    return SystemResult.Ok;
+    return;
   }
 }

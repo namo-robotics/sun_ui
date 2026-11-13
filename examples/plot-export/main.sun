@@ -1,26 +1,33 @@
 using std;
 
 /** Writes the scientific example as a portable vector figure. */
-function main() AllocationResult<i32> {
-  return AllocationResult.Ok(
-    match export_plot() {
-      SystemResult.Ok => 0,
-      (error: const ref IError) => {
-        std.io.eprintln(try error.message());
-        return AllocationResult.Ok(1);
-      }
-    }
-  );
+function main() i32 throws {
+  try {
+    export_plot();
+    return 0;
+  } catch (error: std.Error) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.AllocationError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.InvalidArgumentError) {
+    std.io.eprintln(error.message());
+    return 1;
+  } catch (error: std.OverflowError) {
+    std.io.eprintln(error.message());
+    return 1;
+  }
 }
 
 /** Generates an SVG in the build directory without requiring a graphical display. */
-function export_plot() SystemResult<void> {
-  var figure = try plot_example.figure();
-  var drawing = try figure.draw(1440.0, 1100.0);
-  var path = try String("build/scientific-plot.svg");
-  try drawing.save(path);
+function export_plot() void throws {
+  var figure = plot_example.figure();
+  var drawing = figure.draw(1440.0, 1100.0);
+  var path = String("build/scientific-plot.svg");
+  drawing.save(path);
   std.io.println("Wrote build/scientific-plot.svg");
-  return SystemResult.Ok;
+  return;
 }
 
 manifest {

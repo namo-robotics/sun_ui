@@ -34,10 +34,8 @@ public module ui_gtk {
   }
 
   /** Encodes a packed RGB color using numeric CSS channels. */
-  function color(value: i64) AllocationResult<String> {
-    return AllocationResult.Ok(
-      try `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`
-    );
+  function color(value: i64) String throws {
+    return `rgb(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255})`;
   }
 
   /** Emits one validated appearance with a fixed interaction selector. */
@@ -45,74 +43,74 @@ public module ui_gtk {
     output: ref String,
     selector: static_ptr<u8>,
     value: const ref ui.Appearance
-  ) AllocationResult<void> {
-    try output.append(selector);
-    try output.append(" {");
+  ) void throws {
+    output.append(selector);
+    output.append(" {");
     if (value.foreground >= 0) {
-      try output.append("color:");
-      try output.append(try color(value.foreground));
-      try output.append(";");
+      output.append("color:");
+      output.append(color(value.foreground));
+      output.append(";");
     }
     if (value.background >= 0) {
-      try output.append("background-color:");
-      try output.append(try color(value.background));
-      try output.append(";background-image:none;");
+      output.append("background-color:");
+      output.append(color(value.background));
+      output.append(";background-image:none;");
     }
     if (not value.font.is_empty()) {
-      try output.append("font-family:\"");
-      try output.append(value.font);
-      try output.append("\";");
+      output.append("font-family:\"");
+      output.append(value.font);
+      output.append("\";");
     }
     if (value.font_size > 0) {
-      try output.append("font-size:");
-      try output.append(value.font_size);
-      try output.append("px;");
+      output.append("font-size:");
+      output.append(value.font_size);
+      output.append("px;");
     }
     if (value.border_width >= 0) {
-      try output.append("border-width:");
-      try output.append(value.border_width);
-      try output.append("px;box-shadow:none;");
+      output.append("border-width:");
+      output.append(value.border_width);
+      output.append("px;box-shadow:none;");
       if (value.border_width == 0) {
-        try output.append("outline:none;transition:none;");
+        output.append("outline:none;transition:none;");
       }
     }
     if (value.radius >= 0) {
-      try output.append("border-radius:");
-      try output.append(value.radius);
-      try output.append("px;");
+      output.append("border-radius:");
+      output.append(value.radius);
+      output.append("px;");
     }
     if (value.padding >= 0) {
-      try output.append("padding:");
-      try output.append(value.padding);
-      try output.append("px;");
+      output.append("padding:");
+      output.append(value.padding);
+      output.append("px;");
     }
-    try output.append("}\n");
+    output.append("}\n");
 
-    return AllocationResult.Ok;
+    return;
   }
 
   /** Keeps button keyboard-focus feedback distinct from pointer hover and click focus. */
-  function stylesheet(style: const ref ui.Style, kind: ui.Kind) AllocationResult<String> {
-    var css = try String("");
-    try appearance(css, "*", style.normal);
-    try appearance(css, "*:hover", style.hover);
-    try appearance(
+  function stylesheet(style: const ref ui.Style, kind: ui.Kind) String throws {
+    var css = String("");
+    appearance(css, "*", style.normal);
+    appearance(css, "*:hover", style.hover);
+    appearance(
       css,
       kind == ui.Kind.Button ? "*:focus-visible" : "*:focus, *:focus-within",
       style.focus
     );
-    try appearance(css, "*:disabled", style.disabled);
+    appearance(css, "*:disabled", style.disabled);
     if (style.normal.border_width == 0) {
-      try css.append(
+      css.append(
         "* button, * entry, * text {border:none;outline:none;box-shadow:none;transition:none;background-image:none;background-color:inherit;color:inherit;}\n"
       );
     }
     if (style.normal.radius == 0) {
-      try css.append(
+      css.append(
         "* button, * entry, * text, * check, * trough, * slider, * popover contents {border-radius:0;}\n"
       );
     }
-    return AllocationResult.Ok(css);
+    return css;
   }
 
   /** Owns a heterogeneous widget, its subscription, and placement metadata. */
@@ -139,8 +137,8 @@ public module ui_gtk {
       element: const ref ui.Element,
       events: ref gtk.EventQueue,
       widget: gtk.Widget
-    ) SystemResult<void> {
-      this.applied_style = try ui.Style();
+    ) throws {
+      this.applied_style = ui.Style();
 
       var a = make_heap_allocator();
       this.identity = identity;
@@ -148,55 +146,55 @@ public module ui_gtk {
       this.widget = widget;
       this.viewport_id = element.viewport_id;
       this.drawing_id = element.drawing_id;
-      this.choices = try Vec<ui.Choice>(a, 4);
-      this.subscriptions = try Vec<gtk.RegistrationId>(a, 4);
-      try this.apply(element);
+      this.choices = Vec<ui.Choice>(a, 4);
+      this.subscriptions = Vec<gtk.RegistrationId>(a, 4);
+      this.apply(element);
       if (element.kind == ui.Kind.Button or element.kind == ui.Kind.TextInput or
         element.kind == ui.Kind.Checkbox or element.kind == ui.Kind.Select or
         element.kind == ui.Kind.Video) {
-        try this.subscriptions.push(try events.on_widget(this.widget));
+        this.subscriptions.push(events.on_widget(this.widget));
       }
     }
 
     /** Applies controlled values and common properties through checked APIs. */
-    method apply(element: const ref ui.Element) SystemResult<void> {
+    method apply(element: const ref ui.Element) void throws {
       var a = make_heap_allocator();
       if (element.kind == ui.Kind.Button or element.kind == ui.Kind.Label or
         element.kind == ui.Kind.TextInput or element.kind == ui.Kind.Checkbox) {
-        var text = try element.text.clone(a);
-        try this.widget.set_text(text);
+        var text = element.text.clone(a);
+        this.widget.set_text(text);
       }
-      var tooltip = try element.tooltip.clone(a);
-      var icon = try element.icon.clone(a);
-      try this.widget.hint(tooltip, icon);
+      var tooltip = element.tooltip.clone(a);
+      var icon = element.icon.clone(a);
+      this.widget.hint(tooltip, icon);
       if (element.kind == ui.Kind.Image) {
-        var path = try element.text.clone(a);
-        try this.widget.image(path);
+        var path = element.text.clone(a);
+        this.widget.image(path);
       }
       if (element.kind == ui.Kind.Video) {
         this.widget.media_trim_controls(element.trim_controls);
-        try this.widget.media_frame_rate(element.frame_rate_num, element.frame_rate_den);
-        var path = try element.text.clone(a);
-        try this.widget.media(
+        this.widget.media_frame_rate(element.frame_rate_num, element.frame_rate_den);
+        var path = element.text.clone(a);
+        this.widget.media(
           path,
           element.duration,
           element.trim_start,
           element.trim_end,
           element.position
         );
-        var ranges = try String("");
+        var ranges = String("");
         for (var i: i64 = 0; i < element.trim_ranges.size(); i += 1) {
           if (i > 0) {
-            try ranges.append(";");
+            ranges.append(";");
           }
-          try ranges.append(
-            try `${element.trim_ranges[i].id},${element.trim_ranges[i].start},${element.trim_ranges[i].end}`
+          ranges.append(
+            `${element.trim_ranges[i].id},${element.trim_ranges[i].start},${element.trim_ranges[i].end}`
           );
         }
-        try this.widget.media_ranges(ranges, element.active_range);
+        this.widget.media_ranges(ranges, element.active_range);
       }
       if (element.kind == ui.Kind.Checkbox) {
-        try this.widget.set_value(element.checked ? 1 : 0);
+        this.widget.set_value(element.checked ? 1 : 0);
       }
       if (element.kind == ui.Kind.Select) {
         var changed = this.choices.size() != element.choices.size();
@@ -209,34 +207,34 @@ public module ui_gtk {
           }
         }
         if (changed) {
-          try this.widget.clear_options();
+          this.widget.clear_options();
           this.choices.clear();
           for (var i: i64 = 0; i < element.choices.size(); i += 1) {
-            var text = try element.choices[i].text.clone(a);
-            var key = try element.choices[i].key.encoded();
-            try this.widget.add_option(text, key);
-            try this.choices.push(
+            var text = element.choices[i].text.clone(a);
+            var key = element.choices[i].key.encoded();
+            this.widget.add_option(text, key);
+            this.choices.push(
               ui.Choice(
-                try element.choices[i].key.clone(a),
-                try element.choices[i].text.clone(a)
+                element.choices[i].key.clone(a),
+                element.choices[i].text.clone(a)
               )
             );
           }
         }
-        try this.widget.set_value(_convert<i32>(element.selected));
+        this.widget.set_value(_convert<i32>(element.selected));
       }
       if (element.kind == ui.Kind.Grid) {
-        try this.widget.track(false, 0, 0, true);
-        try this.widget.track(true, 0, 0, true);
+        this.widget.track(false, 0, 0, true);
+        this.widget.track(true, 0, 0, true);
         if (element.rows.size() == 0) {
-          try this.widget.track(false, 0, 0, false);
+          this.widget.track(false, 0, 0, false);
         }
         if (element.columns.size() == 0) {
-          try this.widget.track(true, 0, 0, false);
+          this.widget.track(true, 0, 0, false);
         }
         for (var i: i64 = 0; i < element.rows.size(); i += 1) {
           var track = element.rows[i];
-          try this.widget.track(
+          this.widget.track(
             false,
             track.kind == ui.TrackKind.Auto ? 0 : (track.kind == ui.TrackKind.Fixed ? 1 : 2),
             track.value,
@@ -245,7 +243,7 @@ public module ui_gtk {
         }
         for (var i: i64 = 0; i < element.columns.size(); i += 1) {
           var track = element.columns[i];
-          try this.widget.track(
+          this.widget.track(
             true,
             track.kind == ui.TrackKind.Auto ? 0 : (track.kind == ui.TrackKind.Fixed ? 1 : 2),
             track.value,
@@ -254,10 +252,10 @@ public module ui_gtk {
         }
       }
       if (not this.styled or not this.applied_style.equals(element.style)) {
-        var css = try stylesheet(element.style, element.kind);
-        try this.widget.style(css);
-        this.applied_style = try ui.Style();
-        try this.applied_style.overlay(element.style);
+        var css = stylesheet(element.style, element.kind);
+        this.widget.style(css);
+        this.applied_style = ui.Style();
+        this.applied_style.overlay(element.style);
         this.styled = true;
       }
       this.row = element.row;
@@ -322,36 +320,36 @@ public module ui_gtk {
     public var removals: i64 = 0;
 
     /** Prepares a window shown after its first completed render, using the default application identifier. */
-    init(title: ref String) SystemResult<void> {
+    init(title: ref String) throws {
       var a = make_heap_allocator();
-      var id = try String("org.sunlang.UIPrototype");
-      this.app = try gtk.Application(id);
+      var id = String("org.sunlang.UIPrototype");
+      this.app = gtk.Application(id);
       this.window = gtk.Window(this.app);
-      this.root = try gtk.Widget(2);
-      this.controls = try Vec<Control>(a, 8);
-      this.viewports = try Vec<ViewportRegistration>(a, 4);
-      this.drawings = try Vec<DrawingRegistration>(a, 4);
-      try this.root.properties(true, true, 0, -1, -1, 0, 0, false, false, 8);
-      try this.window.set_widget(this.root);
-      this.events = try gtk.EventQueue(this.app);
-      try this.window.set_title(title);
-      try this.window.set_default_size(440, 360);
+      this.root = gtk.Widget(2);
+      this.controls = Vec<Control>(a, 8);
+      this.viewports = Vec<ViewportRegistration>(a, 4);
+      this.drawings = Vec<DrawingRegistration>(a, 4);
+      this.root.properties(true, true, 0, -1, -1, 0, 0, false, false, 8);
+      this.window.set_widget(this.root);
+      this.events = gtk.EventQueue(this.app);
+      this.window.set_title(title);
+      this.window.set_default_size(440, 360);
     }
 
     /** Prepares a window shown after its first completed render, with an owned application identifier. */
-    init(title: ref String, id: String) SystemResult<void> {
+    init(title: ref String, id: String) throws {
       var a = make_heap_allocator();
-      this.app = try gtk.Application(id);
+      this.app = gtk.Application(id);
       this.window = gtk.Window(this.app);
-      this.root = try gtk.Widget(2);
-      this.controls = try Vec<Control>(a, 8);
-      this.viewports = try Vec<ViewportRegistration>(a, 4);
-      this.drawings = try Vec<DrawingRegistration>(a, 4);
-      try this.root.properties(true, true, 0, -1, -1, 0, 0, false, false, 8);
-      try this.window.set_widget(this.root);
-      this.events = try gtk.EventQueue(this.app);
-      try this.window.set_title(title);
-      try this.window.set_default_size(440, 360);
+      this.root = gtk.Widget(2);
+      this.controls = Vec<Control>(a, 8);
+      this.viewports = Vec<ViewportRegistration>(a, 4);
+      this.drawings = Vec<DrawingRegistration>(a, 4);
+      this.root.properties(true, true, 0, -1, -1, 0, 0, false, false, 8);
+      this.window.set_widget(this.root);
+      this.events = gtk.EventQueue(this.app);
+      this.window.set_title(title);
+      this.window.set_default_size(440, 360);
     }
 
     /** Disconnects subscriptions before closing the window. */
@@ -383,41 +381,38 @@ public module ui_gtk {
     }
 
     /** Registers an independently retained surface before a view mounts it. */
-    public method register_viewport(id: i64, area: gtk.GLArea) SystemResult<void> {
+    public method register_viewport(id: i64, area: gtk.GLArea) void throws {
       if (id <= 0) {
-        return SystemResult.Error(Error(1, "Viewport identifier must be positive"));
+        throw Error(1, "Viewport identifier must be positive");
       }
       for (var i: i64 = 0; i < this.viewports.size(); i += 1) {
         if (this.viewports[i].id == id or this.viewports[i].area.same(area)) {
-          return SystemResult.Error(
-            Error(1, "Viewport identifier or surface is already registered")
-          );
+          throw Error(1, "Viewport identifier or surface is already registered");
         }
       }
-      try this.viewports.push(ViewportRegistration(id, area));
-      return SystemResult.Ok;
+      this.viewports.push(ViewportRegistration(id, area));
+      return;
     }
 
     /** Returns an explicitly retained surface for redraw and native status access. */
-    public method viewport(id: i64) SystemResult<gtk.GLArea> {
+    public method viewport(id: i64) gtk.GLArea throws {
       var index = this.viewport_index(id);
       if (index < 0) {
-        return SystemResult.Error(Error(1, "Unknown viewport identifier"));
+        throw Error(1, "Unknown viewport identifier");
       }
-      return SystemResult.Ok(gtk.GLArea(this.viewports[index].area));
+      return gtk.GLArea(this.viewports[index].area);
     }
 
     /** Releases an unmounted registration; mounted surfaces must first leave the tree. */
-    public method unregister_viewport(id: i64) SystemResult<void> {
+    public method unregister_viewport(id: i64) void throws {
       var index = this.viewport_index(id);
       if (index < 0 or this.viewports[index].mounted != 0) {
-        return SystemResult.Error(Error(1, "Viewport is missing or still mounted"));
+        throw Error(1, "Viewport is missing or still mounted");
       }
-      match this.viewports.remove(index) {
-        AccessResult.Ok(_) => {},
-        AccessResult.OutOfBounds(_) => {}
-      };
-      return SystemResult.Ok;
+      try {
+        this.viewports.remove(index);
+      } catch (error: std.IndexOutOfBoundsError) {}
+      return;
     }
 
     /** Finds a registered application-owned drawing identifier. */
@@ -431,87 +426,82 @@ public module ui_gtk {
     }
 
     /** Registers an independently retained surface before a view mounts it. */
-    public method register_drawing(id: i64, area: gtk.DrawingArea) SystemResult<void> {
+    public method register_drawing(id: i64, area: gtk.DrawingArea) void throws {
       if (id <= 0) {
-        return SystemResult.Error(Error(1, "Drawing identifier must be positive"));
+        throw Error(1, "Drawing identifier must be positive");
       }
       for (var i: i64 = 0; i < this.drawings.size(); i += 1) {
         if (this.drawings[i].id == id or this.drawings[i].area.same(area)) {
-          return SystemResult.Error(
-            Error(1, "Drawing identifier or surface is already registered")
-          );
+          throw Error(1, "Drawing identifier or surface is already registered");
         }
       }
-      try this.drawings.push(DrawingRegistration(id, area));
-      return SystemResult.Ok;
+      this.drawings.push(DrawingRegistration(id, area));
+      return;
     }
 
     /** Returns an explicitly retained surface for redraw and native status access. */
-    public method drawing(id: i64) SystemResult<gtk.DrawingArea> {
+    public method drawing(id: i64) gtk.DrawingArea throws {
       var index = this.drawing_index(id);
       if (index < 0) {
-        return SystemResult.Error(Error(1, "Unknown drawing identifier"));
+        throw Error(1, "Unknown drawing identifier");
       }
-      return SystemResult.Ok(gtk.DrawingArea(this.drawings[index].area));
+      return gtk.DrawingArea(this.drawings[index].area);
     }
 
     /** Releases an unmounted registration; mounted surfaces must first leave the tree. */
-    public method unregister_drawing(id: i64) SystemResult<void> {
+    public method unregister_drawing(id: i64) void throws {
       var index = this.drawing_index(id);
       if (index < 0 or this.drawings[index].mounted != 0) {
-        return SystemResult.Error(Error(1, "Drawing is missing or still mounted"));
+        throw Error(1, "Drawing is missing or still mounted");
       }
-      match this.drawings.remove(index) {
-        AccessResult.Ok(_) => {},
-        AccessResult.OutOfBounds(_) => {}
-      };
-      return SystemResult.Ok;
+      try {
+        this.drawings.remove(index);
+      } catch (error: std.IndexOutOfBoundsError) {}
+      return;
     }
 
     /** Creates an owned typed control and any native edit subscription. */
-    public method create(identity: u64, element: const ref ui.Element) SystemResult<void> {
+    public method create(identity: u64, element: const ref ui.Element) void throws {
       if (element.kind == ui.Kind.Viewport) {
         var index = this.viewport_index(element.viewport_id);
         if (index < 0 or this.viewports[index].mounted != 0) {
-          return SystemResult.Error(Error(1, "Viewport is missing or already mounted"));
+          throw Error(1, "Viewport is missing or already mounted");
         }
-        try this.controls.push(
-          try Control(identity, element, this.events, gtk.Widget(this.viewports[index].area))
+        this.controls.push(
+          Control(identity, element, this.events, gtk.Widget(this.viewports[index].area))
         );
 
         this.viewports[index].mounted = identity;
       } else if (element.kind == ui.Kind.Drawing) {
         var index = this.drawing_index(element.drawing_id);
         if (index < 0 or this.drawings[index].mounted != 0) {
-          return SystemResult.Error(Error(1, "Drawing is missing or already mounted"));
+          throw Error(1, "Drawing is missing or already mounted");
         }
-        try this.controls.push(
-          try Control(identity, element, this.events, gtk.Widget(this.drawings[index].area))
+        this.controls.push(
+          Control(identity, element, this.events, gtk.Widget(this.drawings[index].area))
         );
 
         this.drawings[index].mounted = identity;
       } else {
-        try this.controls.push(
-          try Control(identity, element, this.events, try gtk.Widget(widget_kind(element.kind)))
+        this.controls.push(
+          Control(identity, element, this.events, gtk.Widget(widget_kind(element.kind)))
         );
       }
       this.creates += 1;
-      return SystemResult.Ok;
+      return;
     }
 
     /** Applies changed properties or restores a rejected controlled edit. */
-    public method update(identity: u64, element: const ref ui.Element) SystemResult<void> {
+    public method update(identity: u64, element: const ref ui.Element) void throws {
       var index = this.index(identity);
       if (index < 0) {
-        return SystemResult.Error(Error(1, "Unknown GTK control"));
+        throw Error(1, "Unknown GTK control");
       }
       if (element.kind == ui.Kind.Viewport and
         this.controls[index].viewport_id != element.viewport_id) {
         var next = this.viewport_index(element.viewport_id);
         if (next < 0 or this.viewports[next].mounted != 0) {
-          return SystemResult.Error(
-            Error(1, "Replacement viewport is missing or already mounted")
-          );
+          throw Error(1, "Replacement viewport is missing or already mounted");
         }
         var old = this.viewport_index(this.controls[index].viewport_id);
         this.controls[index].widget.detach();
@@ -527,9 +517,7 @@ public module ui_gtk {
         this.controls[index].drawing_id != element.drawing_id) {
         var next = this.drawing_index(element.drawing_id);
         if (next < 0 or this.drawings[next].mounted != 0) {
-          return SystemResult.Error(
-            Error(1, "Replacement drawing is missing or already mounted")
-          );
+          throw Error(1, "Replacement drawing is missing or already mounted");
         }
         var old = this.drawing_index(this.controls[index].drawing_id);
         this.controls[index].widget.detach();
@@ -541,24 +529,24 @@ public module ui_gtk {
         this.controls[index].styled = false;
         this.drawings[next].mounted = identity;
       }
-      (try this.controls[index].apply(element));
+      (this.controls[index].apply(element));
       this.updates += 1;
-      return SystemResult.Ok;
+      return;
     }
 
     /** Records logical placement for completion after all sibling scopes are known. */
-    public method place(identity: u64, parent: u64, previous: u64) SystemResult<void> {
+    public method place(identity: u64, parent: u64, previous: u64) void throws {
       var i = this.index(identity);
       if (i < 0) {
-        return SystemResult.Error(Error(1, "Unknown GTK placement identity"));
+        throw Error(1, "Unknown GTK placement identity");
       }
       this.controls[i].parent = parent;
       this.controls[i].previous = previous;
-      return SystemResult.Ok;
+      return;
     }
 
     /** Places scoped siblings while flattening logical groups into their physical parent. */
-    method layout(scope: u64, parent: u64, previous: u64) SystemResult<u64> {
+    method layout(scope: u64, parent: u64, previous: u64) u64 throws {
       var logical_previous: u64 = 0;
       var native_previous = previous;
       for (var count: i64 = 0; count < this.controls.size(); count += 1) {
@@ -575,7 +563,7 @@ public module ui_gtk {
         var identity = this.controls[index].identity;
         logical_previous = identity;
         if (this.controls[index].kind == ui.Kind.Group) {
-          native_previous = try this.layout(identity, parent, native_previous);
+          native_previous = this.layout(identity, parent, native_previous);
           continue;
         }
         var p = this.index(parent);
@@ -583,7 +571,7 @@ public module ui_gtk {
         var child = this.controls[index];
         if (parent == 0) {
           if (before < 0) {
-            try this.root.place_first(
+            this.root.place_first(
               child.widget,
               child.row,
               child.column,
@@ -591,7 +579,7 @@ public module ui_gtk {
               child.column_span
             );
           } else {
-            try this.root.place_after(
+            this.root.place_after(
               child.widget,
               this.controls[before].widget,
               child.row,
@@ -602,10 +590,10 @@ public module ui_gtk {
           }
         } else {
           if (p < 0) {
-            return SystemResult.Error(Error(1, "Unknown GTK parent"));
+            throw Error(1, "Unknown GTK parent");
           }
           if (before < 0) {
-            try this.controls[p].widget.place_first(
+            this.controls[p].widget.place_first(
               child.widget,
               child.row,
               child.column,
@@ -613,7 +601,7 @@ public module ui_gtk {
               child.column_span
             );
           } else {
-            try this.controls[p].widget.place_after(
+            this.controls[p].widget.place_after(
               child.widget,
               this.controls[before].widget,
               child.row,
@@ -623,20 +611,20 @@ public module ui_gtk {
             );
           }
         }
-        try this.layout(identity, identity, 0);
+        this.layout(identity, identity, 0);
         native_previous = identity;
       }
-      return SystemResult.Ok(native_previous);
+      return native_previous;
     }
 
     /** Completes native placement and presents the initial tree with its configured window size. */
-    public method finish() SystemResult<void> {
-      try this.layout(0, 0, 0);
+    public method finish() void throws {
+      this.layout(0, 0, 0);
       if (not this.presented) {
-        try this.window.present();
+        this.window.present();
         this.presented = true;
       }
-      return SystemResult.Ok;
+      return;
     }
 
     /** Disconnects and detaches one node after its descendants are removed. */
@@ -646,7 +634,9 @@ public module ui_gtk {
         return;
       }
       if (this.controls[index].subscriptions.size() > 0) {
-        ignore_error(this.events.disconnect(this.controls[index].subscriptions[0]));
+        try {
+          this.events.disconnect(this.controls[index].subscriptions[0]);
+        } catch {}
       }
       this.controls[index].widget.detach();
       if (this.controls[index].kind == ui.Kind.Viewport) {
@@ -661,10 +651,9 @@ public module ui_gtk {
           this.drawings[registration].mounted = 0;
         }
       }
-      match this.controls.remove(index) {
-        AccessResult.Ok(_) => {},
-        AccessResult.OutOfBounds(_) => {}
-      };
+      try {
+        this.controls.remove(index);
+      } catch (error: std.IndexOutOfBoundsError) {}
       this.removals += 1;
     }
 
@@ -684,10 +673,10 @@ public module ui_gtk {
     }
 
     /** Converts a bounded native FIFO batch to owned semantic edit values. */
-    method collect(tree: ref ui.Tree, queue: ref ui.EventQueue) std.Result<void> {
+    method collect(tree: ref ui.Tree, queue: ref ui.EventQueue) void throws {
       var a = make_heap_allocator();
       for (var i: i64 = 0; i < 64; i += 1) {
-        match try this.events.next() {
+        match this.events.next() {
           Option.Some(event) => {
             var id = event.registration();
             for (var control: ref Control in this.controls) {
@@ -698,7 +687,7 @@ public module ui_gtk {
               if (matches) {
                 if (event.kind() == gtk.EventKind.TextChanged) {
                   if (control.kind == ui.Kind.Video) {
-                    var fields = try event.text.split(a, b':');
+                    var fields = event.text.split(a, b':');
                     if (fields.size() == 3 or fields.size() == 4) {
                       var start = match fields[0].parse_i64() {
                         Option.Some(value) => value,
@@ -720,47 +709,59 @@ public module ui_gtk {
                         };
                       }
                       if (start >= 0 and end > start and position >= 0 and range_id >= 0) {
-                        var value = try ui.EventValue(start, end, position);
+                        var value = ui.EventValue(start, end, position);
                         value.range_id = range_id;
-                        try tree.enqueue_value(control.identity, value, queue);
+                        tree.enqueue_value(control.identity, value, queue);
                       }
                     }
                   } else {
-                    try tree.enqueue_value(
+                    tree.enqueue_value(
                       control.identity,
-                      try ui.EventValue(try event.text.clone(a)),
+                      ui.EventValue(event.text.clone(a)),
                       queue
                     );
                   }
                 } else if (event.kind() == gtk.EventKind.Toggled) {
-                  try tree.enqueue_value(
+                  tree.enqueue_value(
                     control.identity,
-                    try ui.EventValue(event.value != 0),
+                    ui.EventValue(event.value != 0),
                     queue
                   );
                 } else if (event.kind() == gtk.EventKind.Selected) {
                   if (event.text.length() >= 2) {
-                    var encoded = match try sun_ui_results.substring(
-                      event.text,
-                      a,
-                      2,
-                      event.text.length() - 2
-                    ) {
-                      AccessResult.Ok(value) => value,
-                      AccessResult.OutOfBounds(_) => try String("")
+                    var encoded_outcome: std.Option<String> = std.Option.None;
+
+                    try {
+                      var value = sun_ui_results.substring(
+                        event.text,
+                        a,
+                        2,
+                        event.text.length() - 2
+                      );
+
+                      encoded_outcome = std.Option.Some(value);
+                    } catch (error: std.IndexOutOfBoundsError) {
+                      encoded_outcome = std.Option.Some(String(""));
+                    }
+
+                    var encoded = match encoded_outcome {
+                      std.Option.Some(value) => value,
+                      std.Option.None => {
+                        throw std.Error(1, "Exception handler produced no value");
+                      }
                     };
                     if (event.text.starts_with("s:")) {
-                      try tree.enqueue_value(
+                      tree.enqueue_value(
                         control.identity,
-                        try ui.EventValue(try ui.Key(encoded)),
+                        ui.EventValue(ui.Key(encoded)),
                         queue
                       );
                     } else {
                       match encoded.parse_i64() {
                         Option.Some(key) => {
-                          try tree.enqueue_value(
+                          tree.enqueue_value(
                             control.identity,
-                            try ui.EventValue(try ui.Key(key)),
+                            ui.EventValue(ui.Key(key)),
                             queue
                           );
                         },
@@ -769,7 +770,7 @@ public module ui_gtk {
                     }
                   }
                 } else {
-                  try tree.enqueue(control.identity, queue);
+                  tree.enqueue(control.identity, queue);
                 }
                 break;
               }
@@ -781,20 +782,20 @@ public module ui_gtk {
         };
       }
 
-      return std.Result.Ok;
+      return;
     }
 
     /** Services GTK and collects native events according to this adapter's batching policy. */
-    public method poll(tree: ref ui.Tree, queue: ref ui.EventQueue, block: bool) std.Result<void> {
+    public method poll(tree: ref ui.Tree, queue: ref ui.EventQueue, block: bool) void throws {
       this.events.iterate(false);
-      try this.collect(tree, queue);
+      this.collect(tree, queue);
       if (block and queue.size() == 0 and this.running()) {
         this.events.iterate(true);
-        try this.collect(tree, queue);
+        this.collect(tree, queue);
       }
       gtk.clear_gl_context();
 
-      return std.Result.Ok;
+      return;
     }
 
     /** Waits on GTK's event loop, with a bounded wakeup only for external work polling. */
@@ -802,64 +803,64 @@ public module ui_gtk {
       tree: ref ui.Tree,
       queue: ref ui.EventQueue,
       timeout_ms: u32
-    ) std.Result<void> {
+    ) void throws {
       if (queue.size() != 0 or not this.running()) {
-        return std.Result.Ok;
+        return;
       }
       if (timeout_ms == 0) {
         this.events.iterate(true);
-        try this.collect(tree, queue);
+        this.collect(tree, queue);
       } else {
-        var wakeup = try this.events.after(timeout_ms);
+        var wakeup = this.events.after(timeout_ms);
         this.events.iterate(true);
-        try this.collect(tree, queue);
-        try this.events.disconnect(wakeup);
+        this.collect(tree, queue);
+        this.events.disconnect(wakeup);
       }
       gtk.clear_gl_context();
-      return std.Result.Ok;
+      return;
     }
 
     /** Sets a preferred window size through the checked GTK binding. */
-    public method set_default_size(width: i32, height: i32) SystemResult<void> {
+    public method set_default_size(width: i32, height: i32) void throws {
       return this.window.set_default_size(width, height);
     }
 
     /** Opens a local input chooser parented to this renderer's window. */
-    public method choose_input() SystemResult<void> {
-      var title = try String("Open file");
+    public method choose_input() void throws {
+      var title = String("Open file");
       return this.open_dialog.show(this.window, title);
     }
 
     /** Opens a save chooser using a suggested output filename. */
-    public method choose_output(filename: ref String) SystemResult<void> {
-      var title = try String("Save file");
+    public method choose_output(filename: ref String) void throws {
+      var title = String("Save file");
       return this.save_dialog.show(this.window, title, filename);
     }
 
     /** Consumes a chosen input path once without exposing platform handles. */
-    public method take_input_path() SystemResult<Option<String>> {
+    public method take_input_path() Option<String> throws {
       return this.open_dialog.take_path();
     }
 
     /** Consumes a chosen output path once without exposing platform handles. */
-    public method take_output_path() SystemResult<Option<String>> {
+    public method take_output_path() Option<String> throws {
       return this.save_dialog.take_path();
     }
 
     /** Exercises native timeline gestures through a mounted video control. */
-    public method drag_media(identity: u64, start: f64, end: f64) SystemResult<void> {
+    public method drag_media(identity: u64, start: f64, end: f64) void throws {
       var index = this.index(identity);
       if (index < 0) {
-        return SystemResult.Error(Error(1, "Unknown media control"));
+        throw Error(1, "Unknown media control");
       }
       return this.controls[index].widget.drag_media(start, end);
     }
 
     /** Exercises one arrow-key edit on the selected bar or playhead of a mounted video. */
-    public method step_media(identity: u64, direction: i32) SystemResult<void> {
+    public method step_media(identity: u64, direction: i32) void throws {
       var index = this.index(identity);
       if (index < 0) {
-        return SystemResult.Error(Error(1, "Unknown media control"));
+        throw Error(1, "Unknown media control");
       }
       return this.controls[index].widget.step_media(direction);
     }
@@ -910,10 +911,10 @@ public module ui_gtk {
     }
 
     /** Simulates native editable input without bypassing event capture. */
-    public method edit(identity: u64, text: ref String, value: i32) SystemResult<void> {
+    public method edit(identity: u64, text: ref String, value: i32) void throws {
       var i = this.index(identity);
       if (i < 0) {
-        return SystemResult.Error(Error(1, "Unknown editable identity"));
+        throw Error(1, "Unknown editable identity");
       }
       return this.controls[i].widget.edit(text, value);
     }

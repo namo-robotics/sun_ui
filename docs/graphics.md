@@ -61,7 +61,7 @@ shader variables may be released after submission. CPU assets are retained;
 programs and buffers are cached separately for each context and unused entries
 are evicted after a successful frame. Context recreation rebuilds GPU resources
 from the retained descriptions. Context errors and shader diagnostics are exposed
-through host `error()` methods; SDL render errors also return `SystemResult.Error`.
+through host `error()` methods; SDL render failures throw `std.Error`.
 
 ## Register an embedded viewport
 

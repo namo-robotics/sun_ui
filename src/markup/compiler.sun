@@ -25,12 +25,12 @@ public module markup {
     var offset: i64;
 
     /** Allocates attribute storage for a validated XML element. */
-    init(name: String, parent: i64, offset: i64) std.AllocationResult<void> {
+    init(name: String, parent: i64, offset: i64) throws {
       var a = make_heap_allocator();
       this.name = name;
       this.parent = parent;
       this.offset = offset;
-      this.attributes = try Vec<Attribute>(a, 4);
+      this.attributes = Vec<Attribute>(a, 4);
     }
 
     /** Compares an attribute without allocating a temporary during declaration lookup. */
@@ -44,41 +44,45 @@ public module markup {
     }
 
     /** Copies an attribute value, using an empty string for absence. */
-    const method attr(name: static_ptr<u8>) std.AllocationResult<String> {
+    const method attr(name: static_ptr<u8>) String throws {
       var a = make_heap_allocator();
       for (var i: i64 = 0; i < this.attributes.size(); i += 1) {
         if (this.attributes[i].name.equals_literal(name)) {
-          return std.AllocationResult.Ok(try this.attributes[i].value.clone(a));
+          return this.attributes[i].value.clone(a);
         }
       }
-      return std.AllocationResult.Ok(try String(""));
+      return String("");
     }
   }
 
   /** Escapes a decoded XML value as a Sun string literal. */
-  function quote(value: const ref String) std.AllocationResult<String> {
-    var result = try String("\"");
+  function quote(value: const ref String) String throws {
+    var result = String("\"");
     for (var i: i64 = 0; i < value.length(); i += 1) {
-      var c = match value.at(i) {
-        AccessResult.Ok(c) => c,
-        AccessResult.OutOfBounds(_) => 0
-      };
+      var c: u8 = 0;
+
+      try {
+        c = value.at(i);
+      } catch (error: std.IndexOutOfBoundsError) {
+        c = 0;
+      }
+
       if (c == 34) {
-        try result.append("\\\"");
+        result.append("\\\"");
       } else if (c == 92) {
-        try result.append("\\\\");
+        result.append("\\\\");
       } else if (c == 10) {
-        try result.append("\\n");
+        result.append("\\n");
       } else if (c == 13) {
-        try result.append("\\r");
+        result.append("\\r");
       } else if (c == 9) {
-        try result.append("\\t");
+        result.append("\\t");
       } else {
-        try result.append_char(c);
+        result.append_char(c);
       }
     }
-    try result.append("\"");
-    return std.AllocationResult.Ok(result);
+    result.append("\"");
+    return result;
   }
 
   /** Recognizes a single Sun identifier used for generated declarations. */
@@ -87,10 +91,14 @@ public module markup {
       return false;
     }
     for (var i: i64 = 0; i < value.length(); i += 1) {
-      var c = match value.at(i) {
-        AccessResult.Ok(c) => c,
-        AccessResult.OutOfBounds(_) => 0
-      };
+      var c: u8 = 0;
+
+      try {
+        c = value.at(i);
+      } catch (error: std.IndexOutOfBoundsError) {
+        c = 0;
+      }
+
       if (not ((c >= 65 and c <= 90) or (c >= 97 and c <= 122) or c == 95 or
         (i > 0 and c >= 48 and c <= 57))) {
         return false;
@@ -100,53 +108,53 @@ public module markup {
   }
 
   /** Recognizes a qualified Sun function name without permitting executable code. */
-  function qualified(value: const ref String) std.AllocationResult<bool> {
+  function qualified(value: const ref String) bool throws {
     var a = make_heap_allocator();
-    var parts = try value.split(a, b'.');
+    var parts = value.split(a, b'.');
     if (parts.size() == 0) {
-      return std.AllocationResult.Ok(false);
+      return false;
     }
     for (var part: ref String in parts) {
       if (not identifier(part)) {
-        return std.AllocationResult.Ok(false);
+        return false;
       }
     }
-    return std.AllocationResult.Ok(true);
+    return true;
   }
 
   /** Restricts markup dependencies to relative files below their declaring directory. */
-  public function import_path(value: const ref String) std.AllocationResult<bool> {
+  public function import_path(value: const ref String) bool throws {
     if (value.starts_with("/") or not value.ends_with(".view.xml") or value.contains("\\")) {
-      return std.AllocationResult.Ok(false);
+      return false;
     }
     var a = make_heap_allocator();
-    var parts = try value.split(a, b'/');
+    var parts = value.split(a, b'/');
     for (var part: ref String in parts) {
       if (part.is_empty() or part.equals_literal(".") or part.equals_literal("..")) {
-        return std.AllocationResult.Ok(false);
+        return false;
       }
     }
-    return std.AllocationResult.Ok(true);
+    return true;
   }
 
   /** Extracts a whole-attribute expression or emits a typed literal. */
-  function expression(value: const ref String, string_value: bool) std.Result<String> {
+  function expression(value: const ref String, string_value: bool) String throws {
     var a = make_heap_allocator();
     if (value.starts_with("{") and value.ends_with("}")) {
-      return std.Result.Ok(
-        match try sun_ui_results.substring(value, a, 1, value.length() - 2) {
-          AccessResult.Ok(text) => text,
-          AccessResult.OutOfBounds(_) => try String("")
-        }
-      );
+      try {
+        var text = sun_ui_results.substring(value, a, 1, value.length() - 2);
+        return text;
+      } catch (error: std.IndexOutOfBoundsError) {
+        return String("");
+      }
     }
     if (string_value) {
-      var result = try String("try String(");
-      try result.append(try quote(value));
-      try result.append(")");
-      return std.Result.Ok(result);
+      var result = String("String(");
+      result.append(quote(value));
+      result.append(")");
+      return result;
     }
-    return std.Result.Ok(try value.clone(a));
+    return value.clone(a);
   }
 
   /** Tests whether a tag names a built-in UI node. */
@@ -168,11 +176,11 @@ public module markup {
     var inputs: Vec<Node>;
 
     /** Takes the component identity and allocates its typed input declarations. */
-    init(name: String, function_name: String, source: String) std.AllocationResult<void> {
+    init(name: String, function_name: String, source: String) throws {
       this.name = name;
       this.function_name = function_name;
       this.source = source;
-      this.inputs = try Vec<Node>(make_heap_allocator(), 4);
+      this.inputs = Vec<Node>(make_heap_allocator(), 4);
     }
   }
 
@@ -181,8 +189,8 @@ public module markup {
     var entries: Vec<Registration>;
 
     /** Creates an isolated registry for one application compilation. */
-    init(a: const ref HeapAllocator) std.AllocationResult<void> {
-      this.entries = try Vec<Registration>(a, 8);
+    init(a: const ref HeapAllocator) throws {
+      this.entries = Vec<Registration>(a, 8);
     }
   }
 
@@ -198,35 +206,36 @@ public module markup {
     var prepared: bool = false;
 
     /** Takes original input without normalizing offsets or retaining external borrows. */
-    init(filename: String, input: String) std.AllocationResult<void> {
-      this.output = try String("");
-      this.source_map = try String("");
+    init(filename: String, input: String) throws {
+      this.output = String("");
+      this.source_map = String("");
 
       var a = make_heap_allocator();
       this.filename = filename;
       this.input = input;
-      this.nodes = try Vec<Node>(a, 32);
-      this.imports = try Vec<String>(a, 4);
+      this.nodes = Vec<Node>(a, 32);
+      this.imports = Vec<String>(a, 4);
     }
 
     /** Formats a semantic diagnostic at an original byte offset. */
-    method failure(offset: i64, message: static_ptr<u8>) std.AllocationResult<Error> {
+    method failure(offset: i64, message: static_ptr<u8>) Error throws {
       var a = make_heap_allocator();
       var line: i64 = 1;
       var column: i64 = 1;
       for (var i: i64 = 0; i < offset; i += 1) {
-        var c = match this.input.at(i) {
-          AccessResult.Ok(c) => c,
-          AccessResult.OutOfBounds(_) => 0
-        };
+        var c: u8 = 0;
+
+        try {
+          c = this.input.at(i);
+        } catch (error: std.IndexOutOfBoundsError) {
+          c = 0;
+        }
+
         if (c == 13) {
           line += 1;
           column = 1;
         } else if (c == 10) {
-          var previous = i > 0 ? match this.input.at(i - 1) {
-            AccessResult.Ok(c) => c,
-            AccessResult.OutOfBounds(_) => 0
-          } : 0;
+          var previous = i > 0 ? this.input.at(i - 1) : 0;
           if (previous != 13) {
             line += 1;
           }
@@ -235,27 +244,27 @@ public module markup {
           column += 1;
         }
       }
-      var text = try this.filename.clone(a);
-      try text.append(":");
-      try text.append(line);
-      try text.append(":");
-      try text.append(column);
-      try text.append(": ");
-      try text.append(message);
-      return std.AllocationResult.Ok(try Error(1, text));
+      var text = this.filename.clone(a);
+      text.append(":");
+      text.append(line);
+      text.append(":");
+      text.append(column);
+      text.append(": ");
+      text.append(message);
+      return Error(1, text);
     }
 
     /** Copies one reader element while its borrow remains valid. */
-    method node(element: const ref std.xml.XmlElement, parent: i64, offset: i64) std.Result<Node> {
+    method node(element: const ref std.xml.XmlElement, parent: i64, offset: i64) Node throws {
       var a = make_heap_allocator();
-      var node = try Node(try element.name().local().clone(a), parent, offset);
+      var node = Node(element.name().local().clone(a), parent, offset);
       if (not element.name().uri().is_empty()) {
-        node.name = try String("unsupported-namespace");
+        node.name = String("unsupported-namespace");
       }
       for (var i: i64 = 0; i < element.attribute_count(); i += 1) {
-        var name = try element.attribute_name(i);
+        var name = element.attribute_name(i);
         var offset = node.offset;
-        match try element.attribute_source_span(i) {
+        match element.attribute_source_span(i) {
           Option.Some(span) => {
             offset = span.start;
           },
@@ -263,34 +272,34 @@ public module markup {
         };
         match element.attribute(name) {
           Option.Some(value) => {
-            var attribute_name = try name.local().clone(a);
+            var attribute_name = name.local().clone(a);
             if (not name.uri().is_empty()) {
-              attribute_name = try String("unsupported-namespace");
+              attribute_name = String("unsupported-namespace");
             }
-            try node.attributes.push(Attribute(attribute_name, try value.clone(a), offset));
+            node.attributes.push(Attribute(attribute_name, value.clone(a), offset));
           },
           Option.None => {}
         };
       }
-      return std.Result.Ok(node);
+      return node;
     }
 
     /** Parses exclusively through stdlib events and preserves their source spans. */
-    method parse() std.Result<void> {
+    method parse() void throws {
       var a = make_heap_allocator();
-      var reader = try std.xml.XmlReader(a, this.input);
+      var reader = std.xml.XmlReader(a, this.input);
       var parent: i64 = -1;
       while (true) {
-        match try reader.next() {
+        match reader.next() {
           Option.None => {
-            return std.Result.Ok;
+            return;
           },
           Option.Some(event) => {
             match event {
               std.xml.XmlEvent.Start(element) => {
-                var node = try this.node(element, parent, reader.source_span().start);
+                var node = this.node(element, parent, reader.source_span().start);
                 parent = this.nodes.size();
-                try this.nodes.push(node);
+                this.nodes.push(node);
               },
               std.xml.XmlEvent.End(_) => {
                 parent = this.nodes[parent].parent;
@@ -298,8 +307,8 @@ public module markup {
               std.xml.XmlEvent.Text(text) => {
                 text.trim();
                 if (not text.is_empty()) {
-                  try this.nodes.push(
-                    try Node(try String("unexpected-text"), parent, reader.source_span().start)
+                  this.nodes.push(
+                    Node(String("unexpected-text"), parent, reader.source_span().start)
                   );
                 }
               },
@@ -309,36 +318,40 @@ public module markup {
           }
         };
       }
-      return std.Result.Ok;
+      return;
     }
 
     /** Adds generated lines and their corresponding original input offsets. */
-    method emit(text: const ref String, offset: i64) std.AllocationResult<void> {
-      try this.source_map.append(this.line);
-      try this.source_map.append("\t");
-      try this.source_map.append(offset);
-      try this.source_map.append("\n");
-      try this.output.append(text);
-      try this.output.append("\n");
+    method emit(text: const ref String, offset: i64) void throws {
+      this.source_map.append(this.line);
+      this.source_map.append("\t");
+      this.source_map.append(offset);
+      this.source_map.append("\n");
+      this.output.append(text);
+      this.output.append("\n");
       this.line += 1;
       for (var i: i64 = 0; i < text.length(); i += 1) {
-        match text.at(i) {
-          AccessResult.Ok(c) => {
-            if (c == 10) {
-              this.line += 1;
-            }
-          },
-          AccessResult.OutOfBounds(_) => {}
-        };
+        var operation_completed_1 = false;
+        try {
+          var c = text.at(i);
+          operation_completed_1 = true;
+          if (c == 10) {
+            this.line += 1;
+          }
+        } catch (error: std.IndexOutOfBoundsError) {
+          if (operation_completed_1) {
+            throw;
+          }
+        }
       }
 
-      return std.AllocationResult.Ok;
+      return;
     }
 
     /** Rejects attributes outside a declaration's supported vocabulary. */
-    method attributes(index: i64, allowed: static_ptr<u8>) std.Result<void> {
+    method attributes(index: i64, allowed: static_ptr<u8>) void throws {
       var a = make_heap_allocator();
-      var names = try (try String(allowed)).split_whitespace(a);
+      var names = (String(allowed)).split_whitespace(a);
       for (var i: i64 = 0; i < this.nodes[index].attributes.size(); i += 1) {
         var found = false;
         for (var name: ref String in names) {
@@ -348,12 +361,10 @@ public module markup {
           }
         }
         if (not found) {
-          return std.Result.Error(
-            try this.failure(this.nodes[index].attributes[i].offset, "Unknown attribute")
-          );
+          throw this.failure(this.nodes[index].attributes[i].offset, "Unknown attribute");
         }
       }
-      return std.Result.Ok;
+      return;
     }
 
     /** Finds the component declaration enclosing a slot. */
@@ -381,7 +392,7 @@ public module markup {
     }
 
     /** Checks content signatures and their single unconditional insertion points. */
-    method validate_content(owner: i64) std.Result<void> {
+    method validate_content(owner: i64) void throws {
       for (var p = owner + 1; p < this.nodes.size(); p += 1) {
         if (this.nodes[p].parent != owner) {
           continue;
@@ -390,33 +401,27 @@ public module markup {
         if (not content and not this.nodes[p].name.equals_literal("Param")) {
           continue;
         }
-        var name = try this.nodes[p].attr("name");
+        var name = this.nodes[p].attr("name");
         if (not identifier(name)) {
-          return std.Result.Error(
-            try this.failure(this.nodes[p].offset, "Expected component input identifier")
-          );
+          throw this.failure(this.nodes[p].offset, "Expected component input identifier");
         }
         for (var previous = owner + 1; previous < p; previous += 1) {
           if (this.nodes[previous].parent == owner and
             (this.nodes[previous].name.equals_literal("Content") or
               this.nodes[previous].name.equals_literal("Param")) and
             this.nodes[previous].attr_equals("name", name)) {
-            return std.Result.Error(
-              try this.failure(this.nodes[p].offset, "Duplicate component input")
-            );
+            throw this.failure(this.nodes[p].offset, "Duplicate component input");
           }
         }
         if (not content) {
           continue;
         }
-        try this.attributes(p, "name");
+        this.attributes(p, "name");
         for (var nested = p + 1; nested < this.nodes.size(); nested += 1) {
           if (this.nodes[nested].parent == p) {
-            return std.Result.Error(
-              try this.failure(
-                this.nodes[nested].offset,
-                "Content declaration cannot contain children"
-              )
+            throw this.failure(
+              this.nodes[nested].offset,
+              "Content declaration cannot contain children"
             );
           }
         }
@@ -435,22 +440,18 @@ public module markup {
             var tag: const ref String = this.nodes[parent].name;
             if (tag.equals_literal("If") or tag.equals_literal("For") or
               tag.equals_literal("Else") or tag.contains(".")) {
-              return std.Result.Error(
-                try this.failure(
-                  this.nodes[slot].offset,
-                  "Content slot must have an unconditional insertion point"
-                )
+              throw this.failure(
+                this.nodes[slot].offset,
+                "Content slot must have an unconditional insertion point"
               );
             }
             parent = this.nodes[parent].parent;
           }
         }
         if (count != 1) {
-          return std.Result.Error(
-            try this.failure(
-              this.nodes[p].offset,
-              "Content requires exactly one Slot insertion point"
-            )
+          throw this.failure(
+            this.nodes[p].offset,
+            "Content requires exactly one Slot insertion point"
           );
         }
       }
@@ -459,7 +460,7 @@ public module markup {
           this.component_owner(slot) != owner) {
           continue;
         }
-        var name = try this.nodes[slot].attr("name");
+        var name = this.nodes[slot].attr("name");
         var declared = this.content_input(owner, name) >= 0;
         for (var p = owner + 1; p < this.nodes.size(); p += 1) {
           if (this.nodes[p].parent == owner and this.nodes[p].name.equals_literal("Param") and
@@ -468,21 +469,21 @@ public module markup {
           }
         }
         if (not declared) {
-          return std.Result.Error(try this.failure(this.nodes[slot].offset, "Unknown slot input"));
+          throw this.failure(this.nodes[slot].offset, "Unknown slot input");
         }
       }
-      return std.Result.Ok;
+      return;
     }
 
     /** Compiles children in source order under one UI parent expression. */
-    method children(index: i64, parent: const ref String) std.Result<void> {
+    method children(index: i64, parent: const ref String) void throws {
       var owner: const ref String = this.nodes[index].name;
       var component = owner.equals_literal("View") or owner.equals_literal("Component") or
         owner.equals_literal("Template");
       if (component) {
         for (var r = index + 1; r < this.nodes.size(); r += 1) {
           if (this.nodes[r].parent == index and this.nodes[r].name.equals_literal("Resources")) {
-            try this.resources(r, true);
+            this.resources(r, true);
           }
         }
       }
@@ -506,13 +507,13 @@ public module markup {
         if (name.equals_literal("Select.Options") and owner.equals_literal("Select")) {
           continue;
         }
-        try this.child(i, parent);
+        this.child(i, parent);
       }
-      return std.Result.Ok;
+      return;
     }
 
     /** Resolves literal template names lexically, then through application and theme dictionaries. */
-    method template_resource(index: i64, name: const ref String, theme_only: bool) std.Result<i64> {
+    method template_resource(index: i64, name: const ref String, theme_only: bool) i64 throws {
       var owner = index;
       while (owner >= 0) {
         var candidate: i64 = -1;
@@ -522,11 +523,11 @@ public module markup {
             this.nodes[dictionary].parent != owner) {
             continue;
           }
-          var key = try this.nodes[r].attr("name");
+          var key = this.nodes[r].attr("name");
           if (not key.equals(name)) {
             continue;
           }
-          var scope = try this.nodes[r].attr("scope");
+          var scope = this.nodes[r].attr("scope");
           if (theme_only and not scope.equals_literal("theme")) {
             continue;
           }
@@ -536,37 +537,33 @@ public module markup {
         }
         if (candidate >= 0) {
           if (not this.nodes[candidate].name.equals_literal("Template")) {
-            return std.Result.Error(
-              try this.failure(
-                this.nodes[candidate].offset,
-                "Resource type mismatch: expected Template"
-              )
+            throw this.failure(
+              this.nodes[candidate].offset,
+              "Resource type mismatch: expected Template"
             );
           }
-          return std.Result.Ok(candidate);
+          return candidate;
         }
         owner = this.nodes[owner].parent;
       }
-      return std.Result.Error(
-        try this.failure(this.nodes[index].offset, "Missing template resource")
-      );
+      throw this.failure(this.nodes[index].offset, "Missing template resource");
     }
 
     /** Resolves template aliases to a declared function whose parameters define the resource type. */
-    method template_target(index: i64) std.Result<i64> {
+    method template_target(index: i64) i64 throws {
       var current = index;
       for (var depth: i64 = 0; depth <= this.nodes.size(); depth += 1) {
-        var reference = try this.nodes[current].attr("ref");
+        var reference = this.nodes[current].attr("ref");
         if (not reference.is_empty()) {
-          var scope = try this.nodes[current].attr("scope");
-          current = try this.template_resource(
+          var scope = this.nodes[current].attr("scope");
+          current = this.template_resource(
             this.nodes[this.nodes[current].parent].parent,
             reference,
             scope.equals_literal("theme")
           );
           continue;
         }
-        var value = try this.nodes[current].attr("value");
+        var value = this.nodes[current].attr("value");
         for (var d: i64 = 1; d < this.nodes.size(); d += 1) {
           if (this.nodes[d].parent != 0) {
             continue;
@@ -576,51 +573,47 @@ public module markup {
             tag.equals_literal("Import"))) {
             continue;
           }
-          var name = try this.nodes[d].attr("name");
+          var name = this.nodes[d].attr("name");
           if (name.equals(value)) {
-            return std.Result.Ok(d);
+            return d;
           }
         }
-        return std.Result.Error(
-          try this.failure(
-            this.nodes[current].offset,
-            "Template resource requires a declared component function"
-          )
+        throw this.failure(
+          this.nodes[current].offset,
+          "Template resource requires a declared component function"
         );
       }
-      return std.Result.Error(
-        try this.failure(this.nodes[index].offset, "Template resource cycle")
-      );
+      throw this.failure(this.nodes[index].offset, "Template resource cycle");
     }
 
     /** Emits a typed function-valued resource; Sun checks even unused imported signatures. */
-    method template_factory(index: i64) std.Result<void> {
-      var target = try this.template_target(index);
-      var function_name = try this.nodes[target].attr("function");
+    method template_factory(index: i64) void throws {
+      var target = this.template_target(index);
+      var function_name = this.nodes[target].attr("function");
       if (function_name.is_empty()) {
-        function_name = try this.nodes[target].attr("name");
+        function_name = this.nodes[target].attr("name");
       }
-      try this.emit(
-        try String(
+      this.emit(
+        String(
           "/** Returns the typed component function stored by this template resource. */"
         ),
         this.nodes[index].offset
       );
-      var line = try `function template_resource_${index}() function (ref ui.View, i64`;
+      var line = `function template_resource_${index}() function (ref ui.View, i64`;
       for (var p = target + 1; p < this.nodes.size(); p += 1) {
         if (this.nodes[p].parent == target and this.nodes[p].name.equals_literal("Param")) {
-          var type = try this.nodes[p].attr("type");
-          try line.append(", ");
-          try line.append(type);
+          var type = this.nodes[p].attr("type");
+          line.append(", ");
+          line.append(type);
         } else if (this.nodes[p].parent == target and this.nodes[p].name.equals_literal("Content")) {
-          try line.append(", ref ui.ContentSlot");
+          line.append(", ref ui.ContentSlot");
         }
       }
-      try line.append(") SystemResult<void> { return ");
-      try line.append(function_name);
-      try line.append("; }");
-      try this.emit(line, this.nodes[index].offset);
-      return std.Result.Ok;
+      line.append(") void throws { return ");
+      line.append(function_name);
+      line.append("; }");
+      this.emit(line, this.nodes[index].offset);
+      return;
     }
 
     /** Finds the view that owns a declaration, excluding independent component definitions. */
@@ -636,36 +629,34 @@ public module markup {
     }
 
     /** Creates a deterministic route namespace separate from numeric application actions. */
-    const method action_scope(index: i64) std.AllocationResult<String> {
-      var name = try this.nodes[index].attr("name");
-      return std.AllocationResult.Ok(try `${this.filename}#${name}`);
+    const method action_scope(index: i64) String throws {
+      var name = this.nodes[index].attr("name");
+      return `${this.filename}#${name}`;
     }
 
     /** Emits queued dispatch to named functions or methods, preserving numeric fallback handling. */
-    method action_dispatch(index: i64) std.Result<void> {
-      var name = try this.nodes[index].attr("name");
-      var state = try this.nodes[index].attr("state");
-      var fallback = try this.nodes[index].attr("fallback");
-      if (not fallback.is_empty() and not try qualified(fallback)) {
-        return std.Result.Error(
-          try this.failure(this.nodes[index].offset, "Fallback requires a function name")
-        );
+    method action_dispatch(index: i64) void throws {
+      var name = this.nodes[index].attr("name");
+      var state = this.nodes[index].attr("state");
+      var fallback = this.nodes[index].attr("fallback");
+      if (not fallback.is_empty() and not qualified(fallback)) {
+        throw this.failure(this.nodes[index].offset, "Fallback requires a function name");
       }
-      try this.emit(
-        try String(
+      this.emit(
+        String(
           "/** Dispatches captured actions to typed Sun handlers after native event collection. */"
         ),
         this.nodes[index].offset
       );
-      var line = try `function ${name}_handle(state: ref ${state}, event: const ref ui.Event, queue: ref ui.EventQueue) SystemResult<void> {`;
-      try this.emit(line, this.nodes[index].offset);
-      var scope = try this.action_scope(index);
-      line = try String("var scope = ");
-      try line.append(try expression(scope, true));
-      try line.append(";");
-      try this.emit(line, this.nodes[index].offset);
-      try this.emit(
-        try String("if (event.action_scope.equals(scope)) {"),
+      var line = `function ${name}_handle(state: ref ${state}, event: const ref ui.Event, queue: ref ui.EventQueue) void throws {`;
+      this.emit(line, this.nodes[index].offset);
+      var scope = this.action_scope(index);
+      line = String("var scope = ");
+      line.append(expression(scope, true));
+      line.append(";");
+      this.emit(line, this.nodes[index].offset);
+      this.emit(
+        String("if (event.action_scope.equals(scope)) {"),
         this.nodes[index].offset
       );
       for (var n = index + 1; n < this.nodes.size(); n += 1) {
@@ -674,330 +665,315 @@ public module markup {
         }
         for (var attribute: ref Attribute in this.nodes[n].attributes) {
           if (not (attribute.name.equals_literal("action") or
-            attribute.name.equals_literal("changeAction")) or not try qualified(attribute.value)) {
+            attribute.name.equals_literal("changeAction")) or not qualified(attribute.value)) {
             continue;
           }
           var id = n * 2 + (attribute.name.equals_literal("changeAction") ? 1 : 0);
-          line = try `if (event.action == ${id}) { return `;
-          try line.append(attribute.value);
-          try line.append(
+          line = `if (event.action == ${id}) { return `;
+          line.append(attribute.value);
+          line.append(
             attribute.value.starts_with("state.") ? "(event, queue); }" : "(state, event, queue); }"
           );
-          try this.emit(line, attribute.offset);
+          this.emit(line, attribute.offset);
         }
       }
-      try this.emit(
-        try String("return SystemResult.Error(Error(1, \"Unknown generated action\")); }"),
+      this.emit(
+        String("throw Error(1, \"Unknown generated action\"); }"),
         this.nodes[index].offset
       );
-      try this.emit(
-        try String(
-          "if (not event.action_scope.is_empty()) { return SystemResult.Error(Error(1, \"Action belongs to another view\")); }"
+      this.emit(
+        String(
+          "if (not event.action_scope.is_empty()) { throw Error(1, \"Action belongs to another view\"); }"
         ),
         this.nodes[index].offset
       );
       if (fallback.is_empty()) {
-        try this.emit(try String("return SystemResult.Ok;"), this.nodes[index].offset);
+        this.emit(String("return;"), this.nodes[index].offset);
       } else {
-        line = try `return ${fallback}`;
-        try line.append(
+        line = `return ${fallback}`;
+        line.append(
           fallback.starts_with("state.") ? "(event, queue);" : "(state, event, queue);"
         );
-        try this.emit(line, this.nodes[index].offset);
+        this.emit(line, this.nodes[index].offset);
       }
-      try this.emit(try String("}"), this.nodes[index].offset);
-      return std.Result.Ok;
+      this.emit(String("}"), this.nodes[index].offset);
+      return;
     }
 
     /** Compiles a node, conditional, keyed repetition, or component call. */
-    method child(index: i64, parent: const ref String) std.Result<void> {
+    method child(index: i64, parent: const ref String) void throws {
       var a = make_heap_allocator();
       var node = this.nodes[index];
-      var invocation_tag = try node.name.clone(a);
-      var template_factory = try String("");
+      var invocation_tag = node.name.clone(a);
+      var template_factory = String("");
       if (node.name.equals_literal("Use")) {
-        var resource_name = try node.attr("template");
+        var resource_name = node.attr("template");
         if (resource_name.is_empty()) {
-          return std.Result.Error(
-            try this.failure(node.offset, "Use requires a template resource name")
-          );
+          throw this.failure(node.offset, "Use requires a template resource name");
         }
-        var resource = try this.template_resource(index, resource_name, false);
-        var target = try this.template_target(resource);
-        node.name = try this.nodes[target].attr("name");
-        template_factory = try `template_resource_${resource}`;
+        var resource = this.template_resource(index, resource_name, false);
+        var target = this.template_target(resource);
+        node.name = this.nodes[target].attr("name");
+        template_factory = `template_resource_${resource}`;
         for (var attribute: i64 = 0; attribute < node.attributes.size(); attribute += 1) {
           if (node.attributes[attribute].name.equals_literal("template")) {
-            match node.attributes.remove(attribute) {
-              AccessResult.Ok(_) => {},
-              AccessResult.OutOfBounds(_) => {}
-            };
+            try {
+              node.attributes.remove(attribute);
+            } catch (error: std.IndexOutOfBoundsError) {}
             break;
           }
         }
       }
       if (node.name.equals_literal("Slot")) {
-        try this.attributes(index, "name");
-        var name = try node.attr("name");
+        this.attributes(index, "name");
+        var name = node.attr("name");
         if (not identifier(name)) {
-          return std.Result.Error(try this.failure(node.offset, "Slot requires a parameter name"));
+          throw this.failure(node.offset, "Slot requires a parameter name");
         }
         for (var nested = index + 1; nested < this.nodes.size(); nested += 1) {
           if (this.nodes[nested].parent == index) {
-            return std.Result.Error(
-              try this.failure(this.nodes[nested].offset, "Slot cannot contain children")
-            );
+            throw this.failure(this.nodes[nested].offset, "Slot cannot contain children");
           }
         }
         var owner = this.component_owner(index);
         if (owner < 0) {
-          return std.Result.Error(
-            try this.failure(node.offset, "Slot requires a component declaration")
-          );
+          throw this.failure(node.offset, "Slot requires a component declaration");
         }
-        var line = try `${name}(result, ${parent});`;
+        var line = `${name}(result, ${parent});`;
         if (owner >= 0 and this.content_input(owner, name) >= 0) {
-          line = try `${name}.parent = try result.append(${parent}, try ui.Element(try ui.Key(try String("slot:${name}")), ui.Kind.Group));`;
+          line = `${name}.parent = result.append(${parent}, ui.Element(ui.Key(String("slot:${name}")), ui.Kind.Group));`;
         } else {
           for (var p = owner + 1; p < this.nodes.size(); p += 1) {
             if (this.nodes[p].parent == owner and this.nodes[p].name.equals_literal("Param") and
               this.nodes[p].attr_equals("name", name)) {
-              var type = try this.nodes[p].attr("type");
+              var type = this.nodes[p].attr("type");
               type.trim();
               if (not type.ends_with(" void")) {
-                line = try `try ${name}(result, ${parent});`;
+                line = `${name}(result, ${parent});`;
               }
               break;
             }
           }
         }
-        try this.emit(line, node.offset);
-        return std.Result.Ok;
+        this.emit(line, node.offset);
+        return;
       }
       if (node.name.equals_literal("If")) {
-        try this.attributes(index, "test");
-        var test = try node.attr("test");
+        this.attributes(index, "test");
+        var test = node.attr("test");
         if (test.is_empty()) {
-          return std.Result.Error(try this.failure(node.offset, "If requires test"));
+          throw this.failure(node.offset, "If requires test");
         }
-        var line = try String("if (");
-        try line.append(try expression(test, false));
-        try line.append(") {");
-        try this.emit(line, node.offset);
+        var line = String("if (");
+        line.append(expression(test, false));
+        line.append(") {");
+        this.emit(line, node.offset);
         var otherwise: i64 = -1;
         for (var i = index + 1; i < this.nodes.size(); i += 1) {
           if (this.nodes[i].parent == index) {
             if (this.nodes[i].name.equals_literal("Else")) {
               if (otherwise >= 0) {
-                return std.Result.Error(try this.failure(this.nodes[i].offset, "Duplicate Else"));
+                throw this.failure(this.nodes[i].offset, "Duplicate Else");
               }
               otherwise = i;
             } else {
               if (otherwise >= 0) {
-                return std.Result.Error(
-                  try this.failure(this.nodes[i].offset, "Else must be last")
-                );
+                throw this.failure(this.nodes[i].offset, "Else must be last");
               }
-              try this.child(i, parent);
+              this.child(i, parent);
             }
           }
         }
         if (otherwise >= 0) {
-          try this.attributes(otherwise, "");
-          try this.emit(try String("} else {"), this.nodes[otherwise].offset);
-          try this.children(otherwise, parent);
+          this.attributes(otherwise, "");
+          this.emit(String("} else {"), this.nodes[otherwise].offset);
+          this.children(otherwise, parent);
         }
-        try this.emit(try String("}"), node.offset);
-        return std.Result.Ok;
+        this.emit(String("}"), node.offset);
+        return;
       }
       if (node.name.equals_literal("For")) {
-        try this.attributes(index, "each in key");
-        var each = try node.attr("each");
-        var collection = try node.attr("in");
-        var key = try node.attr("key");
+        this.attributes(index, "each in key");
+        var each = node.attr("each");
+        var collection = node.attr("in");
+        var key = node.attr("key");
         if (not identifier(each) or collection.is_empty() or key.is_empty()) {
-          return std.Result.Error(
-            try this.failure(node.offset, "For requires each, in, and stable key")
-          );
+          throw this.failure(node.offset, "For requires each, in, and stable key");
         }
-        var items = try `items_${index}`;
-        var cursor = try `index_${index}`;
-        var scope = try `scope_${index}`;
-        var line = try String("var ");
-        try line.append(items);
-        try line.append(" = ");
-        try line.append(try expression(collection, false));
-        try line.append(";");
-        try this.emit(line, node.offset);
-        line = try `for (var ${cursor}: i64 = 0; ${cursor} < ${items}.size(); ${cursor} += 1) {`;
-        try this.emit(line, node.offset);
-        line = try `var ${each} = ${items}[${cursor}];`;
-        try this.emit(line, node.offset);
-        line = try `var ${scope} = try result.append(${parent}, try ui.Element(try ui.Key(`;
-        try line.append(try expression(key, true));
-        try line.append("), ui.Kind.Group));");
-        try this.emit(line, node.offset);
-        try this.children(index, scope);
-        try this.emit(try String("}"), node.offset);
-        return std.Result.Ok;
+        var items = `items_${index}`;
+        var cursor = `index_${index}`;
+        var scope = `scope_${index}`;
+        var line = String("var ");
+        line.append(items);
+        line.append(" = ");
+        line.append(expression(collection, false));
+        line.append(";");
+        this.emit(line, node.offset);
+        line = `for (var ${cursor}: i64 = 0; ${cursor} < ${items}.size(); ${cursor} += 1) {`;
+        this.emit(line, node.offset);
+        line = `var ${each} = ${items}[${cursor}];`;
+        this.emit(line, node.offset);
+        line = `var ${scope} = result.append(${parent}, ui.Element(ui.Key(`;
+        line.append(expression(key, true));
+        line.append("), ui.Kind.Group));");
+        this.emit(line, node.offset);
+        this.children(index, scope);
+        this.emit(String("}"), node.offset);
+        return;
       }
       if (builtin(node.name)) {
-        try this.attributes(
+        this.attributes(
           index,
           "key text tooltip icon trimRanges activeRange value action changeAction payload enabled visible checked selected viewportId duration frameRateNum frameRateDen trimControls trimStart trimEnd position spacing margin width height minWidth minHeight horizontal vertical expandX expandY row column rowSpan columnSpan style foreground background font fontSize borderWidth radius padding styleResource foregroundResource backgroundResource fontResource spacingResource marginResource"
         );
-        var activation = try node.attr("action");
-        var change = try node.attr("changeAction");
+        var activation = node.attr("action");
+        var change = node.attr("changeAction");
         if (not activation.is_empty() and not change.is_empty()) {
-          return std.Result.Error(
-            try this.failure(node.offset, "Specify either action or changeAction, not both")
-          );
+          throw this.failure(node.offset, "Specify either action or changeAction, not both");
         }
-        var key = try node.attr("key");
+        var key = node.attr("key");
         if (key.is_empty()) {
-          key = try `@${index}`;
+          key = `@${index}`;
         }
-        var variable = try `node_${index}`;
-        var location = try `parent_${index}`;
-        var line = try `var ${variable} = try ui.Element(try ui.Key(`;
-        try line.append(try expression(key, true));
-        try line.append("), ui.Kind.");
-        try line.append(node.name);
-        try line.append(");");
-        try this.emit(line, node.offset);
+        var variable = `node_${index}`;
+        var location = `parent_${index}`;
+        var line = `var ${variable} = ui.Element(ui.Key(`;
+        line.append(expression(key, true));
+        line.append("), ui.Kind.");
+        line.append(node.name);
+        line.append(");");
+        this.emit(line, node.offset);
         for (var i: i64 = 0; i < node.attributes.size(); i += 1) {
           var attribute = node.attributes[i];
           if (attribute.name.equals_literal("key")) {
             continue;
           }
-          var field = try attribute.name.clone(a);
+          var field = attribute.name.clone(a);
           if ((field.equals_literal("action") or field.equals_literal("changeAction")) and
-            try qualified(attribute.value)) {
+            qualified(attribute.value)) {
             var owner = this.action_owner(index);
             if (owner < 0) {
-              return std.Result.Error(
-                try this.failure(
-                  attribute.offset,
-                  "Named actions require a View; pass numeric actions into reusable components"
-                )
+              throw this.failure(
+                attribute.offset,
+                "Named actions require a View; pass numeric actions into reusable components"
               );
             }
             var id = index * 2 + (field.equals_literal("changeAction") ? 1 : 0);
-            line = try `${variable}.action = ${id};`;
-            try this.emit(line, attribute.offset);
-            var scope = try this.action_scope(owner);
-            line = try `${variable}.action_scope = `;
-            try line.append(try expression(scope, true));
-            try line.append(";");
-            try this.emit(line, attribute.offset);
+            line = `${variable}.action = ${id};`;
+            this.emit(line, attribute.offset);
+            var scope = this.action_scope(owner);
+            line = `${variable}.action_scope = `;
+            line.append(expression(scope, true));
+            line.append(";");
+            this.emit(line, attribute.offset);
             continue;
           }
           if (field.ends_with("Resource")) {
-            var method = try String("number_resource");
-            var kind = try String("ui.ResourceKind.Spacing");
+            var method = String("number_resource");
+            var kind = String("ui.ResourceKind.Spacing");
             if (field.equals_literal("styleResource")) {
-              field = try String("style");
-              method = try String("style_resource");
+              field = String("style");
+              method = String("style_resource");
             } else if (field.equals_literal("fontResource")) {
-              field = try String("overrides.normal.font");
-              method = try String("font_resource");
+              field = String("overrides.normal.font");
+              method = String("font_resource");
             } else if (field.equals_literal("foregroundResource")) {
-              field = try String("overrides.normal.foreground");
-              kind = try String("ui.ResourceKind.Color");
+              field = String("overrides.normal.foreground");
+              kind = String("ui.ResourceKind.Color");
             } else if (field.equals_literal("backgroundResource")) {
-              field = try String("overrides.normal.background");
-              kind = try String("ui.ResourceKind.Color");
+              field = String("overrides.normal.background");
+              kind = String("ui.ResourceKind.Color");
             } else if (field.equals_literal("marginResource")) {
-              field = try String("margin");
+              field = String("margin");
             } else {
-              field = try String("spacing");
+              field = String("spacing");
             }
-            line = try `${variable}.${field} = try result.${method}(`;
-            try line.append(try expression(attribute.value, true));
+            line = `${variable}.${field} = result.${method}(`;
+            line.append(expression(attribute.value, true));
             if (method.equals_literal("number_resource")) {
-              try line.append(", ");
-              try line.append(kind);
+              line.append(", ");
+              line.append(kind);
             }
-            try line.append(");");
-            try this.emit(line, attribute.offset);
+            line.append(");");
+            this.emit(line, attribute.offset);
             continue;
           }
           var string_value = field.equals_literal("text") or field.equals_literal("value") or
             field.equals_literal("font") or field.equals_literal("tooltip") or
             field.equals_literal("icon");
           if (field.equals_literal("value")) {
-            field = try String("text");
+            field = String("text");
           }
           if (field.equals_literal("changeAction")) {
-            field = try String("action");
+            field = String("action");
           }
           if (field.equals_literal("viewportId")) {
-            field = try String("viewport_id");
+            field = String("viewport_id");
           }
           if (field.equals_literal("trimRanges")) {
-            field = try String("trim_ranges");
+            field = String("trim_ranges");
           }
           if (field.equals_literal("activeRange")) {
-            field = try String("active_range");
+            field = String("active_range");
           }
           if (field.equals_literal("trimControls")) {
-            field = try String("trim_controls");
+            field = String("trim_controls");
           }
           if (field.equals_literal("frameRateNum")) {
-            field = try String("frame_rate_num");
+            field = String("frame_rate_num");
           }
           if (field.equals_literal("frameRateDen")) {
-            field = try String("frame_rate_den");
+            field = String("frame_rate_den");
           }
           if (field.equals_literal("trimStart")) {
-            field = try String("trim_start");
+            field = String("trim_start");
           }
           if (field.equals_literal("trimEnd")) {
-            field = try String("trim_end");
+            field = String("trim_end");
           }
           if (field.equals_literal("expandX")) {
-            field = try String("expand_x");
+            field = String("expand_x");
           }
           if (field.equals_literal("expandY")) {
-            field = try String("expand_y");
+            field = String("expand_y");
           }
           if (field.equals_literal("minWidth")) {
-            field = try String("min_width");
+            field = String("min_width");
           }
           if (field.equals_literal("minHeight")) {
-            field = try String("min_height");
+            field = String("min_height");
           }
           if (field.equals_literal("rowSpan")) {
-            field = try String("row_span");
+            field = String("row_span");
           }
           if (field.equals_literal("columnSpan")) {
-            field = try String("column_span");
+            field = String("column_span");
           }
           if (field.equals_literal("foreground") or field.equals_literal("background") or
             field.equals_literal("font")) {
-            var prefix = try String("overrides.normal.");
-            try prefix.append(field);
+            var prefix = String("overrides.normal.");
+            prefix.append(field);
             field = prefix;
           }
           if (field.equals_literal("borderWidth")) {
-            field = try String("overrides.normal.border_width");
+            field = String("overrides.normal.border_width");
           }
           if (field.equals_literal("radius") or field.equals_literal("padding")) {
-            var prefix = try String("overrides.normal.");
-            try prefix.append(field);
+            var prefix = String("overrides.normal.");
+            prefix.append(field);
             field = prefix;
           }
           if (field.equals_literal("fontSize")) {
-            field = try String("overrides.normal.font_size");
+            field = String("overrides.normal.font_size");
           }
-          line = try `${variable}.${field} = `;
+          line = `${variable}.${field} = `;
           if ((field.equals_literal("horizontal") or field.equals_literal("vertical")) and
             not attribute.value.starts_with("{")) {
-            try line.append("ui.Align.");
+            line.append("ui.Align.");
           }
-          try line.append(try expression(attribute.value, string_value));
-          try line.append(";");
-          try this.emit(line, attribute.offset);
+          line.append(expression(attribute.value, string_value));
+          line.append(";");
+          this.emit(line, attribute.offset);
         }
         for (var property = index + 1; property < this.nodes.size(); property += 1) {
           if (this.nodes[property].parent != index) {
@@ -1007,73 +983,65 @@ public module markup {
           if (property_node.name.equals_literal("Grid.Rows") or
             property_node.name.equals_literal("Grid.Columns")) {
             if (not node.name.equals_literal("Grid")) {
-              return std.Result.Error(
-                try this.failure(property_node.offset, "Grid tracks require a Grid")
-              );
+              throw this.failure(property_node.offset, "Grid tracks require a Grid");
             }
-            try this.attributes(property, "");
+            this.attributes(property, "");
             for (var t = property + 1; t < this.nodes.size(); t += 1) {
               if (this.nodes[t].parent != property) {
                 continue;
               }
               if (not this.nodes[t].name.equals_literal("Track")) {
-                return std.Result.Error(try this.failure(this.nodes[t].offset, "Expected Track"));
+                throw this.failure(this.nodes[t].offset, "Expected Track");
               }
-              try this.attributes(t, "kind value");
-              var kind = try this.nodes[t].attr("kind");
-              var value = try this.nodes[t].attr("value");
+              this.attributes(t, "kind value");
+              var kind = this.nodes[t].attr("kind");
+              var value = this.nodes[t].attr("value");
               if (value.is_empty()) {
-                value = try String("0");
+                value = String("0");
               }
-              var field = try String(
+              var field = String(
                 property_node.name.equals_literal("Grid.Rows") ? "rows" : "columns"
               );
-              line = try `try ${variable}.${field}.push(ui.Track(ui.TrackKind.${kind}, `;
-              try line.append(try expression(value, false));
-              try line.append("));");
-              try this.emit(line, this.nodes[t].offset);
+              line = `${variable}.${field}.push(ui.Track(ui.TrackKind.${kind}, `;
+              line.append(expression(value, false));
+              line.append("));");
+              this.emit(line, this.nodes[t].offset);
             }
           } else if (property_node.name.equals_literal("Select.Options")) {
             if (not node.name.equals_literal("Select")) {
-              return std.Result.Error(
-                try this.failure(property_node.offset, "Options require a Select")
-              );
+              throw this.failure(property_node.offset, "Options require a Select");
             }
-            try this.attributes(property, "");
+            this.attributes(property, "");
             for (var t = property + 1; t < this.nodes.size(); t += 1) {
               if (this.nodes[t].parent != property) {
                 continue;
               }
               if (not this.nodes[t].name.equals_literal("Option")) {
-                return std.Result.Error(try this.failure(this.nodes[t].offset, "Expected Option"));
+                throw this.failure(this.nodes[t].offset, "Expected Option");
               }
-              try this.attributes(t, "key text");
-              var key = try this.nodes[t].attr("key");
-              var text = try this.nodes[t].attr("text");
+              this.attributes(t, "key text");
+              var key = this.nodes[t].attr("key");
+              var text = this.nodes[t].attr("text");
               if (key.is_empty()) {
-                return std.Result.Error(
-                  try this.failure(this.nodes[t].offset, "Option requires stable key")
-                );
+                throw this.failure(this.nodes[t].offset, "Option requires stable key");
               }
-              line = try `try ${variable}.choices.push(ui.Choice(try ui.Key(`;
-              try line.append(try expression(key, true));
-              try line.append("), ");
-              try line.append(try expression(text, true));
-              try line.append("));");
-              try this.emit(line, this.nodes[t].offset);
+              line = `${variable}.choices.push(ui.Choice(ui.Key(`;
+              line.append(expression(key, true));
+              line.append("), ");
+              line.append(expression(text, true));
+              line.append("));");
+              this.emit(line, this.nodes[t].offset);
             }
           } else if (not (node.name.equals_literal("Group") or node.name.equals_literal("Row") or
             node.name.equals_literal("Column") or node.name.equals_literal("Grid") or
             node.name.equals_literal("Scroll"))) {
-            return std.Result.Error(
-              try this.failure(property_node.offset, "Control cannot contain view children")
-            );
+            throw this.failure(property_node.offset, "Control cannot contain view children");
           }
         }
-        line = try `var ${location} = try result.append(${parent}, ${variable});`;
-        try this.emit(line, node.offset);
-        try this.children(index, location);
-        return std.Result.Ok;
+        line = `var ${location} = result.append(${parent}, ${variable});`;
+        this.emit(line, node.offset);
+        this.children(index, location);
+        return;
       }
       for (var declaration: i64 = 1; declaration < this.nodes.size(); declaration += 1) {
         var imported = this.nodes[declaration];
@@ -1084,85 +1052,81 @@ public module markup {
           imported.name.equals_literal("Component") or imported.name.equals_literal("Template"))) {
           continue;
         }
-        var imported_name = try imported.attr("name");
+        var imported_name = imported.attr("name");
         if (not imported_name.equals(node.name)) {
           continue;
         }
-        var function_name = try imported.attr("function");
+        var function_name = imported.attr("function");
         if (function_name.is_empty()) {
-          function_name = try imported.attr("name");
+          function_name = imported.attr("name");
         }
-        var component_key = try node.attr("key");
+        var component_key = node.attr("key");
         if (component_key.is_empty()) {
-          component_key = try `@${index}`;
+          component_key = `@${index}`;
         }
-        var scope = try `component_${index}`;
-        var description = try `component_node_${index}`;
-        var scope_line = try `var ${description} = try ui.Element(try ui.Key(`;
-        try scope_line.append(try expression(component_key, true));
-        try scope_line.append("), ui.Kind.Group);");
-        try this.emit(scope_line, node.offset);
-        scope_line = try `${description}.template_id = `;
-        try scope_line.append(try expression(function_name, true));
-        try scope_line.append(";");
-        try this.emit(scope_line, node.offset);
-        scope_line = try `var ${scope} = try result.append(${parent}, ${description});`;
-        try this.emit(scope_line, node.offset);
-        var line = try `try ${function_name}`;
+        var scope = `component_${index}`;
+        var description = `component_node_${index}`;
+        var scope_line = `var ${description} = ui.Element(ui.Key(`;
+        scope_line.append(expression(component_key, true));
+        scope_line.append("), ui.Kind.Group);");
+        this.emit(scope_line, node.offset);
+        scope_line = `${description}.template_id = `;
+        scope_line.append(expression(function_name, true));
+        scope_line.append(";");
+        this.emit(scope_line, node.offset);
+        scope_line = `var ${scope} = result.append(${parent}, ${description});`;
+        this.emit(scope_line, node.offset);
+        var line = `${function_name}`;
         if (not template_factory.is_empty()) {
-          var callable = try `template_callable_${index}`;
-          var binding = try `var ${callable} = ${template_factory}();`;
-          try this.emit(binding, node.offset);
-          line = try `try ${callable}`;
+          var callable = `template_callable_${index}`;
+          var binding = `var ${callable} = ${template_factory}();`;
+          this.emit(binding, node.offset);
+          line = `${callable}`;
         }
-        try line.append("(result, ");
-        try line.append(scope);
-        var allowed = try String("key");
+        line.append("(result, ");
+        line.append(scope);
+        var allowed = String("key");
         for (var p = declaration + 1; p < this.nodes.size(); p += 1) {
           if (this.nodes[p].parent != declaration) {
             continue;
           }
           if (this.nodes[p].name.equals_literal("Content")) {
-            var slot = try `content_${index}_${p}`;
-            try this.emit(try `var ${slot} = ui.ContentSlot();`, node.offset);
-            try line.append(", ");
-            try line.append(slot);
+            var slot = `content_${index}_${p}`;
+            this.emit(`var ${slot} = ui.ContentSlot();`, node.offset);
+            line.append(", ");
+            line.append(slot);
             continue;
           }
           if (not this.nodes[p].name.equals_literal("Param")) {
             continue;
           }
           if (not this.nodes[p].name.equals_literal("Param")) {
-            return std.Result.Error(
-              try this.failure(this.nodes[p].offset, "Expected imported Param")
-            );
+            throw this.failure(this.nodes[p].offset, "Expected imported Param");
           }
-          try this.attributes(p, "name type");
-          var name = try this.nodes[p].attr("name");
-          var type = try this.nodes[p].attr("type");
+          this.attributes(p, "name type");
+          var name = this.nodes[p].attr("name");
+          var type = this.nodes[p].attr("type");
           if (not identifier(name) or type.is_empty()) {
-            return std.Result.Error(
-              try this.failure(this.nodes[p].offset, "Param requires name and type")
-            );
+            throw this.failure(this.nodes[p].offset, "Param requires name and type");
           }
-          try allowed.append(" ");
-          try allowed.append(name);
+          allowed.append(" ");
+          allowed.append(name);
           var found = false;
           for (var j: i64 = 0; j < node.attributes.size(); j += 1) {
             if (node.attributes[j].name.equals(name)) {
-              try line.append(", ");
-              try line.append(
-                try expression(node.attributes[j].value, type.equals_literal("String"))
+              line.append(", ");
+              line.append(
+                expression(node.attributes[j].value, type.equals_literal("String"))
               );
               found = true;
               break;
             }
           }
           if (not found) {
-            return std.Result.Error(try this.failure(node.offset, "Missing component input"));
+            throw this.failure(node.offset, "Missing component input");
           }
         }
-        var names = try allowed.split_whitespace(a);
+        var names = allowed.split_whitespace(a);
         for (var j: i64 = 0; j < node.attributes.size(); j += 1) {
           var known = false;
           for (var name: ref String in names) {
@@ -1171,38 +1135,34 @@ public module markup {
             }
           }
           if (not known) {
-            return std.Result.Error(
-              try this.failure(node.attributes[j].offset, "Unknown component input")
-            );
+            throw this.failure(node.attributes[j].offset, "Unknown component input");
           }
         }
-        try line.append(");");
-        try this.emit(line, node.offset);
+        line.append(");");
+        this.emit(line, node.offset);
         for (var p = declaration + 1; p < this.nodes.size(); p += 1) {
           if (this.nodes[p].parent != declaration or
             not this.nodes[p].name.equals_literal("Content")) {
             continue;
           }
-          var name = try this.nodes[p].attr("name");
-          var property = try invocation_tag.clone(a);
-          try property.append(".");
-          try property.append(name);
+          var name = this.nodes[p].attr("name");
+          var property = invocation_tag.clone(a);
+          property.append(".");
+          property.append(name);
           var body: i64 = -1;
           for (var child = index + 1; child < this.nodes.size(); child += 1) {
             if (this.nodes[child].parent == index and this.nodes[child].name.equals(property)) {
               if (body >= 0) {
-                return std.Result.Error(
-                  try this.failure(this.nodes[child].offset, "Duplicate content body")
-                );
+                throw this.failure(this.nodes[child].offset, "Duplicate content body");
               }
               body = child;
             }
           }
           if (body < 0) {
-            return std.Result.Error(try this.failure(node.offset, "Missing content body"));
+            throw this.failure(node.offset, "Missing content body");
           }
-          try this.attributes(body, "");
-          try this.children(body, try `content_${index}_${p}.parent`);
+          this.attributes(body, "");
+          this.children(body, `content_${index}_${p}.parent`);
         }
         for (var child = index + 1; child < this.nodes.size(); child += 1) {
           if (this.nodes[child].parent != index) {
@@ -1214,49 +1174,45 @@ public module markup {
               not this.nodes[p].name.equals_literal("Content")) {
               continue;
             }
-            var property = try invocation_tag.clone(a);
-            try property.append(".");
-            try property.append(try this.nodes[p].attr("name"));
+            var property = invocation_tag.clone(a);
+            property.append(".");
+            property.append(this.nodes[p].attr("name"));
             if (this.nodes[child].name.equals(property)) {
               known = true;
             }
           }
           if (not known) {
-            return std.Result.Error(
-              try this.failure(this.nodes[child].offset, "Unknown component content body")
-            );
+            throw this.failure(this.nodes[child].offset, "Unknown component content body");
           }
         }
-        return std.Result.Ok;
+        return;
       }
-      return std.Result.Error(try this.failure(node.offset, "Unknown view declaration"));
+      throw this.failure(node.offset, "Unknown view declaration");
     }
 
     /** Generates an explicitly fallible resource dictionary constructor. */
-    method resources(index: i64, local: bool) std.Result<void> {
+    method resources(index: i64, local: bool) void throws {
       var a = make_heap_allocator();
-      try this.attributes(index, "name");
-      var name = try this.nodes[index].attr("name");
+      this.attributes(index, "name");
+      var name = this.nodes[index].attr("name");
       if (not local and not identifier(name)) {
-        return std.Result.Error(
-          try this.failure(this.nodes[index].offset, "Resources requires a function name")
-        );
+        throw this.failure(this.nodes[index].offset, "Resources requires a function name");
       }
       if (not local) {
-        try this.emit(
-          try String(
+        this.emit(
+          String(
             "/** Constructs typed theme and application resources with duplicate checking. */"
           ),
           this.nodes[index].offset
         );
-        var header = try `public function ${name}() SystemResult<ui.Resources> {`;
-        try this.emit(header, this.nodes[index].offset);
-        try this.emit(
-          try String("var a = make_heap_allocator(); var result = try ui.Resources(a);"),
+        var header = `public function ${name}() ui.Resources throws {`;
+        this.emit(header, this.nodes[index].offset);
+        this.emit(
+          String("var a = make_heap_allocator(); var result = ui.Resources(a);"),
           this.nodes[index].offset
         );
       }
-      var line = try String("");
+      var line = String("");
       for (var i = index + 1; i < this.nodes.size(); i += 1) {
         var node = this.nodes[i];
         if (node.parent != index) {
@@ -1265,71 +1221,63 @@ public module markup {
         if (not (node.name.equals_literal("Color") or node.name.equals_literal("Font") or
           node.name.equals_literal("Spacing") or node.name.equals_literal("Style") or
           node.name.equals_literal("Template") or node.name.equals_literal("Theme"))) {
-          return std.Result.Error(try this.failure(node.offset, "Unknown resource type"));
+          throw this.failure(node.offset, "Unknown resource type");
         }
-        try this.attributes(i, "name value ref basedOn scope");
-        var key = try node.attr("name");
-        var value = try node.attr("value");
-        var alias = try node.attr("ref");
-        var base = try node.attr("basedOn");
-        var scope = try node.attr("scope");
+        this.attributes(i, "name value ref basedOn scope");
+        var key = node.attr("name");
+        var value = node.attr("value");
+        var alias = node.attr("ref");
+        var base = node.attr("basedOn");
+        var scope = node.attr("scope");
         if ((not base.is_empty() and not node.name.equals_literal("Style") and
           not node.name.equals_literal("Theme")) or
           ((node.name.equals_literal("Style") or node.name.equals_literal("Theme")) and
             not value.is_empty())) {
-          return std.Result.Error(
-            try this.failure(node.offset, "Invalid property for resource type")
-          );
+          throw this.failure(node.offset, "Invalid property for resource type");
         }
         if (not alias.is_empty() and (not value.is_empty() or not base.is_empty())) {
-          return std.Result.Error(
-            try this.failure(node.offset, "Resource alias cannot also define a value or base")
-          );
+          throw this.failure(node.offset, "Resource alias cannot also define a value or base");
         }
         if (key.is_empty()) {
-          return std.Result.Error(try this.failure(node.offset, "Resource requires name"));
+          throw this.failure(node.offset, "Resource requires name");
         }
         if (local and not scope.is_empty()) {
-          return std.Result.Error(
-            try this.failure(node.offset, "Local resources inherit their component scope")
-          );
+          throw this.failure(node.offset, "Local resources inherit their component scope");
         }
         if (scope.is_empty() or scope.equals_literal("application")) {
-          scope = try String("1");
+          scope = String("1");
         } else if (scope.equals_literal("theme")) {
-          scope = try String("0");
+          scope = String("0");
         } else {
-          return std.Result.Error(
-            try this.failure(node.offset, "Resource scope must be theme or application")
-          );
+          throw this.failure(node.offset, "Resource scope must be theme or application");
         }
-        var variable = try `resource_${i}`;
-        line = try `var ${variable} = try ui.Resource(`;
-        try line.append(try expression(key, true));
-        try line.append(", ui.ResourceKind.");
-        try line.append(node.name);
-        try line.append(");");
-        try this.emit(line, node.offset);
+        var variable = `resource_${i}`;
+        line = `var ${variable} = ui.Resource(`;
+        line.append(expression(key, true));
+        line.append(", ui.ResourceKind.");
+        line.append(node.name);
+        line.append(");");
+        this.emit(line, node.offset);
         if (not alias.is_empty()) {
-          line = try `${variable}.reference = `;
-          try line.append(try expression(alias, true));
-          try line.append(";");
-          try this.emit(line, node.offset);
+          line = `${variable}.reference = `;
+          line.append(expression(alias, true));
+          line.append(";");
+          this.emit(line, node.offset);
         }
         if (not base.is_empty()) {
-          line = try `${variable}.based_on = `;
-          try line.append(try expression(base, true));
-          try line.append(";");
-          try this.emit(line, node.offset);
+          line = `${variable}.based_on = `;
+          line.append(expression(base, true));
+          line.append(";");
+          this.emit(line, node.offset);
         }
         if (not value.is_empty()) {
-          var field = try String(
+          var field = String(
             node.name.equals_literal("Color") or node.name.equals_literal("Spacing") ? "number" : "text"
           );
-          line = try `${variable}.${field} = `;
-          try line.append(try expression(value, field.equals_literal("text")));
-          try line.append(";");
-          try this.emit(line, node.offset);
+          line = `${variable}.${field} = `;
+          line.append(expression(value, field.equals_literal("text")));
+          line.append(";");
+          this.emit(line, node.offset);
         }
         for (var state = i + 1; state < this.nodes.size(); state += 1) {
           var appearance = this.nodes[state];
@@ -1338,14 +1286,12 @@ public module markup {
           }
           if (node.name.equals_literal("Theme") and alias.is_empty()) {
             if (not appearance.name.equals_literal("Default")) {
-              return std.Result.Error(
-                try this.failure(appearance.offset, "Theme requires Default children")
-              );
+              throw this.failure(appearance.offset, "Theme requires Default children");
             }
-            try this.attributes(state, "kind styleResource");
-            var kind = try appearance.attr("kind");
-            var style = try appearance.attr("styleResource");
-            var kinds = try (try String(
+            this.attributes(state, "kind styleResource");
+            var kind = appearance.attr("kind");
+            var style = appearance.attr("styleResource");
+            var kinds = (String(
               "Row Column Grid Scroll Label Button TextInput Checkbox Select Video Viewport Image"
             )).split_whitespace(
               a
@@ -1357,172 +1303,150 @@ public module markup {
               }
             }
             if (not known or style.is_empty()) {
-              return std.Result.Error(
-                try this.failure(
-                  appearance.offset,
-                  "Default requires a control kind and styleResource"
-                )
+              throw this.failure(
+                appearance.offset,
+                "Default requires a control kind and styleResource"
               );
             }
-            line = try `try ${variable}.defaults.push(ui.ThemeReference(ui.Kind.${kind}, `;
-            try line.append(try expression(style, true));
-            try line.append("));");
-            try this.emit(line, appearance.offset);
+            line = `${variable}.defaults.push(ui.ThemeReference(ui.Kind.${kind}, `;
+            line.append(expression(style, true));
+            line.append("));");
+            this.emit(line, appearance.offset);
             continue;
           }
           if (not node.name.equals_literal("Style") or not alias.is_empty()) {
-            return std.Result.Error(
-              try this.failure(
-                appearance.offset,
-                "Only non-alias styles have appearance children"
-              )
+            throw this.failure(
+              appearance.offset,
+              "Only non-alias styles have appearance children"
             );
           }
           for (var nested = state + 1; nested < this.nodes.size(); nested += 1) {
             if (this.nodes[nested].parent == state) {
-              return std.Result.Error(
-                try this.failure(this.nodes[nested].offset, "Appearance cannot contain children")
-              );
+              throw this.failure(this.nodes[nested].offset, "Appearance cannot contain children");
             }
           }
           for (var previous = i + 1; previous < state; previous += 1) {
             if (this.nodes[previous].parent == i and
               this.nodes[previous].name.equals(appearance.name)) {
-              return std.Result.Error(
-                try this.failure(appearance.offset, "Duplicate style interaction state")
-              );
+              throw this.failure(appearance.offset, "Duplicate style interaction state");
             }
           }
-          var field = try String("");
+          var field = String("");
           if (appearance.name.equals_literal("Normal")) {
-            field = try String("normal");
+            field = String("normal");
           } else if (appearance.name.equals_literal("Hover")) {
-            field = try String("hover");
+            field = String("hover");
           } else if (appearance.name.equals_literal("Focus")) {
-            field = try String("focus");
+            field = String("focus");
           } else if (appearance.name.equals_literal("Disabled")) {
-            field = try String("disabled");
+            field = String("disabled");
           } else {
-            return std.Result.Error(
-              try this.failure(appearance.offset, "Unknown interaction state")
-            );
+            throw this.failure(appearance.offset, "Unknown interaction state");
           }
-          try this.attributes(
+          this.attributes(
             state,
             "foreground background font fontSize borderWidth radius padding foregroundResource backgroundResource fontResource fontSizeResource borderWidthResource radiusResource paddingResource"
           );
           for (var attribute: ref Attribute in appearance.attributes) {
-            var property = try attribute.name.clone(a);
+            var property = attribute.name.clone(a);
             var reference = property.ends_with("Resource");
             if (reference) {
-              try property.replace("Resource", "");
+              property.replace("Resource", "");
               for (var supplied: ref Attribute in appearance.attributes) {
                 if (supplied.name.equals(property)) {
-                  return std.Result.Error(
-                    try this.failure(
-                      attribute.offset,
-                      "Conflicting appearance value and resource"
-                    )
+                  throw this.failure(
+                    attribute.offset,
+                    "Conflicting appearance value and resource"
                   );
                 }
               }
             }
             if (property.equals_literal("borderWidth")) {
-              property = try String("border_width");
+              property = String("border_width");
             }
             if (property.equals_literal("fontSize")) {
-              property = try String("font_size");
+              property = String("font_size");
             }
             if (reference) {
-              line = try `${variable}.${field}_references.${property} = `;
+              line = `${variable}.${field}_references.${property} = `;
             } else {
-              line = try `${variable}.style.${field}.${property} = `;
+              line = `${variable}.style.${field}.${property} = `;
             }
-            try line.append(
-              try expression(attribute.value, reference or property.equals_literal("font"))
+            line.append(
+              expression(attribute.value, reference or property.equals_literal("font"))
             );
-            try line.append(";");
-            try this.emit(line, attribute.offset);
+            line.append(";");
+            this.emit(line, attribute.offset);
           }
         }
         if (local) {
-          line = try `try result.define(${variable});`;
+          line = `result.define(${variable});`;
         } else {
-          line = try `try result.add(${scope}, ${variable});`;
+          line = `result.add(${scope}, ${variable});`;
         }
-        try this.emit(line, node.offset);
+        this.emit(line, node.offset);
       }
       if (not local) {
-        try this.emit(try String("try result.validate();"), this.nodes[index].offset);
-        try this.emit(try String("return SystemResult.Ok(result);"), this.nodes[index].offset);
-        try this.emit(try String("}"), this.nodes[index].offset);
+        this.emit(String("result.validate();"), this.nodes[index].offset);
+        this.emit(String("return result;"), this.nodes[index].offset);
+        this.emit(String("}"), this.nodes[index].offset);
       }
-      return std.Result.Ok;
+      return;
     }
 
     /** Reads a registry's explicitly listed sources using the same XML diagnostics as views. */
-    public method registry_sources() std.Result<Vec<String>> {
-      var parsed = this.parse();
-      match parsed {
-        (error: ref std.xml.XmlError) => {
-          return std.Result.Error(try this.failure(error.offset(), "Malformed registry XML"));
-        },
-        _ => {}
-      };
-      try parsed;
-      if (this.nodes.size() == 0 or not this.nodes[0].name.equals_literal("ComponentRegistry")) {
-        return std.Result.Error(try this.failure(0, "Expected ComponentRegistry root"));
+    public method registry_sources() Vec<String> throws {
+      try {
+        this.parse();
+      } catch (error: std.xml.XmlError) {
+        throw this.failure(error.offset(), "Malformed registry XML");
       }
-      try this.attributes(0, "");
-      var result = try Vec<String>(make_heap_allocator(), 4);
+      if (this.nodes.size() == 0 or not this.nodes[0].name.equals_literal("ComponentRegistry")) {
+        throw this.failure(0, "Expected ComponentRegistry root");
+      }
+      this.attributes(0, "");
+      var result = Vec<String>(make_heap_allocator(), 4);
       for (var i: i64 = 1; i < this.nodes.size(); i += 1) {
         if (this.nodes[i].parent != 0 or not this.nodes[i].name.equals_literal("Source")) {
-          return std.Result.Error(
-            try this.failure(
-              this.nodes[i].offset,
-              "Registry accepts only empty Source declarations"
-            )
+          throw this.failure(
+            this.nodes[i].offset,
+            "Registry accepts only empty Source declarations"
           );
         }
-        try this.attributes(i, "path");
-        var path = try this.nodes[i].attr("path");
-        if (not try import_path(path)) {
-          return std.Result.Error(
-            try this.failure(
-              this.nodes[i].offset,
-              "Registered component source must be a relative .view.xml path without parent traversal"
-            )
+        this.attributes(i, "path");
+        var path = this.nodes[i].attr("path");
+        if (not import_path(path)) {
+          throw this.failure(
+            this.nodes[i].offset,
+            "Registered component source must be a relative .view.xml path without parent traversal"
           );
         }
-        try result.push(path);
+        result.push(path);
       }
-      return std.Result.Ok(result);
+      return result;
     }
 
     /** Parses declarations and dependencies before component lookup or code generation. */
-    public method prepare() std.Result<void> {
+    public method prepare() void throws {
       if (this.prepared) {
-        return std.Result.Ok;
+        return;
       }
-      var parsed = this.parse();
-      match parsed {
-        (error: ref std.xml.XmlError) => {
-          var diagnostic = try this.failure(error.offset(), "Malformed XML");
-          var message = try diagnostic.message();
-          try message.append(": ");
-          try message.append(try error.message());
-          return std.Result.Error(try Error(1, message));
-        },
-        _ => {}
-      };
-      try parsed;
+      try {
+        this.parse();
+      } catch (error: std.xml.XmlError) {
+        var diagnostic = this.failure(error.offset(), "Malformed XML");
+        var message = diagnostic.message();
+        message.append(": ");
+        message.append(error.message());
+        throw Error(1, message);
+      }
       if (this.nodes.size() == 0 or not this.nodes[0].name.equals_literal("Views")) {
-        return std.Result.Error(try this.failure(0, "Expected Views root"));
+        throw this.failure(0, "Expected Views root");
       }
-      try this.attributes(0, "module");
-      var module_name = try this.nodes[0].attr("module");
+      this.attributes(0, "module");
+      var module_name = this.nodes[0].attr("module");
       if (not identifier(module_name)) {
-        return std.Result.Error(try this.failure(0, "Expected a Sun module identifier"));
+        throw this.failure(0, "Expected a Sun module identifier");
       }
       for (var i: i64 = 1; i < this.nodes.size(); i += 1) {
         if (this.nodes[i].parent != 0) {
@@ -1532,40 +1456,38 @@ public module markup {
         if (not tag.equals_literal("Import") and not tag.equals_literal("Include")) {
           continue;
         }
-        var source = try this.nodes[i].attr("source");
+        var source = this.nodes[i].attr("source");
         if (source.is_empty() and tag.equals_literal("Import")) {
           continue;
         }
-        if (not try import_path(source)) {
-          return std.Result.Error(
-            try this.failure(
-              this.nodes[i].offset,
-              "Dependency source must be a relative .view.xml path without parent traversal"
-            )
+        if (not import_path(source)) {
+          throw this.failure(
+            this.nodes[i].offset,
+            "Dependency source must be a relative .view.xml path without parent traversal"
           );
         }
-        try this.imports.push(source);
+        this.imports.push(source);
       }
       this.prepared = true;
-      return std.Result.Ok;
+      return;
     }
 
     /** Copies this file's declared components into an application registry. */
-    public method register_components(registry: ref Registry) std.Result<void> {
-      try this.prepare();
+    public method register_components(registry: ref Registry) void throws {
+      this.prepare();
       var a = make_heap_allocator();
-      var module_name = try this.nodes[0].attr("module");
+      var module_name = this.nodes[0].attr("module");
       for (var i: i64 = 1; i < this.nodes.size(); i += 1) {
         if (this.nodes[i].parent != 0 or
           not (this.nodes[i].name.equals_literal("Component") or
             this.nodes[i].name.equals_literal("Template"))) {
           continue;
         }
-        try this.attributes(i, "name");
-        try this.validate_content(i);
-        var name = try this.nodes[i].attr("name");
+        this.attributes(i, "name");
+        this.validate_content(i);
+        var name = this.nodes[i].attr("name");
         var reserved = builtin(name);
-        var declarations = try (try String(
+        var declarations = (String(
           "Views View Component Template Resources Import Include Param Content Use If Else For Slot"
         )).split_whitespace(
           a
@@ -1576,29 +1498,27 @@ public module markup {
           }
         }
         if (not identifier(name) or reserved) {
-          return std.Result.Error(
-            try this.failure(
-              this.nodes[i].offset,
-              "Invalid or reserved registered component name"
-            )
+          throw this.failure(
+            this.nodes[i].offset,
+            "Invalid or reserved registered component name"
           );
         }
         for (var entry: ref Registration in registry.entries) {
           if (entry.name.equals(name)) {
-            var error = try this.failure(this.nodes[i].offset, "Duplicate registered component");
-            var message = try error.message();
-            try message.append(": ");
-            try message.append(name);
-            try message.append(" (already registered in ");
-            try message.append(entry.source);
-            try message.append(")");
-            return std.Result.Error(try Error(1, message));
+            var error = this.failure(this.nodes[i].offset, "Duplicate registered component");
+            var message = error.message();
+            message.append(": ");
+            message.append(name);
+            message.append(" (in ");
+            message.append(entry.source);
+            message.append(")");
+            throw Error(1, message);
           }
         }
-        var entry = try Registration(
-          try name.clone(a),
-          try `${module_name}.${name}`,
-          try this.filename.clone(a)
+        var entry = Registration(
+          name.clone(a),
+          `${module_name}.${name}`,
+          this.filename.clone(a)
         );
         for (var p = i + 1; p < this.nodes.size(); p += 1) {
           if (this.nodes[p].parent != i or
@@ -1607,29 +1527,27 @@ public module markup {
             continue;
           }
           if (this.nodes[p].name.equals_literal("Param")) {
-            try this.attributes(p, "name type");
-            if ((try this.nodes[p].attr("type")).is_empty()) {
-              return std.Result.Error(
-                try this.failure(this.nodes[p].offset, "Param requires name and type")
-              );
+            this.attributes(p, "name type");
+            if ((this.nodes[p].attr("type")).is_empty()) {
+              throw this.failure(this.nodes[p].offset, "Param requires name and type");
             }
           }
-          var input = try Node(try this.nodes[p].name.clone(a), 0, this.nodes[p].offset);
+          var input = Node(this.nodes[p].name.clone(a), 0, this.nodes[p].offset);
           for (var attr: ref Attribute in this.nodes[p].attributes) {
-            try input.attributes.push(
-              Attribute(try attr.name.clone(a), try attr.value.clone(a), attr.offset)
+            input.attributes.push(
+              Attribute(attr.name.clone(a), attr.value.clone(a), attr.offset)
             );
           }
-          try entry.inputs.push(input);
+          entry.inputs.push(input);
         }
-        try registry.entries.push(entry);
+        registry.entries.push(entry);
       }
-      return std.Result.Ok;
+      return;
     }
 
     /** Makes registered component signatures available without declarations in the view. */
-    public method use_registry(registry: const ref Registry) std.Result<void> {
-      try this.prepare();
+    public method use_registry(registry: const ref Registry) void throws {
+      this.prepare();
       var a = make_heap_allocator();
       for (var entry: ref Registration in registry.entries) {
         var local = false;
@@ -1648,57 +1566,55 @@ public module markup {
             local = true;
             break;
           }
-          return std.Result.Error(
-            try this.failure(
-              this.nodes[i].offset,
-              "Component name conflicts with application registry"
-            )
+          throw this.failure(
+            this.nodes[i].offset,
+            "Component name conflicts with application registry"
           );
         }
         if (local) {
           continue;
         }
         var parent = this.nodes.size();
-        var declaration = try Node(try String("Import"), 0, 0);
-        try declaration.attributes.push(Attribute(try String("name"), try entry.name.clone(a), 0));
-        try declaration.attributes.push(
-          Attribute(try String("function"), try entry.function_name.clone(a), 0)
+        var declaration = Node(String("Import"), 0, 0);
+        declaration.attributes.push(Attribute(String("name"), entry.name.clone(a), 0));
+        declaration.attributes.push(
+          Attribute(String("function"), entry.function_name.clone(a), 0)
         );
-        try this.nodes.push(declaration);
+        this.nodes.push(declaration);
         for (var input: ref Node in entry.inputs) {
-          var node = try Node(try input.name.clone(a), parent, 0);
+          var node = Node(input.name.clone(a), parent, 0);
           for (var attr: ref Attribute in input.attributes) {
-            try node.attributes.push(
-              Attribute(try attr.name.clone(a), try attr.value.clone(a), 0)
+            node.attributes.push(
+              Attribute(attr.name.clone(a), attr.value.clone(a), 0)
             );
           }
-          try this.nodes.push(node);
+          this.nodes.push(node);
         }
       }
-      return std.Result.Ok;
+      return;
     }
 
     /** Produces deterministic Sun source after parsing and optional application registration. */
-    public method compile() std.Result<void> {
-      try this.prepare();
-      var module_name = try this.nodes[0].attr("module");
-      try this.emit(try String("using std;"), 0);
-      try this.emit(try String("/** Builds owned descriptions from declarative markup. */"), 0);
-      var line = try `module ${module_name} {`;
-      try this.emit(line, 0);
+    public method compile() void throws {
+      this.prepare();
+      var module_name = this.nodes[0].attr("module");
+      this.emit(String("using std;"), 0);
+      this.emit(String("/** Builds owned descriptions from declarative markup. */"), 0);
+      var line = `module ${module_name} {`;
+      this.emit(line, 0);
       for (var declaration: i64 = 1; declaration < this.nodes.size(); declaration += 1) {
         if (this.nodes[declaration].parent == 0 and
           (this.nodes[declaration].name.equals_literal("Component") or
             this.nodes[declaration].name.equals_literal("Template") or
             this.nodes[declaration].name.equals_literal("Import"))) {
-          try this.validate_content(declaration);
+          this.validate_content(declaration);
         }
       }
       for (var r: i64 = 1; r < this.nodes.size(); r += 1) {
         var parent = this.nodes[r].parent;
         if (parent >= 0 and this.nodes[parent].name.equals_literal("Resources") and
           this.nodes[r].name.equals_literal("Template")) {
-          try this.template_factory(r);
+          this.template_factory(r);
         }
       }
       for (var i: i64 = 1; i < this.nodes.size(); i += 1) {
@@ -1706,174 +1622,156 @@ public module markup {
           continue;
         }
         if (this.nodes[i].name.equals_literal("Resources")) {
-          try this.resources(i, false);
+          this.resources(i, false);
           continue;
         }
         if (this.nodes[i].name.equals_literal("Component") or
           this.nodes[i].name.equals_literal("Template")) {
-          try this.attributes(i, "name");
-          var name = try this.nodes[i].attr("name");
+          this.attributes(i, "name");
+          var name = this.nodes[i].attr("name");
           if (not identifier(name)) {
-            return std.Result.Error(
-              try this.failure(this.nodes[i].offset, "Expected component identifier")
-            );
+            throw this.failure(this.nodes[i].offset, "Expected component identifier");
           }
-          try this.emit(
-            try String(
+          this.emit(
+            String(
               "/** Appends owned component content during the current construction call. */"
             ),
             this.nodes[i].offset
           );
-          line = try `public function ${name}(result: ref ui.View, parent: i64`;
+          line = `public function ${name}(result: ref ui.View, parent: i64`;
           for (var p = i + 1; p < this.nodes.size(); p += 1) {
             if (this.nodes[p].parent != i) {
               continue;
             }
             if (this.nodes[p].name.equals_literal("Content")) {
-              try line.append(", ");
-              try line.append(try this.nodes[p].attr("name"));
-              try line.append(": ref ui.ContentSlot");
+              line.append(", ");
+              line.append(this.nodes[p].attr("name"));
+              line.append(": ref ui.ContentSlot");
               continue;
             }
             if (not this.nodes[p].name.equals_literal("Param")) {
               continue;
             }
-            try this.attributes(p, "name type");
-            var parameter = try this.nodes[p].attr("name");
-            var type = try this.nodes[p].attr("type");
+            this.attributes(p, "name type");
+            var parameter = this.nodes[p].attr("name");
+            var type = this.nodes[p].attr("type");
             if (not identifier(parameter) or type.is_empty()) {
-              return std.Result.Error(
-                try this.failure(this.nodes[p].offset, "Expected typed component parameter")
-              );
+              throw this.failure(this.nodes[p].offset, "Expected typed component parameter");
             }
-            try line.append(", ");
-            try line.append(parameter);
-            try line.append(": ");
-            try line.append(type);
+            line.append(", ");
+            line.append(parameter);
+            line.append(": ");
+            line.append(type);
           }
-          try line.append(") SystemResult<void> {");
-          try this.emit(line, this.nodes[i].offset);
-          try this.emit(try String("var a = make_heap_allocator();"), this.nodes[i].offset);
-          try this.emit(
-            try String("var enclosing_resources = try result.push_resources();"),
+          line.append(") void throws {");
+          this.emit(line, this.nodes[i].offset);
+          this.emit(String("var a = make_heap_allocator();"), this.nodes[i].offset);
+          this.emit(
+            String("var enclosing_resources = result.push_resources();"),
             this.nodes[i].offset
           );
-          try this.children(i, try String("parent"));
-          try this.emit(
-            try String("result.resource_scope = enclosing_resources;"),
+          this.children(i, String("parent"));
+          this.emit(
+            String("result.resource_scope = enclosing_resources;"),
             this.nodes[i].offset
           );
-          try this.emit(try String("return SystemResult.Ok;"), this.nodes[i].offset);
-          try this.emit(try String("}"), this.nodes[i].offset);
+          this.emit(String("return;"), this.nodes[i].offset);
+          this.emit(String("}"), this.nodes[i].offset);
           continue;
         }
         if (this.nodes[i].name.equals_literal("Include")) {
-          try this.attributes(i, "source");
-          var source = try this.nodes[i].attr("source");
-          if (not try import_path(source)) {
-            return std.Result.Error(
-              try this.failure(
-                this.nodes[i].offset,
-                "Include source must be a relative .view.xml path without parent traversal"
-              )
+          this.attributes(i, "source");
+          var source = this.nodes[i].attr("source");
+          if (not import_path(source)) {
+            throw this.failure(
+              this.nodes[i].offset,
+              "Include source must be a relative .view.xml path without parent traversal"
             );
           }
           for (var child = i + 1; child < this.nodes.size(); child += 1) {
             if (this.nodes[child].parent == i) {
-              return std.Result.Error(
-                try this.failure(this.nodes[child].offset, "Include cannot contain children")
-              );
+              throw this.failure(this.nodes[child].offset, "Include cannot contain children");
             }
           }
           continue;
         }
         if (this.nodes[i].name.equals_literal("Import")) {
-          try this.attributes(i, "name function source");
-          var imported_name = try this.nodes[i].attr("name");
-          var function_name = try this.nodes[i].attr("function");
-          if (not identifier(imported_name) or not try qualified(function_name)) {
-            return std.Result.Error(
-              try this.failure(
-                this.nodes[i].offset,
-                "Import requires name and function identifiers"
-              )
+          this.attributes(i, "name function source");
+          var imported_name = this.nodes[i].attr("name");
+          var function_name = this.nodes[i].attr("function");
+          if (not identifier(imported_name) or not qualified(function_name)) {
+            throw this.failure(
+              this.nodes[i].offset,
+              "Import requires name and function identifiers"
             );
           }
-          var source = try this.nodes[i].attr("source");
+          var source = this.nodes[i].attr("source");
           if (not source.is_empty()) {
-            if (not try import_path(source)) {
-              return std.Result.Error(
-                try this.failure(
-                  this.nodes[i].offset,
-                  "Import source must be a relative .view.xml path without parent traversal"
-                )
+            if (not import_path(source)) {
+              throw this.failure(
+                this.nodes[i].offset,
+                "Import source must be a relative .view.xml path without parent traversal"
               );
             }
           }
           continue;
         }
         if (not this.nodes[i].name.equals_literal("View")) {
-          return std.Result.Error(
-            try this.failure(this.nodes[i].offset, "Expected View declaration")
-          );
+          throw this.failure(this.nodes[i].offset, "Expected View declaration");
         }
-        try this.attributes(i, "name state theme themeResource resources fallback");
-        var name = try this.nodes[i].attr("name");
-        var state = try this.nodes[i].attr("state");
+        this.attributes(i, "name state theme themeResource resources fallback");
+        var name = this.nodes[i].attr("name");
+        var state = this.nodes[i].attr("state");
         if (not identifier(name) or not identifier(state)) {
-          return std.Result.Error(
-            try this.failure(this.nodes[i].offset, "View requires name and state identifiers")
-          );
+          throw this.failure(this.nodes[i].offset, "View requires name and state identifiers");
         }
-        try this.action_dispatch(i);
-        try this.emit(
-          try String("/** Borrows application state only while building an owned view. */"),
+        this.action_dispatch(i);
+        this.emit(
+          String("/** Borrows application state only while building an owned view. */"),
           this.nodes[i].offset
         );
-        line = try `function ${name}(state: const ref ${state}) SystemResult<ui.View> {`;
-        try this.emit(line, this.nodes[i].offset);
-        try this.emit(try String("var a = make_heap_allocator();"), this.nodes[i].offset);
-        try this.emit(try String("var result = try ui.View(a);"), this.nodes[i].offset);
-        var dictionaries = try this.nodes[i].attr("resources");
+        line = `function ${name}(state: const ref ${state}) ui.View throws {`;
+        this.emit(line, this.nodes[i].offset);
+        this.emit(String("var a = make_heap_allocator();"), this.nodes[i].offset);
+        this.emit(String("var result = ui.View(a);"), this.nodes[i].offset);
+        var dictionaries = this.nodes[i].attr("resources");
         if (not dictionaries.is_empty()) {
-          line = try String("try result.set_resources(");
-          try line.append(try expression(dictionaries, false));
-          try line.append(");");
-          try this.emit(line, this.nodes[i].offset);
+          line = String("result.set_resources(");
+          line.append(expression(dictionaries, false));
+          line.append(");");
+          this.emit(line, this.nodes[i].offset);
         }
-        try this.emit(
-          try String("var enclosing_resources = try result.push_resources();"),
+        this.emit(
+          String("var enclosing_resources = result.push_resources();"),
           this.nodes[i].offset
         );
-        var theme = try this.nodes[i].attr("theme");
+        var theme = this.nodes[i].attr("theme");
         if (not theme.is_empty()) {
-          line = try String("result.theme = ");
-          try line.append(try expression(theme, false));
-          try line.append(";");
-          try this.emit(line, this.nodes[i].offset);
+          line = String("result.theme = ");
+          line.append(expression(theme, false));
+          line.append(";");
+          this.emit(line, this.nodes[i].offset);
         }
-        var theme_resource = try this.nodes[i].attr("themeResource");
+        var theme_resource = this.nodes[i].attr("themeResource");
         if (not theme_resource.is_empty() and not theme.is_empty()) {
-          return std.Result.Error(
-            try this.failure(this.nodes[i].offset, "Specify either theme or themeResource")
-          );
+          throw this.failure(this.nodes[i].offset, "Specify either theme or themeResource");
         }
-        try this.children(i, try String("-1"));
+        this.children(i, String("-1"));
         if (not theme_resource.is_empty()) {
-          line = try String("try result.theme_resource(");
-          try line.append(try expression(theme_resource, true));
-          try line.append(");");
-          try this.emit(line, this.nodes[i].offset);
+          line = String("result.theme_resource(");
+          line.append(expression(theme_resource, true));
+          line.append(");");
+          this.emit(line, this.nodes[i].offset);
         }
-        try this.emit(
-          try String("result.resource_scope = enclosing_resources;"),
+        this.emit(
+          String("result.resource_scope = enclosing_resources;"),
           this.nodes[i].offset
         );
-        try this.emit(try String("return SystemResult.Ok(result);"), this.nodes[i].offset);
-        try this.emit(try String("}"), this.nodes[i].offset);
+        this.emit(String("return result;"), this.nodes[i].offset);
+        this.emit(String("}"), this.nodes[i].offset);
       }
-      try this.emit(try String("}"), 0);
-      return std.Result.Ok;
+      this.emit(String("}"), 0);
+      return;
     }
   }
 }

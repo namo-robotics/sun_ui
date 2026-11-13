@@ -9,16 +9,14 @@ public module gpu_sdl {
     var pointer: raw_ptr<u8> = null;
 
     /** Opens a window and reports unsupported display/context configurations. */
-    init(title: ref String, width: i32, height: i32) SystemResult<void> {
-      try gpu.validate_text(title);
+    init(title: ref String, width: i32, height: i32) throws {
+      gpu.validate_text(title);
       this.state = gpu.Surface();
       this.pointer = unsafe {
-        gu_window_new(this.state.raw_handle(), try title.c_str(), width, height);
+        gu_window_new(this.state.raw_handle(), title.c_str(), width, height);
       };
       if (this.pointer == null) {
-        return SystemResult.Error(
-          try Error(1, try from_c_str(make_heap_allocator(), unsafe { gu_window_error(null); }))
-        );
+        throw Error(1, from_c_str(make_heap_allocator(), unsafe { gu_window_error(null); }));
       }
     }
 
@@ -40,12 +38,12 @@ public module gpu_sdl {
     }
 
     /** Draws and presents one frame, then releases SDL's cached current context. */
-    public method render() SystemResult<void> {
+    public method render() void throws {
       if (unsafe { gu_window_render(this.pointer); } == 0) {
-        var message = try this.error();
-        return SystemResult.Error(try Error(1, message));
+        var message = this.error();
+        throw Error(1, message);
       }
-      return SystemResult.Ok;
+      return;
     }
 
     /** Reports whether this particular window remains open. */
@@ -54,10 +52,10 @@ public module gpu_sdl {
     }
 
     /** Copies host or rendering diagnostics for application reporting. */
-    public const method error() AllocationResult<String> {
-      var host = try from_c_str(make_heap_allocator(), unsafe { gu_window_error(this.pointer); });
+    public const method error() String throws {
+      var host = from_c_str(make_heap_allocator(), unsafe { gu_window_error(this.pointer); });
       if (not host.is_empty()) {
-        return AllocationResult.Ok(host);
+        return host;
       }
       return this.state.error();
     }
@@ -68,11 +66,11 @@ public module gpu_sdl {
     }
 
     /** Requests relative pointer mode; failure is reported explicitly. */
-    public method capture(enabled: bool) SystemResult<void> {
+    public method capture(enabled: bool) void throws {
       if (unsafe { gu_window_capture(this.pointer, enabled ? 1 : 0); } == 0) {
-        return SystemResult.Error(try Error(1, try this.error()));
+        throw Error(1, this.error());
       }
-      return SystemResult.Ok;
+      return;
     }
 
     /** Reports whether relative mouse mode is currently requested. */
@@ -81,11 +79,11 @@ public module gpu_sdl {
     }
 
     /** Changes the logical window size without replacing its context. */
-    public method resize(width: i32, height: i32) SystemResult<void> {
+    public method resize(width: i32, height: i32) void throws {
       if (unsafe { gu_window_resize(this.pointer, width, height); } == 0) {
-        return SystemResult.Error(try Error(1, try this.error()));
+        throw Error(1, this.error());
       }
-      return SystemResult.Ok;
+      return;
     }
   }
 
