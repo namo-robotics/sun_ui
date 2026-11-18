@@ -1,4 +1,5 @@
 using std;
+using std.mem;
 
 /** Owns one parsed source and its generated artifact destination. */
 class SourceUnit {
@@ -100,6 +101,18 @@ function directory(path: const ref String) String throws {
   }
 }
 
+/** Preserves a generated file's timestamp when its contents are unchanged. */
+function write_if_changed(path: ref String, contents: ref String) void throws {
+  var a = make_heap_allocator();
+  if (std.io.exists(path)) {
+    var previous = std.io.read_to_string(a, path);
+    if (previous.equals(contents)) {
+      return;
+    }
+  }
+  return std.io.write_string(path, contents);
+}
+
 /** Writes one generated artifact after creating its containing directory. */
 function publish(output: ref String, source: ref String, mapping: ref String) void throws {
   var a = make_heap_allocator();
@@ -111,8 +124,8 @@ function publish(output: ref String, source: ref String, mapping: ref String) vo
   }
   var map = output.clone(a);
   map.append(".map");
-  std.io.write_string(map, mapping);
-  std.io.write_string(output, source);
+  write_if_changed(map, mapping);
+  write_if_changed(output, source);
   return;
 }
 
@@ -205,7 +218,9 @@ function run(input: ref String, output: ref String, registry_path: ref String) v
   }
   // Publish only after every source has passed generation checks.
   for (var unit: ref SourceUnit in generation.units) {
-    publish(unit.output, unit.compiler.output, unit.compiler.source_map);
+    if (not unit.output.equals(output)) {
+      publish(unit.output, unit.compiler.output, unit.compiler.source_map);
+    }
   }
   return publish(output, generation.source, generation.mapping);
 }

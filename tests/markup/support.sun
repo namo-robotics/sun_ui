@@ -1,0 +1,31 @@
+using std;
+using std.mem;
+
+/** Runs markup fixtures against the tools and bundles from the same build. */
+module markup_support {
+
+  /** Creates the scratch directory even when running a single test independently. */
+  public function prepare() void throws {
+    if (not std.io.is_dir("tmp")) {
+      std.io.make_dir("tmp", 493);
+    }
+    return;
+  }
+
+  /** Creates a compiler command with the matching UI bundle search path. */
+  public function compiler() std.process.Command throws {
+    var command = std.process.Command(make_heap_allocator(), markup_build.compiler());
+    command.add_arg("--dynamic");
+    command.add_arg("--lib-path");
+    command.add_arg(markup_build.directory());
+    command.add_arg("-c");
+    return command;
+  }
+
+  /** Creates a command for the view compiler produced alongside the tests. */
+  public function generator() std.process.Command throws {
+    var path = String(markup_build.directory());
+    path.append("/sun_viewc");
+    return std.process.Command(make_heap_allocator(), path);
+  }
+}

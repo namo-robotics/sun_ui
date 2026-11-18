@@ -1,10 +1,12 @@
 using std;
+using std.mem;
 
 /** Exercises the command-line import graph without GTK or a display. */
 module markup_pipeline_tests {
 
   /** Writes a fixture owned by this test under the workspace temporary directory. */
   function write(path: static_ptr<u8>, text: static_ptr<u8>) void throws {
+    markup_support.prepare();
     var filename = String(path);
     var source = String(text);
     return std.io.write_string(filename, source);
@@ -12,9 +14,7 @@ module markup_pipeline_tests {
 
   /** Runs the already-built generator and captures structural diagnostics. */
   function generate() std.process.Output throws {
-    var a = make_heap_allocator();
-    var target = build_targets.load("sun_viewc");
-    var command = std.process.Command(a, target.output);
+    var command = markup_support.generator();
     command.add_arg("tmp/markup-pipeline/main.view.xml");
     command.add_arg("build/generated/tests/pipeline/main.view.sun");
     return command.output();
@@ -132,9 +132,7 @@ module markup_pipeline_tests {
 
   /** Runs a registry fixture through either explicit selection or adjacent discovery. */
   function generate_registered(explicit_registry: bool) std.process.Output throws {
-    var a = make_heap_allocator();
-    var target = build_targets.load("sun_viewc");
-    var command = std.process.Command(a, target.output);
+    var command = markup_support.generator();
     command.add_arg(
       explicit_registry ? "tmp/registry-pipeline/views/main.view.xml" : "tmp/registry-pipeline/main.view.xml"
     );

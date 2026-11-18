@@ -1,4 +1,5 @@
 using std;
+using std.mem;
 
 /** Checks generation and diagnostics through the compiler's owned-input interface. */
 module markup_tests {
@@ -198,7 +199,6 @@ module markup_tests {
 
   /** Compiles generated Sun to prove invalid property expressions fail real type checking. */
   test_function generated_type_error() {
-    var a = make_heap_allocator();
     var compiler = markup.Compiler(
       String("invalid-type.view.xml"),
       String(
@@ -210,17 +210,9 @@ module markup_tests {
       "\n/** Drives type checking of a deliberately invalid generated view. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n"
     );
     var path = String("tmp/markup-invalid-type.sun");
+    markup_support.prepare();
     std.io.write_string(path, compiler.output);
-    var env = std.env.Env(a);
-    var executable = match env.get("SUN_EXECUTABLE") {
-      Option.Some(value) => value.clone(a),
-      Option.None => String("sun")
-    };
-    var command = std.process.Command(a, executable);
-    command.add_arg("--dynamic");
-    command.add_arg("--lib-path");
-    command.add_arg("build");
-    command.add_arg("-c");
+    var command = markup_support.compiler();
     command.add_arg("-o");
     command.add_arg("tmp/markup-invalid-type");
     command.add_arg(path);
@@ -237,7 +229,6 @@ module markup_tests {
 
   /** Ensures generated descriptions cannot silently move strings out of borrowed state. */
   test_function generated_ownership_error() {
-    var a = make_heap_allocator();
     var compiler = markup.Compiler(
       String("invalid-ownership.view.xml"),
       String(
@@ -249,17 +240,9 @@ module markup_tests {
       "\n/** Forces generated ownership checking. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n"
     );
     var path = String("tmp/markup-invalid-ownership.sun");
+    markup_support.prepare();
     std.io.write_string(path, compiler.output);
-    var env = std.env.Env(a);
-    var executable = match env.get("SUN_EXECUTABLE") {
-      Option.Some(value) => value.clone(a),
-      Option.None => String("sun")
-    };
-    var command = std.process.Command(a, executable);
-    command.add_arg("--dynamic");
-    command.add_arg("--lib-path");
-    command.add_arg("build");
-    command.add_arg("-c");
+    var command = markup_support.compiler();
     command.add_arg("-o");
     command.add_arg("tmp/markup-invalid-ownership");
     command.add_arg(path);
@@ -308,7 +291,6 @@ module markup_tests {
 
   /** Ensures even unused template imports are checked against their declared parameter types. */
   test_function unused_template_signature() {
-    var a = make_heap_allocator();
     var compiler = markup.Compiler(
       String("template-type.view.xml"),
       String(
@@ -320,17 +302,9 @@ module markup_tests {
       "\n/** Provides a deliberately incompatible imported component. */\nmodule foreign { /** Takes owned text rather than the declared integer. */ public function Card(view: ref ui.View, parent: i64, value: String) void {} }\n/** Runs signature checking without invoking the resource. */\nfunction main() i32 { return 0; }\nmanifest { libraries: [\"stdlib.moon\", \"sun_ui.moon\"] }\n"
     );
     var path = String("tmp/markup-template-type.sun");
+    markup_support.prepare();
     std.io.write_string(path, compiler.output);
-    var env = std.env.Env(a);
-    var executable = match env.get("SUN_EXECUTABLE") {
-      Option.Some(value) => value.clone(a),
-      Option.None => String("sun")
-    };
-    var command = std.process.Command(a, executable);
-    command.add_arg("--dynamic");
-    command.add_arg("--lib-path");
-    command.add_arg("build");
-    command.add_arg("-c");
+    var command = markup_support.compiler();
     command.add_arg("-o");
     command.add_arg("tmp/markup-template-type");
     command.add_arg(path);

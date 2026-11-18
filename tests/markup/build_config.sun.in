@@ -1,0 +1,7 @@
+/** Provides the compiler and bundle directory selected when building these tests. */
+module markup_build {
+  /** Returns the directory containing this build's bundles and view compiler. */
+  public function directory() static_ptr<u8> { return "@BUILD_DIR@"; }
+  /** Returns the compiler used to build the test suite. */
+  public function compiler() static_ptr<u8> { return "@SUN_COMPILER@"; }
+}

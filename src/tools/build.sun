@@ -1,4 +1,5 @@
 using std;
+using std.mem;
 
 /** Builds the platform-independent package and optional GTK prototypes. */
 module build_tasks {
@@ -27,10 +28,12 @@ module build_tasks {
     var a = make_heap_allocator();
     var executable = setting("SUN_EXECUTABLE", "sun");
     var command = std.process.Command(a, executable);
-    command.add_arg("--dynamic");
+    command.add_arg("--path-var");
+    command.add_arg("SUN_BUILD=build");
     command.add_arg("--lib-path");
     command.add_arg("build");
     if (gtk) {
+      command.add_arg("--dynamic");
       var env = std.env.Env(a);
       var cache = setting("SUN_DEPENDENCY_CACHE", "build/dependencies/cache");
       env.set("SUN_DEPENDENCY_CACHE", cache);
@@ -289,6 +292,40 @@ module build_tasks {
     return;
   }
 
+  /** Writes the selected tool and bundle paths into the markup test build. */
+  public function configure_markup_tests(directory: ref String) void throws {
+    var a = make_heap_allocator();
+    var env = std.env.Env(a);
+    var absolute = directory.clone(a);
+    if (not absolute.starts_with("/")) {
+      absolute = env.cwd();
+      absolute.append("/");
+      absolute.append(directory);
+    }
+    var mkdir = std.process.Command(a, "mkdir");
+    mkdir.add_arg("-p");
+    mkdir.add_arg(absolute);
+    run(mkdir);
+    var path = absolute.clone(a);
+    path.append("/markup-test-config.sun");
+    var executable = setting("SUN_EXECUTABLE", "sun");
+    absolute.replace("\\", "\\\\");
+    absolute.replace("\"", "\\\"");
+    executable.replace("\\", "\\\\");
+    executable.replace("\"", "\\\"");
+    var text = std.io.read_to_string(a, "tests/markup/build_config.sun.in");
+    text.replace(String("@BUILD_DIR@"), absolute);
+    text.replace(String("@SUN_COMPILER@"), executable);
+    if (std.io.exists(path)) {
+      var previous = std.io.read_to_string(a, path);
+      if (previous.equals(text)) {
+        return;
+      }
+    }
+    std.io.write_string(path, text);
+    return;
+  }
+
   /** Builds and tests markup tools using the selected compiler and its standard library. */
   public function markup() void throws {
     var a = make_heap_allocator();
@@ -298,6 +335,8 @@ module build_tasks {
     run(directory);
     check_xml();
     compile("sun_viewc", false);
+    var test_directory = String("build");
+    configure_markup_tests(test_directory);
     compile("markup_tests", false);
     var markup_target = build_targets.load("markup_tests");
     var tests = std.process.Command(a, markup_target.tests);
@@ -405,7 +444,9 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 throws {
   var env = std.env.Env(a);
   var args = env.args(argc, argv);
   try {
-    if (args.size() == 2 and args[1].equals_literal("build")) {
+    if (args.size() == 3 and args[1].equals_literal("configure-markup-tests")) {
+      build_tasks.configure_markup_tests(args[2]);
+    } else if (args.size() == 2 and args[1].equals_literal("build")) {
       build_tasks.build();
     } else if (args.size() == 2 and args[1].equals_literal("graphics")) {
       build_tasks.graphics();

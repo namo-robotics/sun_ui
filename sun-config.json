@@ -16,10 +16,7 @@
       "name": "sun_ui",
       "path": "src/ui.sun",
       "type": "library",
-      "export": true,
-      "compile_args": [
-        "--dynamic"
-      ]
+      "export": true
     },
     {
       "name": "sun_plot",
@@ -28,22 +25,25 @@
       "export": true,
       "requires": [
         "sun_ui"
-      ],
-      "compile_args": [
-        "--dynamic"
       ]
     },
     {
       "name": "sun_ui_tests",
       "path": "tests/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "requires": [
+        "sun_ui"
+      ]
     },
     {
       "name": "sun_plot_tests",
       "path": "tests/plot/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "requires": [
+        "sun_plot"
+      ]
     },
     {
       "name": "sun_ui_gtk",
@@ -74,25 +74,65 @@
       "name": "counter",
       "path": "examples/counter/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "requires": [
+        "sun_ui_gtk"
+      ],
+      "compile_args": [
+        "--dynamic",
+        "-lm"
+      ],
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0"
+      ]
     },
     {
       "name": "tasks",
       "path": "examples/tasks/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "requires": [
+        "sun_ui_gtk"
+      ],
+      "compile_args": [
+        "--dynamic",
+        "-lm"
+      ],
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0"
+      ]
     },
     {
       "name": "plot_export",
       "path": "examples/plot-export/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "requires": [
+        "sun_plot"
+      ]
     },
     {
       "name": "plot_viewer",
       "path": "examples/plot-viewer/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "requires": [
+        "sun_plot",
+        "sun_ui_gtk_drawing"
+      ],
+      "compile_args": [
+        "--dynamic",
+        "-lm"
+      ],
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0"
+      ]
     },
     {
       "name": "sun_viewc",
@@ -101,9 +141,6 @@
       "export": true,
       "requires": [
         "sun_ui"
-      ],
-      "compile_args": [
-        "--dynamic"
       ]
     },
     {
@@ -116,31 +153,91 @@
       "name": "markup_tests",
       "path": "tests/markup/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "requires": [
+        "sun_viewc"
+      ],
+      "build": [
+        "scripts/build-markup-tests.sh"
+      ]
     },
     {
       "name": "generated_view_tests",
       "path": "tests/markup/generated.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "requires": [
+        "sun_viewc"
+      ],
+      "steps": [
+        "generated_views"
+      ]
     },
     {
       "name": "counter_xml",
       "path": "examples/counter-xml/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "compile_args": [
+        "--dynamic",
+        "-lm"
+      ],
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0"
+      ],
+      "requires": [
+        "sun_viewc",
+        "sun_ui_gtk"
+      ],
+      "steps": [
+        "generated_views"
+      ]
     },
     {
       "name": "tasks_xml",
       "path": "examples/tasks-xml/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "compile_args": [
+        "--dynamic",
+        "-lm"
+      ],
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0"
+      ],
+      "requires": [
+        "sun_viewc",
+        "sun_ui_gtk"
+      ],
+      "steps": [
+        "generated_views"
+      ]
     },
     {
       "name": "forms_xml",
       "path": "examples/forms/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "compile_args": [
+        "--dynamic",
+        "-lm"
+      ],
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0"
+      ],
+      "requires": [
+        "sun_viewc",
+        "sun_ui_gtk"
+      ],
+      "steps": [
+        "generated_views"
+      ]
     },
     {
       "name": "sun_ui_build",
@@ -175,7 +272,8 @@
         "--dynamic"
       ],
       "requires": [
-        "sun_ui_graphics"
+        "sun_ui_graphics",
+        "sun_ui_gtk"
       ]
     },
     {
@@ -194,19 +292,71 @@
       "name": "graphics_tests",
       "path": "tests/graphics/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "requires": [
+        "sun_ui_graphics_gtk",
+        "sun_ui_sdl"
+      ],
+      "compile_args": [
+        "--dynamic",
+        "-L${SUN_BUILD}/graphics-native",
+        "-lsun_ui_sdl",
+        "-lsun_ui_graphics",
+        "-lm",
+        "-lgraphics_test_input"
+      ],
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0",
+        "sdl3",
+        "epoxy"
+      ],
+      "steps": [
+        "graphics_test_native"
+      ]
     },
     {
       "name": "graphics",
       "path": "examples/graphics/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "requires": [
+        "sun_ui_graphics_gtk",
+        "sun_ui_sdl"
+      ],
+      "compile_args": [
+        "--dynamic",
+        "-L${SUN_BUILD}/graphics-native",
+        "-lsun_ui_sdl",
+        "-lsun_ui_graphics",
+        "-lm"
+      ],
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0",
+        "sdl3",
+        "epoxy"
+      ]
     },
     {
       "name": "drawing_controls",
       "path": "examples/drawing-controls/main.sun",
       "type": "binary",
-      "export": false
+      "export": false,
+      "requires": [
+        "sun_ui_gtk"
+      ],
+      "compile_args": [
+        "--dynamic",
+        "-lm"
+      ],
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0"
+      ]
     }
   ],
   "package_id": "namo-robotics/sun_ui",
@@ -220,10 +370,14 @@
       },
       "target": {
         "linux": {
-          "apt": ["libsdl3-dev"]
+          "apt": [
+            "libsdl3-dev"
+          ]
         },
         "macos": {
-          "brew": ["sdl3"]
+          "brew": [
+            "sdl3"
+          ]
         }
       }
     },
@@ -260,7 +414,8 @@
         "src/graphics/native",
         "-B",
         "${SUN_BUILD}/graphics-native",
-        "-DBUILD_SDL_HOST=ON"
+        "-DBUILD_SDL_HOST=ON",
+        "-DBUILD_GRAPHICS_TESTS=ON"
       ],
       "inputs": [
         "src/graphics/native/CMakeLists.txt"
@@ -288,6 +443,50 @@
       "outputs": [
         "${SUN_BUILD}/graphics-native/libsun_ui_graphics.a",
         "${SUN_BUILD}/graphics-native/libsun_ui_sdl.a"
+      ]
+    },
+    {
+      "name": "graphics_test_native",
+      "requires": [
+        "graphics_configure"
+      ],
+      "command": [
+        "cmake",
+        "--build",
+        "${SUN_BUILD}/graphics-native",
+        "--target",
+        "graphics_test_input",
+        "--parallel",
+        "1"
+      ],
+      "inputs": [
+        "tests/graphics/input.c"
+      ],
+      "outputs": [
+        "${SUN_BUILD}/graphics-native/libgraphics_test_input.a"
+      ]
+    },
+    {
+      "name": "generated_views",
+      "command": [
+        "bash",
+        "scripts/generate-configured-views.sh",
+        "${SUN_BUILD}/sun_viewc",
+        "${SUN_BUILD}"
+      ],
+      "inputs": [
+        "scripts/generate-configured-views.sh",
+        "examples",
+        "tests/markup",
+        "${SUN_BUILD}/sun_viewc"
+      ],
+      "outputs": [
+        "${SUN_BUILD}/generated/examples/counter-xml/counter.view.sun",
+        "${SUN_BUILD}/generated/examples/tasks-xml/tasks.view.sun",
+        "${SUN_BUILD}/generated/examples/forms/forms.view.sun",
+        "${SUN_BUILD}/generated/tests/markup/scoped.view.sun",
+        "${SUN_BUILD}/generated/tests/markup/actions.view.sun",
+        "${SUN_BUILD}/generated/tests/markup/reusable.view.sun"
       ]
     }
   ],

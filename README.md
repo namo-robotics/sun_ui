@@ -58,6 +58,10 @@ sun src/tools/build.sun -- test
 sun fmt --check src/ui.sun src/styles.sun src/markup src/drawing.sun src/plot src/graphics src/adapters src/tools examples tests
 ```
 
+Markup tests record their compiler and bundle directory at build time, so they
+can also run from the workspace root in Test Explorer. Both `sun build --all`
+and the standalone markup build prepare this test configuration.
+
 The Debian package depends on the published Sun compiler and `sun-gobject`
 packages. It installs bundles under `/usr/lib/sun` and the XML compiler at
 `/usr/bin/sun_viewc`. For downloaded bundles, add their directory with `--lib-path`.
@@ -66,6 +70,10 @@ GTK applications also require the native dependencies described under [Backends]
 Use the compiler version recorded in the release's `sun-version.txt` and matching
 native dependencies. Rebuild all bundles together after a compiler update. Linux
 bundles cannot be reused on macOS; Intel macOS releases are not provided.
+
+Core tools and headless tests use Sun’s default linking: static musl on Linux
+and native system linking on macOS. GTK and SDL executables use dynamic linking
+to match the installed native libraries.
 
 ## Build from source
 

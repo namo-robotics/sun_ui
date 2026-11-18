@@ -1,4 +1,5 @@
 using std;
+using std.mem;
 
 /** Demonstrates keyed component composition and owned task-ID event payloads. */
 module tasks {
@@ -245,7 +246,7 @@ function main(argc: i32, argv: raw_ptr<raw_ptr<i8>>) i32 throws {
 }
 manifest {
   source_files: [
-    "../../build/generated/examples/tasks-xml/tasks.view.sun"
+    "${SUN_BUILD}/generated/examples/tasks-xml/tasks.view.sun"
   ], libraries: [
     "stdlib.moon",
     "sun_ui.moon",

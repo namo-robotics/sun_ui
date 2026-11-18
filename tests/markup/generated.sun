@@ -1,4 +1,5 @@
 using std;
+using std.mem;
 
 /** Checks generated descriptions without GTK or the binding dependency. */
 module counter {
@@ -235,9 +236,9 @@ manifest {
     "stdlib.moon",
     "sun_ui.moon"
   ], source_files: [
-    "../../build/generated/tests/markup/reusable.view.sun",
-    "../../build/generated/examples/counter-xml/counter.view.sun",
-    "../../build/generated/tests/markup/scoped.view.sun",
-    "../../build/generated/tests/markup/actions.view.sun"
+    "${SUN_BUILD}/generated/tests/markup/reusable.view.sun",
+    "${SUN_BUILD}/generated/examples/counter-xml/counter.view.sun",
+    "${SUN_BUILD}/generated/tests/markup/scoped.view.sun",
+    "${SUN_BUILD}/generated/tests/markup/actions.view.sun"
   ]
 }
