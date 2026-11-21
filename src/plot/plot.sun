@@ -385,7 +385,7 @@ public module plot {
 }
 manifest {
   libraries: [
-    "stdlib.moon",
-    "sun_ui.moon"
+    "sun/stdlib",
+    "namo-robotics/sun_ui/sun_ui"
   ]
 }

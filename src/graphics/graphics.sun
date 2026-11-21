@@ -235,7 +235,7 @@ public module gpu {
 }
 manifest {
   libraries: [
-    "stdlib.moon"
+    "sun/stdlib"
   ], source_files: [
     "raw.sun"
   ]

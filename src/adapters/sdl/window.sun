@@ -105,8 +105,8 @@ public module gpu_sdl {
 }
 manifest {
   libraries:[
-    "stdlib.moon",
-    "sun_ui_graphics.moon"
+    "sun/stdlib",
+    "namo-robotics/sun_ui/sun_ui_graphics"
   ],source_files:[
     "raw.sun"
   ]

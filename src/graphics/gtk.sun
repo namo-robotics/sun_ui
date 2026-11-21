@@ -70,9 +70,9 @@ public module gpu_gtk {
 }
 manifest {
   libraries:[
-    "stdlib.moon",
-    "sun_ui_graphics.moon",
-    "${namo-robotics/sun_gobject}/lib/sun_gobject.moon",
-    "${namo-robotics/sun_gobject}/lib/sun_gtk.moon"
+    "sun/stdlib",
+    "namo-robotics/sun_ui/sun_ui_graphics",
+    "namo-robotics/sun_gobject/sun_gobject",
+    "namo-robotics/sun_gobject/sun_gtk"
   ]
 }

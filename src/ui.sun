@@ -1045,7 +1045,7 @@ public module ui {
 }
 manifest {
   libraries: [
-    "stdlib.moon"
+    "sun/stdlib"
   ]
   source_files: [
     "results.sun",

@@ -62,6 +62,6 @@ manifest {
     "../results.sun"
   ]
   libraries: [
-    "stdlib.moon"
+    "sun/stdlib"
   ]
 }
