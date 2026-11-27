@@ -2,19 +2,22 @@
 function main() i32 {
   return 0;
 }
+
 manifest {
-  libraries: [
-    "sun/stdlib"
-  ], source_files: [
+  source_files: [
     "${SUN_BUILD}/markup-test-config.sun",
     "support.sun",
     "../../src/markup/compiler.sun",
     "../../src/results.sun",
     "../../src/tools/diagnostics.sun",
     "../../src/tools/targets.sun"
-  ], test_files: [
+  ],
+  test_files: [
     "compiler.sun",
     "pipeline.sun",
     "targets.sun"
   ]
+  libraries: [
+    "sun/stdlib"
+  ],
 }

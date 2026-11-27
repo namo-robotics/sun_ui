@@ -233,10 +233,12 @@ public module gpu {
     }
   }
 }
+
 manifest {
-  libraries: [
-    "sun/stdlib"
-  ], source_files: [
+  source_files: [
     "raw.sun"
   ]
+  libraries: [
+    "sun/stdlib"
+  ],
 }

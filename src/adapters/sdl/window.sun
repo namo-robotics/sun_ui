@@ -103,11 +103,13 @@ public module gpu_sdl {
     return unsafe { gu_window_time(); };
   }
 }
+
 manifest {
+  source_files:[
+    "raw.sun"
+  ]
   libraries:[
     "sun/stdlib",
     "namo-robotics/sun_ui/sun_ui_graphics"
-  ],source_files:[
-    "raw.sun"
-  ]
+  ],
 }

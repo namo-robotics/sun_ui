@@ -1043,13 +1043,14 @@ public module ui {
     }
   }
 }
+
 manifest {
-  libraries: [
-    "sun/stdlib"
-  ]
   source_files: [
     "results.sun",
     "drawing.sun",
     "styles.sun"
+  ]
+  libraries: [
+    "sun/stdlib"
   ]
 }

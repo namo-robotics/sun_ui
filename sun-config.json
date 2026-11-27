@@ -1,4 +1,5 @@
 {
+  "package_id": "namo-robotics/sun_ui",
   "root": true,
   "path_variables": {
     "SUN_UI_BUILD": "build",
@@ -50,11 +51,11 @@
       "path": "src/adapters/gtk/renderer.sun",
       "type": "library",
       "export": true,
-      "requires": [
-        "sun_ui"
-      ],
       "compile_args": [
         "--dynamic"
+      ],
+      "requires": [
+        "sun_ui"
       ]
     },
     {
@@ -62,12 +63,12 @@
       "path": "src/adapters/gtk/drawing.sun",
       "type": "library",
       "export": true,
+      "compile_args": [
+        "--dynamic"
+      ],
       "requires": [
         "sun_ui",
         "sun_ui_gtk"
-      ],
-      "compile_args": [
-        "--dynamic"
       ]
     },
     {
@@ -75,12 +76,12 @@
       "path": "examples/counter/main.sun",
       "type": "binary",
       "export": false,
-      "requires": [
-        "sun_ui_gtk"
-      ],
       "compile_args": [
         "--dynamic",
         "-lm"
+      ],
+      "requires": [
+        "sun_ui_gtk"
       ],
       "pkg_config": [
         "gtk4",
@@ -93,12 +94,12 @@
       "path": "examples/tasks/main.sun",
       "type": "binary",
       "export": false,
-      "requires": [
-        "sun_ui_gtk"
-      ],
       "compile_args": [
         "--dynamic",
         "-lm"
+      ],
+      "requires": [
+        "sun_ui_gtk"
       ],
       "pkg_config": [
         "gtk4",
@@ -120,13 +121,13 @@
       "path": "examples/plot-viewer/main.sun",
       "type": "binary",
       "export": false,
-      "requires": [
-        "sun_plot",
-        "sun_ui_gtk_drawing"
-      ],
       "compile_args": [
         "--dynamic",
         "-lm"
+      ],
+      "requires": [
+        "sun_plot",
+        "sun_ui_gtk_drawing"
       ],
       "pkg_config": [
         "gtk4",
@@ -154,11 +155,11 @@
       "path": "tests/markup/main.sun",
       "type": "binary",
       "export": false,
-      "requires": [
-        "sun_viewc"
-      ],
       "build": [
         "scripts/build-markup-tests.sh"
+      ],
+      "requires": [
+        "sun_viewc"
       ]
     },
     {
@@ -166,11 +167,11 @@
       "path": "tests/markup/generated.sun",
       "type": "binary",
       "export": false,
-      "requires": [
-        "sun_viewc"
-      ],
       "steps": [
         "generated_views"
+      ],
+      "requires": [
+        "sun_viewc"
       ]
     },
     {
@@ -178,21 +179,21 @@
       "path": "examples/counter-xml/main.sun",
       "type": "binary",
       "export": false,
+      "steps": [
+        "generated_views"
+      ],
       "compile_args": [
         "--dynamic",
         "-lm"
-      ],
-      "pkg_config": [
-        "gtk4",
-        "gio-2.0",
-        "librsvg-2.0"
       ],
       "requires": [
         "sun_viewc",
         "sun_ui_gtk"
       ],
-      "steps": [
-        "generated_views"
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0"
       ]
     },
     {
@@ -200,21 +201,21 @@
       "path": "examples/tasks-xml/main.sun",
       "type": "binary",
       "export": false,
+      "steps": [
+        "generated_views"
+      ],
       "compile_args": [
         "--dynamic",
         "-lm"
-      ],
-      "pkg_config": [
-        "gtk4",
-        "gio-2.0",
-        "librsvg-2.0"
       ],
       "requires": [
         "sun_viewc",
         "sun_ui_gtk"
       ],
-      "steps": [
-        "generated_views"
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0"
       ]
     },
     {
@@ -222,21 +223,21 @@
       "path": "examples/forms/main.sun",
       "type": "binary",
       "export": false,
+      "steps": [
+        "generated_views"
+      ],
       "compile_args": [
         "--dynamic",
         "-lm"
-      ],
-      "pkg_config": [
-        "gtk4",
-        "gio-2.0",
-        "librsvg-2.0"
       ],
       "requires": [
         "sun_viewc",
         "sun_ui_gtk"
       ],
-      "steps": [
-        "generated_views"
+      "pkg_config": [
+        "gtk4",
+        "gio-2.0",
+        "librsvg-2.0"
       ]
     },
     {
@@ -256,11 +257,11 @@
       "path": "src/graphics/graphics.sun",
       "type": "library",
       "export": true,
-      "compile_args": [
-        "--dynamic"
-      ],
       "steps": [
         "graphics_native"
+      ],
+      "compile_args": [
+        "--dynamic"
       ]
     },
     {
@@ -293,9 +294,8 @@
       "path": "tests/graphics/main.sun",
       "type": "binary",
       "export": false,
-      "requires": [
-        "sun_ui_graphics_gtk",
-        "sun_ui_sdl"
+      "steps": [
+        "graphics_test_native"
       ],
       "compile_args": [
         "--dynamic",
@@ -305,15 +305,16 @@
         "-lm",
         "-lgraphics_test_input"
       ],
+      "requires": [
+        "sun_ui_graphics_gtk",
+        "sun_ui_sdl"
+      ],
       "pkg_config": [
         "gtk4",
         "gio-2.0",
         "librsvg-2.0",
         "sdl3",
         "epoxy"
-      ],
-      "steps": [
-        "graphics_test_native"
       ]
     },
     {
@@ -321,16 +322,16 @@
       "path": "examples/graphics/main.sun",
       "type": "binary",
       "export": false,
-      "requires": [
-        "sun_ui_graphics_gtk",
-        "sun_ui_sdl"
-      ],
       "compile_args": [
         "--dynamic",
         "-L${SUN_BUILD}/graphics-native",
         "-lsun_ui_sdl",
         "-lsun_ui_graphics",
         "-lm"
+      ],
+      "requires": [
+        "sun_ui_graphics_gtk",
+        "sun_ui_sdl"
       ],
       "pkg_config": [
         "gtk4",
@@ -345,12 +346,12 @@
       "path": "examples/drawing-controls/main.sun",
       "type": "binary",
       "export": false,
-      "requires": [
-        "sun_ui_gtk"
-      ],
       "compile_args": [
         "--dynamic",
         "-lm"
+      ],
+      "requires": [
+        "sun_ui_gtk"
       ],
       "pkg_config": [
         "gtk4",
@@ -359,14 +360,48 @@
       ]
     }
   ],
-  "package_id": "namo-robotics/sun_ui",
+  "packages": [
+    {
+      "name": "sun_ui",
+      "entrypoints": [
+        "sun_ui",
+        "sun_plot",
+        "sun_ui_gtk",
+        "sun_ui_gtk_drawing",
+        "sun_ui_graphics",
+        "sun_ui_graphics_gtk",
+        "sun_ui_sdl",
+        "sun_viewc"
+      ],
+      "resources": [
+        {
+          "path": "LICENSE",
+          "destination": "share/sun_ui/LICENSE"
+        },
+        {
+          "path": "${SUN_BUILD}/graphics-native/libsun_ui_graphics.a",
+          "destination": "lib/native/libsun_ui_graphics.a"
+        },
+        {
+          "path": "${SUN_BUILD}/graphics-native/libsun_ui_sdl.a",
+          "destination": "lib/native/libsun_ui_sdl.a"
+        }
+      ]
+    }
+  ],
+  "exports": [
+    {
+      "path": "LICENSE",
+      "destination": "share/sun_ui/LICENSE"
+    }
+  ],
   "dependencies": [
     {
       "type": "system",
       "check": {
         "type": "pkg-config",
-        "name": "sdl3",
-        "version": ">=3.2"
+        "version": ">=3.2",
+        "name": "sdl3"
       },
       "target": {
         "linux": {
@@ -399,12 +434,6 @@
       ]
     }
   ],
-  "exports": [
-    {
-      "path": "LICENSE",
-      "destination": "share/sun_ui/LICENSE"
-    }
-  ],
   "steps": [
     {
       "name": "graphics_configure",
@@ -426,9 +455,6 @@
     },
     {
       "name": "graphics_native",
-      "requires": [
-        "graphics_configure"
-      ],
       "command": [
         "cmake",
         "--build",
@@ -443,13 +469,13 @@
       "outputs": [
         "${SUN_BUILD}/graphics-native/libsun_ui_graphics.a",
         "${SUN_BUILD}/graphics-native/libsun_ui_sdl.a"
+      ],
+      "requires": [
+        "graphics_configure"
       ]
     },
     {
       "name": "graphics_test_native",
-      "requires": [
-        "graphics_configure"
-      ],
       "command": [
         "cmake",
         "--build",
@@ -464,6 +490,9 @@
       ],
       "outputs": [
         "${SUN_BUILD}/graphics-native/libgraphics_test_input.a"
+      ],
+      "requires": [
+        "graphics_configure"
       ]
     },
     {
@@ -487,35 +516,6 @@
         "${SUN_BUILD}/generated/tests/markup/scoped.view.sun",
         "${SUN_BUILD}/generated/tests/markup/actions.view.sun",
         "${SUN_BUILD}/generated/tests/markup/reusable.view.sun"
-      ]
-    }
-  ],
-  "packages": [
-    {
-      "name": "sun_ui",
-      "entrypoints": [
-        "sun_ui",
-        "sun_plot",
-        "sun_ui_gtk",
-        "sun_ui_gtk_drawing",
-        "sun_ui_graphics",
-        "sun_ui_graphics_gtk",
-        "sun_ui_sdl",
-        "sun_viewc"
-      ],
-      "resources": [
-        {
-          "path": "LICENSE",
-          "destination": "share/sun_ui/LICENSE"
-        },
-        {
-          "path": "${SUN_BUILD}/graphics-native/libsun_ui_graphics.a",
-          "destination": "lib/native/libsun_ui_graphics.a"
-        },
-        {
-          "path": "${SUN_BUILD}/graphics-native/libsun_ui_sdl.a",
-          "destination": "lib/native/libsun_ui_sdl.a"
-        }
       ]
     }
   ]

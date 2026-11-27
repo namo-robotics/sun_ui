@@ -68,6 +68,7 @@ public module gpu_gtk {
     }
   }
 }
+
 manifest {
   libraries:[
     "sun/stdlib",

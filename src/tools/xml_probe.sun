@@ -57,6 +57,7 @@ function main() i32 throws {
 
   return 1;
 }
+
 manifest {
   source_files: [
     "../results.sun"

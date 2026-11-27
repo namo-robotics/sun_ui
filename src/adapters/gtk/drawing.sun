@@ -201,6 +201,7 @@ public module ui_gtk_drawing {
     throw Error(1, "Drawing dimensions must be between 1 and 16384");
   }
 }
+
 manifest {
   libraries: [
     "sun/stdlib",

@@ -31,11 +31,12 @@ function export_plot() void throws {
 }
 
 manifest {
+  source_files: [
+    "data.sun"
+  ]
   libraries: [
     "sun/stdlib",
     "namo-robotics/sun_ui/sun_ui",
     "namo-robotics/sun_ui/sun_plot"
-  ], source_files: [
-    "data.sun"
-  ]
+  ],
 }

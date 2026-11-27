@@ -231,14 +231,16 @@ module reusable_checks {
 function main() i32 {
   return 0;
 }
+
 manifest {
-  libraries: [
-    "sun/stdlib",
-    "namo-robotics/sun_ui/sun_ui"
-  ], source_files: [
+  source_files: [
     "${SUN_BUILD}/generated/tests/markup/reusable.view.sun",
     "${SUN_BUILD}/generated/examples/counter-xml/counter.view.sun",
     "${SUN_BUILD}/generated/tests/markup/scoped.view.sun",
     "${SUN_BUILD}/generated/tests/markup/actions.view.sun"
   ]
+  libraries: [
+    "sun/stdlib",
+    "namo-robotics/sun_ui/sun_ui"
+  ],
 }

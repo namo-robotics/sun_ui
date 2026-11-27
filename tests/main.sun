@@ -2,12 +2,14 @@
 function main() i32 {
   return 0;
 }
+
 manifest {
-  libraries: [
-    "sun/stdlib",
-    "namo-robotics/sun_ui/sun_ui"
-  ], test_files: [
+  test_files: [
     "core.sun",
     "results.sun"
   ]
+  libraries: [
+    "sun/stdlib",
+    "namo-robotics/sun_ui/sun_ui"
+  ],
 }

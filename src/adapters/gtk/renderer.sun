@@ -946,6 +946,7 @@ public module ui_gtk {
     }
   }
 }
+
 manifest {
   libraries: [
     "sun/stdlib",
