@@ -162,6 +162,14 @@ module build_targets {
     return directory("describe", "build_root", "");
   }
 
+  /** Resolves an artifact beneath the compiler-selected build directory. */
+  public function build_path(relative: static_ptr<u8>) String throws {
+    var path = build_directory();
+    path.append("/");
+    path.append(relative);
+    return path;
+  }
+
   /** Returns the selected package root for a declared dependency. */
   public function dependency(name: static_ptr<u8>) String throws {
     return directory("resolve", "root", name);
@@ -238,26 +246,9 @@ module build_targets {
     try {
       var value = select_group(document, name, native);
       operation_completed_2 = true;
-      if (not native) {
-        var root_outcome: std.Option<String> = std.Option.None;
-
-        try {
-          var path = property(document, "build_root");
-
-          root_outcome = std.Option.Some(path);
-        } catch {
-          throw Error(1, "Missing compiler build directory");
-        }
-
-        var root = match root_outcome {
-          std.Option.Some(value) => value,
-          std.Option.None => {
-            throw std.Error(1, "Exception handler produced no value");
-          }
-        };
-        // Keep compiler-selected filenames in the custom driver's build directory.
-        value.output.replace(root, String("build"));
-        value.tests.replace(root, String("build"));
+      if (native) {
+        var root = build_directory();
+        value.output.replace(String("${SUN_BUILD}"), root);
       }
       return value;
     } catch (error: std.Error) {

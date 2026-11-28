@@ -4,6 +4,19 @@ using std.mem;
 /** Verifies target selection independently of this workspace's artifact names. */
 module build_targets {
 
+  /** Keeps runtime target lookup and native outputs in the compiler's build directory. */
+  test_function resolved_build_directory() {
+    var root = build_directory();
+    var expected = root.clone(make_heap_allocator());
+    expected.append("/");
+    var target = load("sun_viewc");
+    std.test.assert(target.output.starts_with(expected));
+    std.test.assert(target.tests.starts_with(expected));
+    var native = load_native("graphics-native");
+    std.test.assert(native.output.starts_with(expected));
+    std.test.assert(not native.output.contains("${SUN_BUILD}"));
+  }
+
   /** Keeps explicit library and test output names when selecting among multiple entries. */
   test_function configured_artifact_names() {
     var a = make_heap_allocator();

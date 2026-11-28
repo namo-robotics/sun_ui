@@ -20,6 +20,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build development image
         run: docker build -t sun-ui-dev .
+      - name: Locate build artifacts
+        id: paths
+        run: |
+          output=$(docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspaces/sun_ui" sun-ui-dev sun describe --config sun-config.json --field build_root)
+          printf 'build_root=%s\n' "${output#/workspaces/sun_ui/}" >> "$GITHUB_OUTPUT"
       - name: Build and test without sun_gobject
         # Make the runner's UID and GID resolvable inside the container.
         run: >-
@@ -34,18 +39,24 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
+          include-hidden-files: true
           name: core-tests
           path: |
-            build/sun-version.txt
-            build/test-results.log
-            build/markup-test-results.log
-            build/scientific-plot.svg
+            ${{ steps.paths.outputs.build_root }}/sun-version.txt
+            ${{ steps.paths.outputs.build_root }}/test-results.log
+            ${{ steps.paths.outputs.build_root }}/markup-test-results.log
+            ${{ steps.paths.outputs.build_root }}/scientific-plot.svg
   gtk:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build development image
         run: docker build -t sun-ui-dev .
+      - name: Locate build artifacts
+        id: paths
+        run: |
+          output=$(docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspaces/sun_ui" sun-ui-dev sun describe --config sun-config.json --field build_root)
+          printf 'build_root=%s\n' "${output#/workspaces/sun_ui/}" >> "$GITHUB_OUTPUT"
       - name: Download dependency and run native acceptance tests
         # D-Bus needs a passwd entry for the runner's UID inside the container.
         run: >-
@@ -60,32 +71,39 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
+          include-hidden-files: true
           name: gtk-tests
           path: |
-            build/sun-version.txt
-            build/test-results.log
-            build/markup-test-results.log
-            build/gtk-test-results.log
+            ${{ steps.paths.outputs.build_root }}/sun-version.txt
+            ${{ steps.paths.outputs.build_root }}/test-results.log
+            ${{ steps.paths.outputs.build_root }}/markup-test-results.log
+            ${{ steps.paths.outputs.build_root }}/gtk-test-results.log
       - name: Package Linux development tools and bundles
         run: docker run --rm -e GIT_CONFIG_COUNT -e GIT_CONFIG_KEY_0 -e GIT_CONFIG_VALUE_0 --user "$(id -u):$(id -g)" -v "$PWD:/workspaces/sun_ui" sun-ui-dev sun src/tools/package.sun
       - name: Upload development bundles
         uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: dev-bundles
           if-no-files-found: error
           path: |
-            build/sun-ui_0.dev_amd64.deb
-            build/sun_ui.moon
-            build/sun_plot.moon
-            build/sun_ui_gtk.moon
-            build/sun_ui_gtk_drawing.moon
-            build/sun-version.txt
+            ${{ steps.paths.outputs.build_root }}/sun-ui_0.dev_amd64.deb
+            ${{ steps.paths.outputs.build_root }}/sun_ui.moon
+            ${{ steps.paths.outputs.build_root }}/sun_plot.moon
+            ${{ steps.paths.outputs.build_root }}/sun_ui_gtk.moon
+            ${{ steps.paths.outputs.build_root }}/sun_ui_gtk_drawing.moon
+            ${{ steps.paths.outputs.build_root }}/sun-version.txt
   macos:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - name: Install toolchain and GTK dependencies
         run: brew install namo-robotics/sun/sun gtk4 sdl3 libepoxy librsvg gstreamer coreutils cmake ninja pkgconf gobject-introspection
+      - name: Locate build artifacts
+        id: paths
+        run: |
+          output=$(sun describe --config sun-config.json --field build_root)
+          printf 'build_root=%s\n' "$output" >> "$GITHUB_OUTPUT"
       - name: Build and test native bundles
         run: ./scripts/build-macos.sh
       - name: Build and test GTK and SDL graphics integration
@@ -95,32 +113,41 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
+          include-hidden-files: true
           name: graphics-macos-tests
-          path: build/graphics-test-results.log
+          path: ${{ steps.paths.outputs.build_root }}/graphics-test-results.log
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: graphics-macos-bundles
           path: |
-            build/sun_ui_graphics*.moon
-            build/sun_ui_sdl.moon
-            build/graphics-native/libsun_ui_graphics.a
-            build/graphics-native/libsun_ui_sdl.a
+            ${{ steps.paths.outputs.build_root }}/sun_ui_graphics*.moon
+            ${{ steps.paths.outputs.build_root }}/sun_ui_sdl.moon
+            ${{ steps.paths.outputs.build_root }}/graphics-native/libsun_ui_graphics.a
+            ${{ steps.paths.outputs.build_root }}/graphics-native/libsun_ui_sdl.a
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: sun_ui-macos-arm64
           if-no-files-found: error
-          path: build/sun_ui-arm64-apple-darwin.tar.gz
+          path: ${{ steps.paths.outputs.build_root }}/sun_ui-arm64-apple-darwin.tar.gz
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: sun_ui-macos-release
           if-no-files-found: error
-          path: build/release-assets/*
+          path: ${{ steps.paths.outputs.build_root }}/release-assets/*
   graphics:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Build development image
         run: docker build -t sun-ui-dev .
+      - name: Locate build artifacts
+        id: paths
+        run: |
+          output=$(docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workspaces/sun_ui" sun-ui-dev sun describe --config sun-config.json --field build_root)
+          printf 'build_root=%s\n' "${output#/workspaces/sun_ui/}" >> "$GITHUB_OUTPUT"
       - name: Download dependency and exercise public graphics APIs
         run: >-
           docker run --rm -e GIT_CONFIG_COUNT -e GIT_CONFIG_KEY_0 -e GIT_CONFIG_VALUE_0 --user "$(id -u):$(id -g)"
@@ -133,13 +160,15 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
+          include-hidden-files: true
           name: graphics-linux-tests
-          path: build/graphics-test-results.log
+          path: ${{ steps.paths.outputs.build_root }}/graphics-test-results.log
       - uses: actions/upload-artifact@v4
         with:
+          include-hidden-files: true
           name: graphics-linux-bundles
           if-no-files-found: error
-          path: build/release-assets/*
+          path: ${{ steps.paths.outputs.build_root }}/release-assets/*
   publish-dev:
     needs: [core, gtk, macos, graphics]
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -151,22 +180,22 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dev-bundles
-          path: build/release
+          path: .sun/release
       - name: Download tested macOS bundles
         uses: actions/download-artifact@v4
         with:
           name: sun_ui-macos-arm64
-          path: build/release
+          path: .sun/release
       - name: Download all tested macOS release assets
         uses: actions/download-artifact@v4
         with:
           name: sun_ui-macos-release
-          path: build/release
+          path: .sun/release
       - name: Download all tested Linux release assets
         uses: actions/download-artifact@v4
         with:
           name: graphics-linux-bundles
-          path: build/release
+          path: .sun/release
       - name: Update dev release
         uses: softprops/action-gh-release@v2
         with:
@@ -176,12 +205,12 @@ jobs:
           prerelease: true
           fail_on_unmatched_files: true
           files: |
-            build/release/*.deb
-            build/release/*.moon
-            build/release/sun-version.txt
-            build/release/sun_ui-arm64-apple-darwin.tar.gz
-            build/release/*.sun.tar.gz
-            build/release/sun_viewc-*
+            .sun/release/*.deb
+            .sun/release/*.moon
+            .sun/release/sun-version.txt
+            .sun/release/sun_ui-arm64-apple-darwin.tar.gz
+            .sun/release/*.sun.tar.gz
+            .sun/release/sun_viewc-*
           body: |
             Latest development build from main branch.
 

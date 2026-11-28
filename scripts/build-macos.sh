@@ -5,18 +5,18 @@ cd "$(dirname "$0")/.."
 [[ $(uname -s) == Darwin && $(uname -m) == arm64 ]] || { echo 'Requires Apple Silicon macOS' >&2; exit 1; }
 export SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
 export PATH="$(brew --prefix coreutils)/libexec/gnubin:$PATH"
-export SUN_DEPENDENCY_CACHE="${SUN_DEPENDENCY_CACHE:-$PWD/build/dependencies/cache}"
 compiler=${SUN_EXECUTABLE:-sun}
+build_root=$("$compiler" describe --config sun-config.json --field build_root)
 if [[ ${1:-} == --bundles ]]; then
-  mkdir -p build
-  "$compiler" --dynamic --emit-moon -o build/sun_ui.moon src/ui.sun
-  "$compiler" --dynamic --lib-path build --emit-moon -o build/sun_ui_gtk.moon src/adapters/gtk/renderer.sun
-  "$compiler" --dynamic --lib-path build -c -o build/sun_viewc src/tools/viewc.sun
+  mkdir -p "$build_root"
+  "$compiler" --dynamic --emit-moon -o "$build_root/sun_ui.moon" src/ui.sun
+  "$compiler" --dynamic --lib-path "$build_root" --emit-moon -o "$build_root/sun_ui_gtk.moon" src/adapters/gtk/renderer.sun
+  "$compiler" --dynamic --lib-path "$build_root" -c -o "$build_root/sun_viewc" src/tools/viewc.sun
   exit 0
 fi
 ./build.sh --gtk
-mkdir -p build/macos/lib/sun build/macos/bin build/macos/share/sun_ui
-cp build/sun_ui.moon build/sun_plot.moon build/sun_ui_gtk.moon build/sun_ui_gtk_drawing.moon build/macos/lib/sun/
-cp build/sun_viewc build/macos/bin/
-cp LICENSE build/sun-version.txt build/macos/share/sun_ui/
-tar -C build/macos -czf build/sun_ui-arm64-apple-darwin.tar.gz .
+mkdir -p "$build_root/macos/lib/sun" "$build_root/macos/bin" "$build_root/macos/share/sun_ui"
+cp "$build_root/sun_ui.moon" "$build_root/sun_plot.moon" "$build_root/sun_ui_gtk.moon" "$build_root/sun_ui_gtk_drawing.moon" "$build_root/macos/lib/sun/"
+cp "$build_root/sun_viewc" "$build_root/macos/bin/"
+cp LICENSE "$build_root/sun-version.txt" "$build_root/macos/share/sun_ui/"
+tar -C "$build_root/macos" -czf "$build_root/sun_ui-arm64-apple-darwin.tar.gz" .

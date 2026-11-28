@@ -16,7 +16,8 @@ checked `GLArea` and widget-reference APIs. Then, from the sun_ui workspace root
 
 ```sh
 ./build.sh --graphics
-./build/graphics
+build_root=$(sun describe --field build_root)
+"$build_root/graphics"
 ```
 
 The example displays a cube and ground grid in both hosts. GTK buttons change the
@@ -130,13 +131,13 @@ behavior, not physical device behavior on every compositor.
 
 The GTK libdecor plugin links GTK 3 and must not be loaded into this GTK 4 process.
 Disabling decorations through SDL's hint was insufficient in the tested SDL build.
-The graphics build creates `build/libdecor/libdecor-cairo.so` as a link to the
+The graphics build creates `$build_root/libdecor/libdecor-cairo.so` as a link to the
 installed Cairo plugin when found. The SDL host selects this directory next to
 the executable before SDL initialization. An application installed elsewhere can
 supply its own isolated directory explicitly:
 
 ```sh
-LIBDECOR_PLUGIN_DIR=/absolute/path/to/cairo-only-plugins ./build/graphics
+LIBDECOR_PLUGIN_DIR=/absolute/path/to/cairo-only-plugins "$build_root/graphics"
 ```
 
 The directory must contain only a compatible Cairo plugin, not `libdecor-gtk.so`.
@@ -149,7 +150,7 @@ create an appropriate installation-time link or set the runtime directory.
 The Linux SDL host uses EGL for OpenGL context creation; the tested Xvfb GLX path
 could not find a matching visual. This does not force an X11 session. The Linux
 automated acceptance command explicitly selects X11/Xvfb with software OpenGL.
-Run the actual `build/graphics_tests` binary in a Wayland session to test Wayland.
+Run the actual `$build_root/graphics_tests` binary in a Wayland session to test Wayland.
 
 ## Validation and dependency rollout
 

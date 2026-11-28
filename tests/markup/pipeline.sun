@@ -16,7 +16,7 @@ module markup_pipeline_tests {
   function generate() std.process.Output throws {
     var command = markup_support.generator();
     command.add_arg("tmp/markup-pipeline/main.view.xml");
-    command.add_arg("build/generated/tests/pipeline/main.view.sun");
+    command.add_arg(markup_support.build_path("generated/tests/pipeline/main.view.sun"));
     return command.output();
   }
 
@@ -37,9 +37,9 @@ module markup_pipeline_tests {
     );
     var first = generate();
     std.test.assert_eq(first.status(), 0);
-    var path = String("build/generated/tests/pipeline/main.view.sun");
+    var path = markup_support.build_path("generated/tests/pipeline/main.view.sun");
     var original = std.io.read_to_string(a, path);
-    var map_path = String("build/generated/tests/pipeline/main.view.sun.map");
+    var map_path = markup_support.build_path("generated/tests/pipeline/main.view.sun.map");
 
     var original_map = std.io.read_to_string(a, map_path);
     std.test.assert(
@@ -136,7 +136,7 @@ module markup_pipeline_tests {
     command.add_arg(
       explicit_registry ? "tmp/registry-pipeline/views/main.view.xml" : "tmp/registry-pipeline/main.view.xml"
     );
-    command.add_arg("build/generated/tests/registry/main.view.sun");
+    command.add_arg(markup_support.build_path("generated/tests/registry/main.view.sun"));
     if (explicit_registry) {
       command.add_arg("--registry");
       command.add_arg("tmp/registry-pipeline/components.registry.xml");
@@ -169,8 +169,8 @@ module markup_pipeline_tests {
     );
     var first = generate_registered(false);
     std.test.assert_eq(first.status(), 0);
-    var output = String("build/generated/tests/registry/main.view.sun");
-    var map = String("build/generated/tests/registry/main.view.sun.map");
+    var output = markup_support.build_path("generated/tests/registry/main.view.sun");
+    var map = markup_support.build_path("generated/tests/registry/main.view.sun.map");
 
     var original = std.io.read_to_string(a, output);
     var mapping = std.io.read_to_string(a, map);

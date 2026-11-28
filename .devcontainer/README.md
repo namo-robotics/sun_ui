@@ -5,8 +5,11 @@ Based on `namo-robotics/sun_infra` template `sun-dev` version
 reviewed copy, not live inheritance. Compare future template releases before
 merging updates into these files.
 
-The project Dockerfile remains responsible for Ubuntu 26.04 and its toolchain.
-It declares `USER ubuntu`; the devcontainer inherits that user without overrides.
+The project Dockerfile inherits Ubuntu 26.04, LLVM 20, the musl toolchain, and
+common development tools from `ghcr.io/namo-robotics/sun-dev:ubuntu26.04-llvm20`.
+It adds Sun and the GTK, graphics, media, and headless test dependencies used by
+both CI and the devcontainer. It declares `USER ubuntu`; the devcontainer
+inherits that user without overrides.
 Startup checks the OS and prepares the cache; it does not update the compiler.
 Existing mounts, cache sizes, extensions, and project-specific startup steps are
 retained. Fixed CTest worker counts were removed; choose at most half the

@@ -2,15 +2,14 @@
   "package_id": "namo-robotics/sun_ui",
   "root": true,
   "path_variables": {
-    "SUN_UI_BUILD": "build",
     "GRAPHICS_NATIVE_SOURCE": "src/graphics/native",
-    "GRAPHICS_NATIVE_OUTPUT": "build/graphics-native",
+    "GRAPHICS_NATIVE_OUTPUT": "${SUN_BUILD}/graphics-native",
     "GRAPHICS_EXECUTOR_SOURCE": "src/graphics/native/graphics.c",
-    "GRAPHICS_EXECUTOR_OUTPUT": "build/graphics-native/libsun_ui_graphics.a",
+    "GRAPHICS_EXECUTOR_OUTPUT": "${SUN_BUILD}/graphics-native/libsun_ui_graphics.a",
     "GRAPHICS_SDL_SOURCE": "src/adapters/sdl/native.c",
-    "GRAPHICS_SDL_OUTPUT": "build/graphics-native/libsun_ui_sdl.a",
+    "GRAPHICS_SDL_OUTPUT": "${SUN_BUILD}/graphics-native/libsun_ui_sdl.a",
     "GRAPHICS_TEST_INPUT_SOURCE": "tests/graphics/input.c",
-    "GRAPHICS_TEST_INPUT_OUTPUT": "build/graphics-native/libgraphics_test_input.a"
+    "GRAPHICS_TEST_INPUT_OUTPUT": "${SUN_BUILD}/graphics-native/libgraphics_test_input.a"
   },
   "entrypoints": [
     {

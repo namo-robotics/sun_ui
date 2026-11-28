@@ -11,11 +11,12 @@ From the repository root:
 
 ```sh
 ./build.sh
-./build/plot_export                 # writes build/scientific-plot.svg
+build_root=$(sun describe --field build_root)
+"$build_root/plot_export" "$build_root/scientific-plot.svg"
 vcs import --skip-existing --input deps.repos .
 bash src/sun_gobject/build.sh
 ./build.sh --plot-gtk               # builds and tests the GTK vector viewer
-./build/plot_viewer
+"$build_root/plot_viewer"
 ```
 
 In the viewer, click **Export SVG…** to choose a filename and destination in the
@@ -39,7 +40,7 @@ series.add(1.0, 2.0);
 series.add(2.0, 3.0);
 figure.add(series);
 var drawing = try figure.draw(800.0, 600.0);
-var path = String("build/experiment.svg");
+var path = String("experiment.svg");
 try drawing.save(path);
 ```
 

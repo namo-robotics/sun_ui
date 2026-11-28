@@ -47,9 +47,13 @@ archives, and unqualified Linux moon URLs remain available.
 ./build.sh
 ```
 
-This builds `build/sun_ui.moon`, `build/sun_plot.moon`, and the plot export example,
+This builds `sun_ui.moon`, `sun_plot.moon`, and the plot export example,
 then runs UI, plotting, and XML compiler tests and generates the XML examples
-without GTK or `sun_gobject`. The compiler version and test results are recorded in `build/`.
+without GTK or `sun_gobject`. The compiler version and test results are recorded
+in the compiler-selected build directory.
+Resolve the output directory with `build_root=$(sun describe --field build_root)`.
+It defaults to `.sun/build/<target>/release/namo-robotics/sun_ui`; the build tools,
+packaging scripts, and CI use the compiler's resolved path.
 For separate build, test, and formatting checks:
 
 ```sh
@@ -73,7 +77,9 @@ bundles cannot be reused on macOS; Intel macOS releases are not provided.
 
 Core tools and headless tests use Sun’s default linking: static musl on Linux
 and native system linking on macOS. GTK and SDL executables use dynamic linking
-to match the installed native libraries.
+to match the installed native libraries. The development image includes the
+`x86_64-linux-musl-gcc` toolchain and its C++ runtime; local Linux builds need
+the same toolchain on `PATH`.
 
 ## Build from source
 
@@ -97,9 +103,9 @@ Build and test the core without GTK or `sun_gobject`:
 ./build.sh
 ```
 
-This builds `build/sun_ui.moon`, `build/sun_plot.moon`, and the plot export example,
+This builds `sun_ui.moon`, `sun_plot.moon`, and the plot export example,
 runs UI, plotting, and XML compiler tests, and generates the XML examples. Outputs,
-compiler records, and test results go into `build/`.
+compiler records, and test results go into the compiler-selected build directory.
 
 For the GTK build, install GTK 4 development packages, `pkg-config`, Xvfb, xauth,
 and `dbus-run-session`. The development image includes these and `vcs2l` (the `vcs`
@@ -147,12 +153,13 @@ independent checkouts.
 
 ## Examples
 
-After building with `./build.sh --gtk`, run these examples in a graphical session:
+After building with `./build.sh --gtk`, set
+`build_root=$(sun describe --field build_root)` and run these examples in a graphical session:
 
 | Run | Source | Demonstrates |
 | --- | --- | --- |
-| `./build/counter` | [counter/main.sun](examples/counter/main.sun) | State updates and button labels |
-| `./build/tasks` | [tasks/main.sun](examples/tasks/main.sun) | Component composition, selection, and keyed reordering |
+| `"$build_root/counter"` | [counter/main.sun](examples/counter/main.sun) | State updates and button labels |
+| `"$build_root/tasks"` | [tasks/main.sun](examples/tasks/main.sun) | Component composition, selection, and keyed reordering |
 
 Both accept `--self-test`; the GTK build runs these checks automatically.
 
@@ -160,9 +167,10 @@ To export and display the four-panel scientific plotting example:
 
 ```sh
 ./build.sh
-./build/plot_export                 # build/scientific-plot.svg
+build_root=$(sun describe --field build_root)
+"$build_root/plot_export" "$build_root/scientific-plot.svg"
 ./build.sh --plot-gtk               # native viewer and acceptance test
-./build/plot_viewer
+"$build_root/plot_viewer"
 ```
 
 The viewer needs the GTK dependency build and librsvg (`librsvg2-2` on Debian/Ubuntu).
@@ -217,7 +225,7 @@ checkout; additional rendering backends remain future work.
 ## Optional OpenGL graphics
 
 `./build.sh --graphics` builds the owned-frame graphics API, embedded GTK viewport,
-separate SDL3 window, and their acceptance tests. Run `./build/graphics` for a
+separate SDL3 window, and their acceptance tests. Run `"$build_root/graphics"` for a
 shared 3D scene with GTK settings and an SDL FPS camera. See
 [graphics integration](docs/graphics.md) for dependencies, ownership, the combined
 event loop, and Wayland's Cairo decoration-plugin requirement. This requires the

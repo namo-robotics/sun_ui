@@ -5,8 +5,11 @@
       "name": "Counter",
       "type": "lldb-dap",
       "request": "launch",
-      "program": "${workspaceFolder}/build/counter",
-      "cwd": "${workspaceFolder}"
+      "cwd": "${workspaceFolder}",
+      "launchCommands": [
+        "script import os, subprocess; lldb.debugger.CreateTarget(os.path.join(subprocess.check_output([os.environ.get('SUN_EXECUTABLE', 'sun'), 'describe', '--config', '${workspaceFolder}/sun-config.json', '--field', 'build_root'], text=True).strip(), 'counter'))",
+        "process launch -s --working-dir \"${workspaceFolder}\""
+      ]
     }
   ]
 }

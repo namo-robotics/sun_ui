@@ -38,13 +38,13 @@
     {
       "label": "Counter",
       "type": "shell",
-      "command": "./build/counter",
+      "command": "\"$(sun describe --config sun-config.json --field build_root)/counter\"",
       "problemMatcher": []
     },
     {
       "label": "Keyed tasks",
       "type": "shell",
-      "command": "./build/tasks",
+      "command": "\"$(sun describe --config sun-config.json --field build_root)/tasks\"",
       "problemMatcher": []
     },
     {
@@ -52,11 +52,7 @@
       "type": "shell",
       "command": "./src/sun_video_editor/build.sh --build",
       "options": {
-        "cwd": "${workspaceFolder}",
-        "env": {
-          "SUN_UI_BUILD": "${workspaceFolder}/build",
-          "SUN_GOBJECT_BUILD": "${workspaceFolder}/src/sun_gobject/build"
-        }
+        "cwd": "${workspaceFolder}"
       },
       "problemMatcher": []
     }

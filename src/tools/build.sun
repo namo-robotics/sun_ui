@@ -28,15 +28,10 @@ module build_tasks {
     var a = make_heap_allocator();
     var executable = setting("SUN_EXECUTABLE", "sun");
     var command = std.process.Command(a, executable);
-    command.add_arg("--path-var");
-    command.add_arg("SUN_BUILD=build");
     command.add_arg("--lib-path");
-    command.add_arg("build");
+    command.add_arg(build_targets.build_directory());
     if (gtk) {
       command.add_arg("--dynamic");
-      var env = std.env.Env(a);
-      var cache = setting("SUN_DEPENDENCY_CACHE", "build/dependencies/cache");
-      env.set("SUN_DEPENDENCY_CACHE", cache);
       // The native media bindings require the system math library.
       command.add_arg("-lm");
       var pkg = std.process.Command(a, "pkg-config");
@@ -90,7 +85,7 @@ module build_tasks {
         original.append(parts[1]);
         original.append("/");
         original.append(view);
-        var generated = String("build/generated/");
+        var generated = build_targets.build_path("generated/");
         generated.append(original);
         generated.replace(".view.xml", ".view.sun");
         try {
@@ -256,14 +251,14 @@ module build_tasks {
     var a = make_heap_allocator();
     var mkdir = std.process.Command(a, "mkdir");
     mkdir.add_arg("-p");
-    mkdir.add_arg("build");
+    mkdir.add_arg(build_targets.build_directory());
     mkdir.add_arg("tmp");
     run(mkdir);
     var executable = setting("SUN_EXECUTABLE", "sun");
     var version = std.process.Command(a, executable);
     version.add_arg("--version");
     var output = version.output();
-    var path = String("build/sun-version.txt");
+    var path = build_targets.build_path("sun-version.txt");
     var text = output.stdout().clone(a);
     text.append(output.stderr());
     std.io.write_string(path, text);
@@ -314,10 +309,10 @@ module build_tasks {
     var a = make_heap_allocator();
     var directory = std.process.Command(a, "mkdir");
     directory.add_arg("-p");
-    directory.add_arg("build/generated/examples");
+    directory.add_arg(build_targets.build_path("generated/examples"));
     run(directory);
     compile("sun_viewc", false);
-    var test_directory = String("build");
+    var test_directory = build_targets.build_directory();
     configure_markup_tests(test_directory);
     compile("markup_tests", false);
     var markup_target = build_targets.load("markup_tests");
@@ -336,7 +331,7 @@ module build_tasks {
       input.append("/");
       input.append(name);
       input.append(".view.xml");
-      var output = String("build/generated/examples/");
+      var output = build_targets.build_path("generated/examples/");
       output.append(example);
       output.append("/");
       output.append(name);
@@ -347,15 +342,15 @@ module build_tasks {
     }
     var scoped = std.process.Command(a, viewc.output);
     scoped.add_arg("tests/markup/scoped.view.xml");
-    scoped.add_arg("build/generated/tests/markup/scoped.view.sun");
+    scoped.add_arg(build_targets.build_path("generated/tests/markup/scoped.view.sun"));
     run(scoped);
     var actions = std.process.Command(a, viewc.output);
     actions.add_arg("tests/markup/actions.view.xml");
-    actions.add_arg("build/generated/tests/markup/actions.view.sun");
+    actions.add_arg(build_targets.build_path("generated/tests/markup/actions.view.sun"));
     run(actions);
     var reusable = std.process.Command(a, viewc.output);
     reusable.add_arg("tests/markup/reusable.view.xml");
-    reusable.add_arg("build/generated/tests/markup/reusable.view.sun");
+    reusable.add_arg(build_targets.build_path("generated/tests/markup/reusable.view.sun"));
     reusable.add_arg("--registry");
     reusable.add_arg("tests/markup/reusable.registry.xml");
     run(reusable);
@@ -411,6 +406,7 @@ module build_tasks {
       run(plot_tests);
       var export_target = build_targets.load("plot_export");
       var example = std.process.Command(a, export_target.output);
+      example.add_arg(build_targets.build_path("scientific-plot.svg"));
       return run(example);
     }
     acceptance("counter");

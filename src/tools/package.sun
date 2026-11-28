@@ -35,33 +35,33 @@ module release_package {
     if (result.status() != 0 or not architecture.equals_literal("amd64")) {
       throw Error(1, "Linux release packages require amd64");
     }
-    var root = String("build/release-package/root");
+    var root = build_targets.build_path("release-package/root");
     var clear = std.process.Command(a, "rm");
     clear.add_arg("-rf");
     clear.add_arg(root);
     run(clear);
     install(
-      String("build/sun_ui.moon"),
+      build_targets.build_path("sun_ui.moon"),
       `${root}/usr/lib/sun/sun_ui.moon`,
       false
     );
     install(
-      String("build/sun_plot.moon"),
+      build_targets.build_path("sun_plot.moon"),
       `${root}/usr/lib/sun/sun_plot.moon`,
       false
     );
     install(
-      String("build/sun_ui_gtk.moon"),
+      build_targets.build_path("sun_ui_gtk.moon"),
       `${root}/usr/lib/sun/sun_ui_gtk.moon`,
       false
     );
     install(
-      String("build/sun_ui_gtk_drawing.moon"),
+      build_targets.build_path("sun_ui_gtk_drawing.moon"),
       `${root}/usr/lib/sun/sun_ui_gtk_drawing.moon`,
       false
     );
     install(
-      String("build/sun_viewc"),
+      build_targets.build_path("sun_viewc"),
       `${root}/usr/bin/sun_viewc`,
       true
     );
@@ -71,7 +71,7 @@ module release_package {
       false
     );
     install(
-      String("build/sun-version.txt"),
+      build_targets.build_path("sun-version.txt"),
       `${root}/usr/share/doc/sun-ui/sun-version.txt`,
       false
     );
@@ -89,7 +89,7 @@ module release_package {
     archive.add_arg("--root-owner-group");
     archive.add_arg("--build");
     archive.add_arg(root);
-    archive.add_arg("build/sun-ui_0.dev_amd64.deb");
+    archive.add_arg(build_targets.build_path("sun-ui_0.dev_amd64.deb"));
     return run(archive);
   }
 }
@@ -116,7 +116,8 @@ function main() i32 throws {
 
 manifest {
   source_files: [
-    "../results.sun"
+    "../results.sun",
+    "targets.sun"
   ]
   libraries: [
     "sun/stdlib"

@@ -11,7 +11,7 @@ A file for guiding coding agents.
 - Core build and tests: `./build.sh`. Optional GTK build and acceptance tests: `./build.sh --gtk`.
 - Core build: `sun src/tools/build.sun -- build`.
 - Tests: `sun src/tools/build.sun -- test`; selected tests: `sun test tests/main.sun --test-filter <name>`.
-- Keep Sun source in `src/`, platform adapters in `src/adapters/`, tests in `tests/`, and generated artifacts in `build/`.
+- Keep Sun source in `src/`, platform adapters in `src/adapters/`, tests in `tests/`, and generated artifacts in the directory reported by `sun describe --field build_root` (under `.sun/build/` by default).
 - Keep build tools in `src/tools/`. Declare target source paths, types, and artifact names in `sun-config.json`; build orchestration should select those targets by name.
 - Give each example program its own folder directly under `examples/`, with a `main.sun` entry point and its supporting files. The plot viewer shares `examples/plot-export/data.sun`.
 - The core must not depend on GTK or sun_gobject. Keep application state explicitly owned and platform handles out of component code.

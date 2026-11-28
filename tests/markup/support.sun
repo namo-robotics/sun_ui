@@ -4,6 +4,14 @@ using std.mem;
 /** Runs markup fixtures against the tools and bundles from the same build. */
 module markup_support {
 
+  /** Resolves generated fixtures beneath this test suite's build directory. */
+  public function build_path(relative: static_ptr<u8>) String throws {
+    var path = String(markup_build.directory());
+    path.append("/");
+    path.append(relative);
+    return path;
+  }
+
   /** Creates the scratch directory even when running a single test independently. */
   public function prepare() void throws {
     if (not std.io.is_dir("tmp")) {

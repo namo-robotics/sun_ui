@@ -7,14 +7,14 @@ handwritten Sun. Applications do not parse XML at runtime.
 ## Build
 
 Use the current published Sun development compiler, which includes XML reader and
-attribute source spans. The build checks both APIs and explains how to update an
-older compiler. No separate stdlib bundle is needed.
+attribute source spans. No separate stdlib bundle is needed.
 
 ```sh
 ./scripts/bootstrap-sun.sh --update  # if the installed compiler is older
 ./build.sh                         # core, plotting, XML generation and tests
 ./build.sh --gtk                   # also handwritten and XML GTK acceptance
-./build/forms_xml
+build_root=$(sun describe --field build_root)
+"$build_root/forms_xml"
 ```
 
 For focused work, `sun src/tools/build.sun -- markup` builds the compiler, runs compiler
@@ -26,12 +26,13 @@ Both are included in the corresponding normal build and CI workflows.
 To generate another view:
 
 ```sh
-build/sun_viewc examples/forms/forms.view.xml build/generated/examples/forms/forms.view.sun
+build_root=$(sun describe --field build_root)
+"$build_root/sun_viewc" examples/forms/forms.view.xml "$build_root/generated/examples/forms/forms.view.sun"
 ```
 
 Include the generated `.sun` file in the application's `source_files` manifest.
 Keep application state and handlers in handwritten files. Outputs and `.map`
-files live under `build/`; do not edit them. Every invocation reads the complete
+files live under the compiler-selected `.sun/build/` directory; do not edit them. Every invocation reads the complete
 import graph, so changes to imports regenerate consumers. Failed generation
 returns nonzero and stops the build before compiling stale output.
 
@@ -246,7 +247,7 @@ or runtime global.
 in another directory, select the application registry explicitly:
 
 ```sh
-build/sun_viewc examples/app/views/main.view.xml build/generated/app/main.view.sun \
+"$build_root/sun_viewc" examples/app/views/main.view.xml "$build_root/generated/app/main.view.sun" \
   --registry examples/app/components.registry.xml
 ```
 

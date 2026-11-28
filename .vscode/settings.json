@@ -8,14 +8,12 @@
     "src/sun_accent_popup"
   ],
   "sun.sun_path": [
-    "/usr/lib/sun",
-    "build",
-    "../sun_gobject/build",
-    "tmp/sun_gobject/build"
+    "/usr/lib/sun"
   ],
   "files.watcherExclude": {
     "**/.toolchain/**": true,
-    "**/build/**": true
+    "**/build/**": true,
+    "**/.sun/**": true
   },
   "sun.lsp_path": "/usr/bin/sun-lsp",
   "sun.compiler_path": "/usr/bin/sun",
