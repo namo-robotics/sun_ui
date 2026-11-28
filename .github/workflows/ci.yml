@@ -16,8 +16,17 @@ permissions:
 jobs:
   core:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build development image
         run: docker build -t sun-ui-dev .
       - name: Locate build artifacts
@@ -48,8 +57,17 @@ jobs:
             ${{ steps.paths.outputs.build_root }}/scientific-plot.svg
   gtk:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build development image
         run: docker build -t sun-ui-dev .
       - name: Locate build artifacts
@@ -139,8 +157,17 @@ jobs:
           path: ${{ steps.paths.outputs.build_root }}/release-assets/*
   graphics:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v4
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build development image
         run: docker build -t sun-ui-dev .
       - name: Locate build artifacts
