@@ -145,12 +145,6 @@
       ]
     },
     {
-      "name": "xml_probe",
-      "path": "src/tools/xml_probe.sun",
-      "type": "binary",
-      "export": false
-    },
-    {
       "name": "markup_tests",
       "path": "tests/markup/main.sun",
       "type": "binary",

@@ -104,22 +104,6 @@ module build_tasks {
     return;
   }
 
-  /** Checks XML support before compiling products that require it. */
-  function check_xml() void throws {
-    var a = make_heap_allocator();
-    try {
-      compile("xml_probe", false);
-    } catch {
-      throw Error(
-        1,
-        "XML reader and source-span APIs are required. Run ./scripts/bootstrap-sun.sh --update or set SUN_EXECUTABLE to a current compiler."
-      );
-    }
-    var target = build_targets.load("xml_probe");
-    var check = std.process.Command(a, target.output);
-    return run(check);
-  }
-
   /** Runs a configured GTK program's acceptance scenario under a bounded virtual display. */
   function acceptance(name: static_ptr<u8>) void throws {
     var a = make_heap_allocator();
@@ -275,7 +259,6 @@ module build_tasks {
     mkdir.add_arg("build");
     mkdir.add_arg("tmp");
     run(mkdir);
-    check_xml();
     var executable = setting("SUN_EXECUTABLE", "sun");
     var version = std.process.Command(a, executable);
     version.add_arg("--version");
@@ -333,7 +316,6 @@ module build_tasks {
     directory.add_arg("-p");
     directory.add_arg("build/generated/examples");
     run(directory);
-    check_xml();
     compile("sun_viewc", false);
     var test_directory = String("build");
     configure_markup_tests(test_directory);

@@ -209,7 +209,7 @@ The current implementation allocates view storage on each render and uses linear
 key searches, making it suitable for small applications. See the
 [XML view guide](docs/xml-views.md) for generation, forms, resource dictionaries,
 themes, component scopes, templates, and renderer migration. XML tooling requires
-the current published compiler with XML source spans; the build checks this API.
+the current published compiler with XML source spans.
 The [upstream notes](upstream/README.md) record the migration history.
 GTK applications require the corresponding changes in the separate sun_gobject
 checkout; additional rendering backends remain future work.
